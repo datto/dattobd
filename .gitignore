@@ -1,0 +1,11 @@
+# Binaries
+app/dbdctl
+utils/img-merge
+
+# Dynamically generated files
+src/kernel-config.h
+src/modules.order
+src/dattobd.mod.c
+src/Module.symvers
+src/*.cmd
+src/.tmp_versions/

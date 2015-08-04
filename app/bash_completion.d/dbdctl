@@ -1,0 +1,14 @@
+_dbdctl()   
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="setup-snapshot reload-snapshot reload-incremental destroy transition-to-incremental transition-to-snapshot reconfigure help"
+
+    if [[ ${cur} == * ]] ; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -o default -F _dbdctl dbdctl
