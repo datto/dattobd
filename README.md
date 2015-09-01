@@ -76,3 +76,20 @@ Keep in mind it is important to specify a different COW file path for each use. 
 
 If you wish to keep multiple versions of the image, we recommend that you copy your images a snapshotting filesystem (such as BTRFS or ZFS). You can then snapshot the images after updating them (step 3 for the full backup or 7 the differential). This will allow you to keep a history of revisions to the image.
 
+## Driver Status
+
+The current status of the dattobd driver can be read from the file `/proc/datto-info`. This is a json formatted file with 2 fields: a version number "version" and an array of "devices". Each device has the following fields:
+
+* minor: The minor number of the snapshot (for identification purposes).
+* cow_file: The path to the cow file RELATIVE to the mountpoint of the block device. If the device is in an unverified state, the path is presented as it was given to the driver.
+* block_device: The block device being tracked by this device.
+* max_cache: The maximum amount of memory that may be used to cache metadata for this device (in bytes).
+* fallocate: The preallocated size of the cow file (in bytes). This will not be printed if the device is in the unverified state.
+* error: This field will only be present if the device has failed. It shows the linux standard error code indicating what went wrong. More specific info is printed to dmesg.
+* state: An integer representing the current working state of the device. There are 6 possible states; for more info on these refer to [STRUCTURE.md](doc/STRUCTURE.md).
+	* 0 = dormant incremental
+	* 1 = dormant snapshot
+	* 2 = active incremental
+	* 3 = active snapshot
+	* 4 = unverified incremental
+	* 5 = unverified snapshot

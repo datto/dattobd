@@ -22,14 +22,14 @@ and one of two modes:
 
 A snapshot device is in exactly one state and exactly one mode at any given time. For example, a snapshot device can be in incremental mode and active state, or in snapshot mode and dormant state. However, a snapshot device cannot be in active state and unverified state at the same time, nor can it be in snapshot mode and incremental mode at the same time.
 
-### Snapshot File States
+### Snapshot Device States
 Snapshot devices are transitioned between states depending on the state of the block device they are tracking. A snapshot device will spend most of its time in the "active" state. In this state, the snapshot device is fully initialized and all in-memory data structures are active. A snapshot will stay in active mode for most of the time the block device is mounted. 
 
 When the block device is unmounted, whether by user action or during normal shutdown of the computer, the block device will transition to "dormant" state. In a nutshell, "dormant" state is a state in which the block device can be safely unmounted by the operating system. When an unmount system call is received for a block device that the dattobd module is tracking, the kernel module first writes all its in-memory data structures for that snapshot device to the COW file for later use, closes all open file descriptors to that snapshot device, and shuts down all watcher threads for that block device. At this point, the volume can be unmounted by the operating system. The snapshot will stay in dormant mode until the disk is again re-mounted, at which point it will transition back to active state. This state is important because it means that our snapshot files and our tracking can persist across unmounts. 
 
 The last state is the "unverified" state. This state allows our snapshot devices and tracking to remain consistent and persistent across reboots. During the early boot process, the kernel module can be initialized with all of the drives' data structures before the tracked drives themselves are mounted by the OS. This allows the kernel module to immediately start tracking drives as they are mounted during system startup. This ensures that the module captures each and every single write to tracked block devices, which allows us to maintain 100% consistent and accurate change data for each volume. Once the drives themselves are mounted by the operating system, the kernel module transitions them to the active state.
 
-### Snapshot File Modes
+### Snapshot Device Modes
 Snapshot devices can be in either incremental mode or snapshot mode. 
 
 In snapshot mode, the on-disk COW file maintains an on-disk block cache. This cache takes up roughly 10% of the total size of the drive, and is used to implement the copy-on-write mechanism during the backup process. While the snapshot file is in snapshot mode, whenever a write is made, all blocks set to be updated are first copied into the on-disk cache before the real write goes through. This allows the kernel module to seamlessly present a consistent and accurate view of the filesystem at the point in time that the snapshot was created. 
