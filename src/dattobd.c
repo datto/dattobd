@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.8"
+#define VERSION_STRING "0.8.9"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -290,7 +290,7 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 static bool MAY_HOOK_SYSCALLS = 1;
 static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
 static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
-static unsigned int MAX_SNAP_DEVICES = 8;
+static unsigned int MAX_SNAP_DEVICES = 24;
 
 module_param(MAY_HOOK_SYSCALLS, bool, 0);
 MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
