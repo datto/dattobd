@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.9"
+#define VERSION_STRING "0.8.10"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -374,7 +374,7 @@ struct snap_device{
 	char *sd_bdev_path; //base device file path
 	struct cow_manager *sd_cow; //cow manager
 	char *sd_cow_path; //cow file path
-	unsigned long sd_cow_inode; //cow file inode
+	struct inode *sd_cow_inode; //cow file inode
 	make_request_fn *sd_orig_mrf; //block device's original make request function
 	struct task_struct *sd_cow_thread; //thread for handling file read/writes
 	struct bio_queue sd_cow_bios; //list of outstanding cow bios
@@ -1785,20 +1785,20 @@ static void tp_put(struct tracing_params *tp){
 
 /****************************BIO HELPER FUNCTIONS*****************************/
 
-static inline unsigned long page_get_inode(struct page *pg){
-	if(!pg->mapping) return 0;
-	if((unsigned long)pg->mapping & PAGE_MAPPING_ANON) return 0;
-	if(!pg->mapping->host) return 0;
-	return pg->mapping->host->i_ino;
+static inline struct inode *page_get_inode(struct page *pg){
+	if(!pg->mapping) return NULL;
+	if((unsigned long)pg->mapping & PAGE_MAPPING_ANON) return NULL;
+	if(!pg->mapping->host) return NULL;
+	return pg->mapping->host;
 }
 
-static int bio_needs_cow(struct bio *bio, unsigned long inode_nr){
+static int bio_needs_cow(struct bio *bio, struct inode *inode){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 	
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
-		if(page_get_inode(bio_iter_page(bio, iter)) != inode_nr) return 1;
+		if(page_get_inode(bio_iter_page(bio, iter)) != inode) return 1;
 	}
 	
 	return 0;
@@ -2706,7 +2706,7 @@ static void __tracer_copy_base_dev(struct snap_device *src, struct snap_device *
 static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 	int ret = 0;
 
-	dev->sd_cow_inode = 0;
+	dev->sd_cow_inode = NULL;
 	dev->sd_falloc_size = 0;
 	dev->sd_cache_size = 0;
 	
@@ -2780,7 +2780,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 	
 	//find the cow file's inode number
 	LOG_DEBUG("finding cow file inode");
-	dev->sd_cow_inode = dev->sd_cow->filp->f_path.dentry->d_inode->i_ino;
+	dev->sd_cow_inode = dev->sd_cow->filp->f_path.dentry->d_inode;
 	
 	return 0;
 	
