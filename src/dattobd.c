@@ -2087,6 +2087,16 @@ static int snap_cow_thread(void *data){
 	while(!kthread_should_stop() || !bio_queue_empty(bq)) {
 		//wait for a bio to process or a kthread_stop call
 		wait_event_interruptible(bq->event, kthread_should_stop() || !bio_queue_empty(bq));
+
+		if(!is_failed && tracer_read_fail_state(dev)){
+			LOG_DEBUG("error detected in cow thread, cleaning up cow");
+			is_failed = 1;
+			if(dev->sd_cow){
+				cow_free(dev->sd_cow);
+				dev->sd_cow = NULL;
+			}
+		}
+
 		if(bio_queue_empty(bq)) continue;
 		
 		//safely dequeue a bio
@@ -2095,12 +2105,7 @@ static int snap_cow_thread(void *data){
 		//pass bio to handler
 		if(!bio_data_dir(bio)){
 			//if we're in the fail state just send back an IO error and free the bio
-			if(is_failed || tracer_read_fail_state(dev)){
-				if(!is_failed){
-					is_failed = 1;
-					cow_free(dev->sd_cow);
-					dev->sd_cow = NULL;
-				}
+			if(is_failed){
 				bio_endio(bio, -EIO); //end the bio with an IO error
 				continue;
 			}
@@ -2113,12 +2118,7 @@ static int snap_cow_thread(void *data){
 			
 			bio_endio(bio, (ret)? -EIO : 0);
 		}else{
-			if(is_failed || tracer_read_fail_state(dev)){
-				if(!is_failed){
-					is_failed = 1;
-					cow_free(dev->sd_cow);
-					dev->sd_cow = NULL;
-				}
+			if(is_failed){
 				bio_free_clone(bio);
 				continue;
 			}
@@ -2148,18 +2148,23 @@ static int inc_sset_thread(void *data){
 	while(!kthread_should_stop() || !sset_queue_empty(sq)) {
 		//wait for a sset to process or a kthread_stop call
 		wait_event_interruptible(sq->event, kthread_should_stop() || !sset_queue_empty(sq));
+
+		if(!is_failed && tracer_read_fail_state(dev)){
+			LOG_DEBUG("error detected in sset thread, cleaning up cow");
+			is_failed = 1;
+			if(dev->sd_cow){
+				cow_free(dev->sd_cow);
+				dev->sd_cow = NULL;
+			}
+		}
+
 		if(sset_queue_empty(sq)) continue;
 		
 		//safely dequeue a sset
 		sset = sset_queue_dequeue(sq);
 		
 		//if there has been a problem don't process any more, just free the ones we have
-		if(is_failed || tracer_read_fail_state(dev)){
-			if(!is_failed){
-				is_failed = 1;
-				cow_free(dev->sd_cow);
-				dev->sd_cow = NULL;
-			}
+		if(is_failed){
 			kfree(sset);
 			continue;
 		}
@@ -3108,7 +3113,6 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	
 	//copy / set fields we need
 	__tracer_copy_base_dev(old_dev, dev);
-	__tracer_copy_cow(old_dev, dev);
 	__tracer_copy_cow_path(old_dev, dev);
 	
 	//setup the cow thread
@@ -3119,10 +3123,26 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
 	if(ret)	goto tracer_transition_inc_error;
 	
-	//stop the old cow thread and start the new one
+	//stop the old cow thread
 	__tracer_destroy_cow_thread(old_dev);
-	wake_up_process(dev->sd_cow_thread);
 	
+	//sanity check to ensure no errors have occurred while cleaning up cow thread
+	ret = tracer_read_fail_state(old_dev);
+	if(ret){
+		LOG_ERROR(ret, "errors occurred while cleaning up cow thread, putting incremental into error state");
+		tracer_set_fail_state(dev, ret);
+		__tracer_destroy_snap(old_dev);
+		kfree(old_dev);
+
+		return ret;
+	}
+
+	//copy cow manager to new device, must be done after destroying cow thread to prevent double ownership
+	__tracer_copy_cow(old_dev, dev);
+
+	//wake up new cow thread
+	wake_up_process(dev->sd_cow_thread);
+
 	//truncate the cow file
 	ret = cow_truncate_to_index(dev->sd_cow);
 	if(ret){
