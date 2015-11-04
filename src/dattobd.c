@@ -837,7 +837,6 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 	int ret = 0;
 	char *page_buf;
-	uint64_t i, write_count;
 	
 	//try regular fallocate
 	ret = real_fallocate(f, offset, length);
@@ -846,9 +845,9 @@ static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 		return ret;
 	}else if(!ret) return 0;
 	
-	//fallocate isn't supported, fall back on writing zeros
-	LOG_WARN("fallocate is not supported for this file system, falling back on writing zeros");
-	
+	//fallocate isn't supported, fall back on writing a sparse file
+	LOG_WARN("fallocate is not supported for this file system, falling back to writing a sparse file");
+      	           
 	//allocate page of zeros
 	page_buf = (char *)get_zeroed_page(GFP_KERNEL);
 	if(!page_buf){
@@ -856,24 +855,11 @@ static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 		LOG_ERROR(ret, "error allocating zeroed page");
 		goto file_allocate_error;
 	}
-	
-	//may write up to a page too much, ok for our use case
-	write_count = NUM_SEGMENTS(length, PAGE_SHIFT);
-	
-	//if not page aligned, write zeros to that point
-	if(offset % PAGE_SIZE != 0){
-		ret = file_write(f, page_buf, offset, PAGE_SIZE - (offset % PAGE_SIZE));
-		if(ret)	goto file_allocate_error;
-		
-		offset += PAGE_SIZE - (offset % PAGE_SIZE);
-	}
-	
-	//write a page of zeros at a time
-	for(i = 0; i < write_count; i++){
-		ret = file_write(f, page_buf, offset + (PAGE_SIZE * i), PAGE_SIZE);
-		if(ret) goto file_allocate_error;
-	}
-	
+	   
+   	// create sparse file
+   	ret = file_write(f, page_buf, offset+length-PAGE_SIZE, PAGE_SIZE);
+        if(ret)	goto file_allocate_error;
+   	
 	free_page((unsigned long)page_buf);
 	return 0;
 	
