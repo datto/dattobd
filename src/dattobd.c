@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.11"
+#define VERSION_STRING "0.8.12"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -915,9 +915,8 @@ static int __file_unlink(struct file *filp, int close){
 		goto file_unlink_error;
 	}
 
-	mutex_unlock(&dir_inode->i_mutex);
-
 file_unlink_error:
+	mutex_unlock(&dir_inode->i_mutex);
 	mnt_drop_write(mnt);
 	
 	if(close && !ret) file_close(filp);
