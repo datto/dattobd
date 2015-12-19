@@ -1914,7 +1914,7 @@ split:
 	return split;
 }
 
-void bio_queue_split(struct request_queue *q, struct bio **bio,
+void blk_queue_split(struct request_queue *q, struct bio **bio,
 		     struct bio_set *bs)
 {
 	struct bio *split;
