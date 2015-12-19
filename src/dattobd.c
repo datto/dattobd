@@ -1785,7 +1785,7 @@ static void tp_put(struct tracing_params *tp){
 
 /****************************BIO HELPER FUNCTIONS*****************************/
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))
+#ifdef HAVE_BLK_QUEUE_SPLIT
 /* Patch port: block: make generic_make_request handle arbitrarily sized bios
 Ref: https://lwn.net/Articles/650246/ */
 static struct bio *snap_bio_discard_split(struct request_queue *q,
@@ -2561,7 +2561,7 @@ static int snap_mrf(struct request_queue *q, struct bio *bio){
 		return 0;
 	}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))
+#ifdef HAVE_BLK_QUEUE_SPLIT
 	struct bio_set *bio_split = bioset_create(BIO_POOL_SIZE, 0);
 	if (!bio_split)
 		return 0;
