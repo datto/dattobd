@@ -1785,10 +1785,10 @@ static void tp_put(struct tracing_params *tp){
 
 /****************************BIO HELPER FUNCTIONS*****************************/
 
-#ifdef HAVE_BLK_QUEUE_SPLIT
+#ifndef HAVE_BLK_QUEUE_SPLIT
 /* Patch port: block: make generic_make_request handle arbitrarily sized bios
 Ref: https://lwn.net/Articles/650246/ */
-static struct bio *snap_bio_discard_split(struct request_queue *q,
+static struct bio *blk_bio_discard_split(struct request_queue *q,
 					 struct bio *bio,
 					 struct bio_set *bs)
 {
@@ -1828,7 +1828,7 @@ static struct bio *snap_bio_discard_split(struct request_queue *q,
 	return bio_split(bio, split_sectors, GFP_NOIO, bs);
 }
 
-static struct bio *snap_bio_write_same_split(struct request_queue *q,
+static struct bio *blk_bio_write_same_split(struct request_queue *q,
 					    struct bio *bio,
 					    struct bio_set *bs)
 {
@@ -1841,7 +1841,7 @@ static struct bio *snap_bio_write_same_split(struct request_queue *q,
 	return bio_split(bio, q->limits.max_write_same_sectors, GFP_NOIO, bs);
 }
 
-static struct bio *snap_bio_segment_split(struct request_queue *q,
+static struct bio *blk_bio_segment_split(struct request_queue *q,
 					 struct bio *bio,
 					 struct bio_set *bs)
 {
@@ -1914,17 +1914,17 @@ split:
 	return split;
 }
 
-void snap_queue_split(struct request_queue *q, struct bio **bio,
+void bio_queue_split(struct request_queue *q, struct bio **bio,
 		     struct bio_set *bs)
 {
 	struct bio *split;
 
 	if ((*bio)->bi_rw & REQ_DISCARD)
-		split = snap_bio_discard_split(q, *bio, bs);
+		split = blk_bio_discard_split(q, *bio, bs);
 	else if ((*bio)->bi_rw & REQ_WRITE_SAME)
-		split = snap_bio_write_same_split(q, *bio, bs);
+		split = blk_bio_write_same_split(q, *bio, bs);
 	else
-		split = snap_bio_segment_split(q, *bio, bs);
+		split = blk_bio_segment_split(q, *bio, bs);
 
 	if (split) {
 		bio_chain(split, *bio);
@@ -2561,12 +2561,12 @@ static int snap_mrf(struct request_queue *q, struct bio *bio){
 		return 0;
 	}
 
-#ifdef HAVE_BLK_QUEUE_SPLIT
+#ifndef HAVE_BLK_QUEUE_SPLIT
 	struct bio_set *bio_split = bioset_create(BIO_POOL_SIZE, 0);
 	if (!bio_split)
 		return 0;
 
-	snap_queue_split(q, &bio, bio_split);
+	blk_queue_split(q, &bio, bio_split);
 #endif
 
 	//queue bio for processing by kernel thread
