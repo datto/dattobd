@@ -2548,6 +2548,9 @@ tracing_mrf_out:
 
 static int snap_mrf(struct request_queue *q, struct bio *bio){
 	struct snap_device *dev = q->queuedata;
+#ifndef HAVE_BLK_QUEUE_SPLIT
+	struct bio_set *bio_split = NULL;
+#endif
 
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
@@ -2562,7 +2565,7 @@ static int snap_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 #ifndef HAVE_BLK_QUEUE_SPLIT
-	struct bio_set *bio_split = bioset_create(BIO_POOL_SIZE, 0);
+	bio_split = bioset_create(BIO_POOL_SIZE, 0);
 	if (!bio_split)
 		return 0;
 
@@ -2607,6 +2610,9 @@ tracing_mrf_out:
 
 static void snap_mrf(struct request_queue *q, struct bio *bio){
 	struct snap_device *dev = q->queuedata;
+#ifndef HAVE_BLK_QUEUE_SPLIT
+	struct bio_set *bio_split = NULL;
+#endif
 	
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
@@ -2619,6 +2625,14 @@ static void snap_mrf(struct request_queue *q, struct bio *bio){
 		bio_endio(bio, -EBUSY);
 		return;
 	}
+
+#ifndef HAVE_BLK_QUEUE_SPLIT
+	bio_split = bioset_create(BIO_POOL_SIZE, 0);
+	if (!bio_split)
+		return;
+
+	blk_queue_split(q, &bio, bio_split);
+#endif
 
 	//queue bio for processing by kernel thread
 	bio_queue_add(&dev->sd_cow_bios, bio);
