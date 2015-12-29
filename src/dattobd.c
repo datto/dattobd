@@ -718,7 +718,6 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 	set_fs(old_fs);
 	
 	if(ret != len){
-		ret = -EIO;
 		LOG_ERROR((int)ret, "error performing file '%s': - %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
 		return ret;
 	}
