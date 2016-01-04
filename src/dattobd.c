@@ -717,9 +717,12 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 	//revert context
 	set_fs(old_fs);
 	
-	if(ret != len){
+	if(ret < 0){
+		LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
+		return ret;
+	}else if(ret != len){
+		LOG_ERROR(-EIO, "invalid file '%s' size: %llu, %lu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len, (unsigned long)ret);
 		ret = -EIO;
-		LOG_ERROR((int)ret, "error performing file '%s': - %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
 		return ret;
 	}
 	
