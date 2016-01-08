@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.11"
+#define VERSION_STRING "0.8.12"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -717,9 +717,12 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 	//revert context
 	set_fs(old_fs);
 	
-	if(ret != len){
+	if(ret < 0){
+		LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
+		return ret;
+	}else if(ret != len){
+		LOG_ERROR(-EIO, "invalid file '%s' size: %llu, %lu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len, (unsigned long)ret);
 		ret = -EIO;
-		LOG_ERROR((int)ret, "error performing file '%s': - %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
 		return ret;
 	}
 	
@@ -915,9 +918,8 @@ static int __file_unlink(struct file *filp, int close){
 		goto file_unlink_error;
 	}
 
-	mutex_unlock(&dir_inode->i_mutex);
-
 file_unlink_error:
+	mutex_unlock(&dir_inode->i_mutex);
 	mnt_drop_write(mnt);
 	
 	if(close && !ret) file_close(filp);
