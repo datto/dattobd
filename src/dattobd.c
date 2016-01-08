@@ -1848,8 +1848,8 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 					 struct bio_set *bs)
 {
 	struct bio *split;
-	struct bio_vec bv, bvprv;
-	struct bvec_iter iter;
+	bio_iter_bvec_t bv, bvprv;
+	bio_iter_t iter;
 	unsigned seg_size = 0, nsegs = 0;
 	int prev = 0;
 
