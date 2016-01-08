@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.12"
+#define VERSION_STRING "0.8.13"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -1259,7 +1259,7 @@ static int __cow_write_header(struct cow_manager *cm, int is_clean){
 #define __cow_write_header_dirty(cm) __cow_write_header(cm, 0)
 #define __cow_close_header(cm) __cow_write_header(cm, 1)
 
-static int __cow_open_header(struct cow_manager *cm, int index_only){
+static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc){
 	int ret;
 	char header_buf[COW_META_SIZE];
 	uint32_t magic, flags;
@@ -1292,7 +1292,10 @@ static int __cow_open_header(struct cow_manager *cm, int index_only){
 	}
 	
 	LOG_DEBUG("cow header opened with file pos = %llu", ((unsigned long long)fpos));
-	cm->flags = flags & ~(1 << COW_VMALLOC_UPPER);
+	
+	if(reset_vmalloc) cm->flags = flags & ~(1 << COW_VMALLOC_UPPER);
+	else cm->flags = flags;
+	
 	cm->curr_pos = fpos;
 	cm->file_max = falloc_size;
 	
@@ -1377,7 +1380,7 @@ static int cow_reopen(struct cow_manager *cm, char *pathname){
 	if(ret) goto cow_reopen_error;
 	
 	LOG_DEBUG("opening cow header");
-	ret = __cow_open_header(cm, (cm->flags & (1 << COW_INDEX_ONLY)));
+	ret = __cow_open_header(cm, (cm->flags & (1 << COW_INDEX_ONLY)), 0);
 	if(ret)	goto cow_reopen_error;
 	
 	return 0;
@@ -1419,7 +1422,7 @@ static int cow_reload(char *path, uint64_t elements, unsigned long sect_size, un
 	cm->allowed_sects = __cow_calculate_allowed_sects(cache_size, cm->total_sects);
 	cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size*8));
 	
-	ret = __cow_open_header(cm, index_only);
+	ret = __cow_open_header(cm, index_only, 1);
 	if(ret)	goto cow_reload_error;
 	
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
