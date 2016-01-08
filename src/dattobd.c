@@ -1848,10 +1848,11 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 					 struct bio_set *bs)
 {
 	struct bio *split;
-	bio_iter_bvec_t bv, bvprv;
+	bio_iter_bvec_t bv, bvprv, *bvprvp = NULL;;
 	bio_iter_t iter;
 	unsigned seg_size = 0, nsegs = 0;
-	int prev = 0;
+
+	memset(bvprv, 0, sizeof(bio_iter_bvec_t));
 
 	struct bvec_merge_data bvm = {
 		.bi_bdev	= bio->bi_bdev,
@@ -1876,24 +1877,24 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 		 */
 #ifndef HAVE_BVEC_GAP_TO_PREV_3
 		if (q->queue_flags & (1 << QUEUE_FLAG_SG_GAPS) &&
-		    prev && bvec_gap_to_prev(&bvprv, bv.bv_offset))
+		    bvprvp && bvec_gap_to_prev(bvprvp, bv.bv_offset))
 #else
 		if (q->queue_flags & (1 << QUEUE_FLAG_SG_GAPS) &&
-		    prev && bvec_gap_to_prev(q, &bvprv, bv.bv_offset))
+		    bvprvp && bvec_gap_to_prev(q, bvprvp, bv.bv_offset))
 #endif
 			goto split;
 
-		if (prev && blk_queue_cluster(q)) {
+		if (bvprvp && blk_queue_cluster(q)) {
 			if (seg_size + bv.bv_len > queue_max_segment_size(q))
 				goto new_segment;
-			if (!BIOVEC_PHYS_MERGEABLE(&bvprv, &bv))
+			if (!BIOVEC_PHYS_MERGEABLE(bvprvp, &bv))
 				goto new_segment;
-			if (!BIOVEC_SEG_BOUNDARY(q, &bvprv, &bv))
+			if (!BIOVEC_SEG_BOUNDARY(q, bvprvp, &bv))
 				goto new_segment;
 
 			seg_size += bv.bv_len;
 			bvprv = bv;
-			prev = 1;
+			bvprvp = &bv;
 			continue;
 		}
 new_segment:
@@ -1902,7 +1903,7 @@ new_segment:
 
 		nsegs++;
 		bvprv = bv;
-		prev = 1;
+		bvprvp = &bv;
 		seg_size = bv.bv_len;
 	}
 
