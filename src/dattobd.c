@@ -1848,11 +1848,8 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 					 struct bio_set *bs)
 {
 	struct bio *split;
-	bio_iter_bvec_t bv, bvprv, *bvprvp = NULL;;
 	bio_iter_t iter;
 	unsigned seg_size = 0, nsegs = 0;
-
-	memset(bvprv, 0, sizeof(bio_iter_bvec_t));
 
 	struct bvec_merge_data bvm = {
 		.bi_bdev	= bio->bi_bdev,
@@ -1860,6 +1857,12 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 		.bi_size	= 0,
 		.bi_rw		= bio->bi_rw,
 	};
+
+	bio_iter_bvec_t bv, bvprv, *bvprvp = NULL;;
+
+#ifdef HAVE_BVEC_ITER
+	memset(&bvprv, 0, sizeof(bio_iter_bvec_t));
+#endif
 
 	bio_for_each_segment(bv, bio, iter) {
 		if (q->merge_bvec_fn &&
