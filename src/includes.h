@@ -20,4 +20,5 @@
 #include <linux/namei.h>
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
+#include <linux/version.h>
 #include <asm/div64.h>

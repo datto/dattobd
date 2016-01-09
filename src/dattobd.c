@@ -1790,6 +1790,165 @@ static void tp_put(struct tracing_params *tp){
 
 /****************************BIO HELPER FUNCTIONS*****************************/
 
+#ifndef HAVE_BLK_QUEUE_SPLIT
+/* Patch port: block: make generic_make_request handle arbitrarily sized bios
+Ref: https://lwn.net/Articles/650246/ */
+static struct bio *blk_bio_discard_split(struct request_queue *q,
+					 struct bio *bio,
+					 struct bio_set *bs)
+{
+	unsigned int max_discard_sectors, granularity;
+	int alignment;
+	sector_t tmp;
+	unsigned split_sectors;
+
+	/* Zero-sector (unknown) and one-sector granularities are the same.  */
+	granularity = max(q->limits.discard_granularity >> 9, 1U);
+
+	max_discard_sectors = min(q->limits.max_discard_sectors, UINT_MAX >> 9);
+	max_discard_sectors -= max_discard_sectors % granularity;
+
+	if (unlikely(!max_discard_sectors)) {
+		/* XXX: warn */
+		return NULL;
+	}
+
+	if (bio_sectors(bio) <= max_discard_sectors)
+		return NULL;
+
+	split_sectors = max_discard_sectors;
+
+	/*
+	 * If the next starting sector would be misaligned, stop the discard at
+	 * the previous aligned sector.
+	 */
+	alignment = (q->limits.discard_alignment >> 9) % granularity;
+
+	tmp = bio->bi_iter.bi_sector + split_sectors - alignment;
+	tmp = sector_div(tmp, granularity);
+
+	if (split_sectors > tmp)
+		split_sectors -= tmp;
+
+	return bio_split(bio, split_sectors, GFP_NOIO, bs);
+}
+
+static struct bio *blk_bio_write_same_split(struct request_queue *q,
+					    struct bio *bio,
+					    struct bio_set *bs)
+{
+	if (!q->limits.max_write_same_sectors)
+		return NULL;
+
+	if (bio_sectors(bio) <= q->limits.max_write_same_sectors)
+		return NULL;
+
+	return bio_split(bio, q->limits.max_write_same_sectors, GFP_NOIO, bs);
+}
+
+static struct bio *blk_bio_segment_split(struct request_queue *q,
+					 struct bio *bio,
+					 struct bio_set *bs)
+{
+	struct bio *split;
+	bio_iter_t iter;
+	unsigned seg_size = 0, nsegs = 0;
+
+	struct bvec_merge_data bvm = {
+		.bi_bdev	= bio->bi_bdev,
+		.bi_sector	= bio->bi_iter.bi_sector,
+		.bi_size	= 0,
+		.bi_rw		= bio->bi_rw,
+	};
+
+	bio_iter_bvec_t bv, bvprv, *bvprvp = NULL;;
+
+#ifdef HAVE_BVEC_ITER
+	memset(&bvprv, 0, sizeof(bio_iter_bvec_t));
+#endif
+
+	bio_for_each_segment(bv, bio, iter) {
+		if (q->merge_bvec_fn &&
+		    q->merge_bvec_fn(q, &bvm, &bv) < (int) bv.bv_len)
+			goto split;
+
+		bvm.bi_size += bv.bv_len;
+
+		if (bvm.bi_size >> 9 > queue_max_sectors(q))
+			goto split;
+
+		/*
+		 * If the queue doesn't support SG gaps and adding this
+		 * offset would create a gap, disallow it.
+		 */
+#ifndef HAVE_BVEC_GAP_TO_PREV_3
+		if (q->queue_flags & (1 << QUEUE_FLAG_SG_GAPS) &&
+		    bvprvp && bvec_gap_to_prev(bvprvp, bv.bv_offset))
+#else
+		if (q->queue_flags & (1 << QUEUE_FLAG_SG_GAPS) &&
+		    bvprvp && bvec_gap_to_prev(q, bvprvp, bv.bv_offset))
+#endif
+			goto split;
+
+		if (bvprvp && blk_queue_cluster(q)) {
+			if (seg_size + bv.bv_len > queue_max_segment_size(q))
+				goto new_segment;
+			if (!BIOVEC_PHYS_MERGEABLE(bvprvp, &bv))
+				goto new_segment;
+			if (!BIOVEC_SEG_BOUNDARY(q, bvprvp, &bv))
+				goto new_segment;
+
+			seg_size += bv.bv_len;
+			bvprv = bv;
+			bvprvp = &bv;
+			continue;
+		}
+new_segment:
+		if (nsegs == queue_max_segments(q))
+			goto split;
+
+		nsegs++;
+		bvprv = bv;
+		bvprvp = &bv;
+		seg_size = bv.bv_len;
+	}
+
+	return NULL;
+split:
+	split = bio_clone_bioset(bio, GFP_NOIO, bs);
+
+	split->bi_iter.bi_size -= iter.bi_size;
+	bio->bi_iter = iter;
+
+	if (bio_integrity(bio)) {
+		bio_integrity_advance(bio, split->bi_iter.bi_size);
+		bio_integrity_trim(split, 0, bio_sectors(split));
+	}
+
+	return split;
+}
+
+void blk_queue_split(struct request_queue *q, struct bio **bio,
+		     struct bio_set *bs)
+{
+	struct bio *split;
+
+	if ((*bio)->bi_rw & REQ_DISCARD)
+		split = blk_bio_discard_split(q, *bio, bs);
+	else if ((*bio)->bi_rw & REQ_WRITE_SAME)
+		split = blk_bio_write_same_split(q, *bio, bs);
+	else
+		split = blk_bio_segment_split(q, *bio, bs);
+
+	if (split) {
+		bio_chain(split, *bio);
+		generic_make_request(*bio);
+		*bio = split;
+	} else if (bs)
+		bioset_free(bs);
+}
+#endif
+
 static inline struct inode *page_get_inode(struct page *pg){
 	if(!pg->mapping) return NULL;
 	if((unsigned long)pg->mapping & PAGE_MAPPING_ANON) return NULL;
@@ -2414,7 +2573,11 @@ static int snap_mrf(struct request_queue *q, struct bio *bio){
 		bio_endio(bio, -EBUSY);
 		return 0;
 	}
-	
+
+#ifndef HAVE_BLK_QUEUE_SPLIT
+	blk_queue_split(q, &bio, NULL);
+#endif
+
 	//queue bio for processing by kernel thread
 	bio_queue_add(&dev->sd_cow_bios, bio);
 	
@@ -2465,6 +2628,10 @@ static void snap_mrf(struct request_queue *q, struct bio *bio){
 		bio_endio(bio, -EBUSY);
 		return;
 	}
+
+#ifndef HAVE_BLK_QUEUE_SPLIT
+	blk_queue_split(q, &bio, NULL);
+#endif
 
 	//queue bio for processing by kernel thread
 	bio_queue_add(&dev->sd_cow_bios, bio);
