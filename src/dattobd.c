@@ -273,6 +273,9 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
+//maximum number of clones per traced bio
+#define MAX_CLONES_PER_BIO 5
+
 //macros for defining the state of a tracing struct (bit offsets)
 #define SNAPSHOT 0
 #define ACTIVE 1
@@ -329,10 +332,16 @@ struct sset_queue{
 	wait_queue_head_t event;
 };
 
+struct bio_sector_map{
+	struct bio *bio;
+	sector_t sect;
+};
+
 struct tracing_params{
 	struct bio *orig_bio;
 	struct snap_device *dev;
 	atomic_t refs;
+	struct bio_sector_map bio_sects[MAX_CLONES_PER_BIO];
 };
 
 struct cow_section{
@@ -1753,7 +1762,7 @@ static struct sector_set *sset_queue_dequeue(struct sset_queue *sq){
 static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_params **tp_out){
 	struct tracing_params *tp; 
 	
-	tp = kmalloc(1 * sizeof(struct tracing_params), GFP_NOIO);
+	tp = kzalloc(1 * sizeof(struct tracing_params), GFP_NOIO);
 	if(!tp){
 		LOG_ERROR(-ENOMEM, "error allocating tracing parameters struct");
 		*tp_out = tp;
@@ -1776,8 +1785,6 @@ static void tp_put(struct tracing_params *tp){
 	//drop a reference to the tp
 	if(atomic_dec_and_test(&tp->refs)){
 		//if there are no references left, its safe to release the orig_bio
-		PRINT_BIO("queueing bio", tp->orig_bio);
-		
 		bio_queue_add(&tp->dev->sd_orig_bios, tp->orig_bio);
 		kfree(tp);
 	}
@@ -1953,8 +1960,6 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 	char *data;
 	sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
 	
-	PRINT_BIO("writing bio", bio);
-	
 	//iterate through the bio and handle each segment (which is guaranteed to be block aligned)
 	bio_for_each_segment(bvec, bio, iter){		
 		//find the start and end block
@@ -1977,8 +1982,6 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 		//unmap the page
 		kunmap(bio_iter_page(bio, iter));
 	}
-	
-	PRINT_BIO("wrote bio", bio);
 	
 	return 0;
 	
@@ -2173,7 +2176,13 @@ static void on_bio_read_complete(struct bio *bio, int err){
 	bio->bi_rw |= WRITE;
 	
 	//reset the bio iterator to its original state
-	bio_sector(bio) = bio_sector(bio) - (bio->bi_vcnt * SECTORS_PER_PAGE) - dev->sd_sect_off;
+	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
+		if(bio == tp->bio_sects[i].bio){
+			bio_sector(bio) = tp->bio_sects[i].sect - dev->sd_sect_off;
+			break;
+		}
+	}
+
 	bio_size(bio) = bio->bi_vcnt * PAGE_SIZE;
 	bio_idx(bio) = 0;
 	
@@ -2203,7 +2212,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	struct bio *new_bio = NULL;
 	struct tracing_params *tp = NULL;
 	sector_t start_sect, end_sect;
-	unsigned int bytes, pages;
+	unsigned int bytes, pages, i = 0;
 	
 	//if we don't need to cow this bio just call the real mrf normally
 	if(!bio_needs_cow(bio, dev->sd_cow_inode)){
@@ -2230,13 +2239,21 @@ retry:
 	ret = bio_make_read_clone(bio->bi_bdev, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto snap_trace_bio_error;
 	
+	//make sure we don't excede the max number of bio clones that tp can hold
+	if(i >= MAX_CLONES_PER_BIO){
+		ret = -EFAULT;
+		goto snap_trace_bio_error;
+	}
+
 	//set pointers for read clone
 	tp_get(tp);
+	tp->bio_sects[i].bio = new_bio;
+	tp->bio_sects[i].sect = bio_sector(new_bio);
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
+	i++;
 		
 	//submit the bios
-	PRINT_BIO("submitting bio", new_bio);
 	submit_bio(0, new_bio);
 	
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
