@@ -331,11 +331,7 @@ struct sset_queue{
 
 struct tracing_params{
 	struct bio *orig_bio;
-	struct bio *clone1;
 	struct snap_device *dev;
-	sector_t start;
-	sector_t end;
-	sector_t end2;
 	atomic_t refs;
 };
 
@@ -1754,7 +1750,7 @@ static struct sector_set *sset_queue_dequeue(struct sset_queue *sq){
 
 /***************************TRACING PARAMS FUNCTIONS**************************/
 
-static int tp_alloc(struct snap_device *dev, struct bio *bio, sector_t start, sector_t end, sector_t end2, struct tracing_params **tp_out){
+static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_params **tp_out){
 	struct tracing_params *tp; 
 	
 	tp = kmalloc(1 * sizeof(struct tracing_params), GFP_NOIO);
@@ -1765,10 +1761,7 @@ static int tp_alloc(struct snap_device *dev, struct bio *bio, sector_t start, se
 	}
 	
 	tp->dev = dev;
-	tp->orig_bio = bio;
-	tp->start = start;
-	tp->end = end;
-	tp->end2 = end2;
+	tp->orig_bio = bio;;
 	atomic_set(&tp->refs, 1);
 	
 	*tp_out = tp;
@@ -1783,6 +1776,8 @@ static void tp_put(struct tracing_params *tp){
 	//drop a reference to the tp
 	if(atomic_dec_and_test(&tp->refs)){
 		//if there are no references left, its safe to release the orig_bio
+		PRINT_BIO("queueing bio", tp->orig_bio);
+		
 		bio_queue_add(&tp->dev->sd_orig_bios, tp->orig_bio);
 		kfree(tp);
 	}
@@ -1818,11 +1813,11 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int __bio_make_read_clone(struct block_device *bdev, sector_t sect, unsigned int pages, struct bio **bio_out){
+static int bio_make_read_clone(struct block_device *bdev, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
-	unsigned int i, bytes_added;
+	unsigned int i, bytes, total = 0;
 	
 	//allocate bio clone
 	new_bio = bio_alloc(GFP_NOIO, pages);
@@ -1849,65 +1844,25 @@ static int __bio_make_read_clone(struct block_device *bdev, sector_t sect, unsig
 		}
 		
 		//add the page to the bio
-		bytes_added = bio_add_page(new_bio, pg, PAGE_SIZE, 0);
-		if(bytes_added != PAGE_SIZE){
+		bytes = bio_add_page(new_bio, pg, PAGE_SIZE, 0);
+		if(bytes != PAGE_SIZE){
 			__free_page(pg);
-			ret = -EAGAIN;
-			goto bio_make_read_clone_error;
+			break;
 		}
-	}
 		
+		total += bytes;
+	}
+	
+	*bytes_added = total;
 	*bio_out = new_bio;
 	return 0;
 	
 bio_make_read_clone_error:
-	if(ret != -EAGAIN) LOG_ERROR(ret, "error creating read clone of write bio");
+	if(ret) LOG_ERROR(ret, "error creating read clone of write bio");
 	if(new_bio) bio_free_clone(new_bio);
 	
+	*bytes_added = 0;
 	*bio_out = NULL;
-	return ret;
-}
-
-static int bio_make_read_clones(struct bio *bio, sector_t sect_off, struct bio **bio_out, struct bio **bio_out2){
-	int ret;
-	struct bio *new_bio = NULL, *new_bio2 = NULL;
-	sector_t new_sect, end_sect, end_sect2;
-	
-	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
-	new_sect = ROUND_DOWN(bio_sector(bio) - sect_off, SECTORS_PER_BLOCK) + sect_off;
-	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE) - sect_off, SECTORS_PER_BLOCK) + sect_off;
-
-	//attempt to make the clone
-	ret = __bio_make_read_clone(bio->bi_bdev, new_sect, (end_sect - new_sect) / SECTORS_PER_PAGE, &new_bio);
-	
-	//normal clone failed, but we may be able to still make a clone by splitting the bio
-	if(ret == -EAGAIN){
-		//find the split point
-		end_sect2 = end_sect;
-		end_sect = ROUND_UP((end_sect - new_sect) / 2 + new_sect, SECTORS_PER_BLOCK);
-		
-		//create the first clone
-		ret = __bio_make_read_clone(bio->bi_bdev, new_sect, (end_sect - new_sect) / SECTORS_PER_PAGE, &new_bio);
-		if(ret) goto bio_make_read_clones_error;
-		
-		//create the second clone
-		ret = __bio_make_read_clone(bio->bi_bdev, end_sect, (end_sect2 - end_sect) / SECTORS_PER_PAGE, &new_bio2);
-		if(ret) goto bio_make_read_clones_error;
-	}else if(ret) goto bio_make_read_clones_error;
-	
-	*bio_out = new_bio;
-	*bio_out2 = new_bio2;
-	
-	return 0;
-	
-bio_make_read_clones_error:
-	LOG_ERROR(ret, "error creating read clones of write bio");
-	if(new_bio) bio_free_clone(new_bio);
-	if(new_bio2) bio_free_clone(new_bio2);
-	
-	*bio_out = NULL;
-	*bio_out2 = NULL;
-	
 	return ret;
 }
 
@@ -1998,6 +1953,8 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 	char *data;
 	sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
 	
+	PRINT_BIO("writing bio", bio);
+	
 	//iterate through the bio and handle each segment (which is guaranteed to be block aligned)
 	bio_for_each_segment(bvec, bio, iter){		
 		//find the start and end block
@@ -2020,6 +1977,8 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 		//unmap the page
 		kunmap(bio_iter_page(bio, iter));
 	}
+	
+	PRINT_BIO("wrote bio", bio);
 	
 	return 0;
 	
@@ -2213,14 +2172,9 @@ static void on_bio_read_complete(struct bio *bio, int err){
 	//change the bio into a write bio
 	bio->bi_rw |= WRITE;
 	
-	//reset the bio with the values from the tp
-	if(bio == tp->clone1){
-		bio_sector(bio) = tp->start - dev->sd_sect_off;
-		bio_size(bio) = (tp->end - tp->start) * KERNEL_SECTOR_SIZE;
-	}else{
-		bio_sector(bio) = tp->end - dev->sd_sect_off;
-		bio_size(bio) = (tp->end2 - tp->end) * KERNEL_SECTOR_SIZE;
-	}
+	//reset the bio iterator to its original state
+	bio_sector(bio) = bio_sector(bio) - (bio->bi_vcnt * SECTORS_PER_PAGE) - dev->sd_sect_off;
+	bio_size(bio) = bio->bi_vcnt * PAGE_SIZE;
 	bio_idx(bio) = 0;
 	
 	for(i = 0; i < bio->bi_vcnt; i++){
@@ -2232,7 +2186,7 @@ static void on_bio_read_complete(struct bio *bio, int err){
 	bio_queue_add(&dev->sd_cow_bios, bio);
 	smp_wmb();
 
-	//put a reference to the tp (will queue the orig_bio if nobody else is using it
+	//put a reference to the tp (will queue the orig_bio if nobody else is using it)
 	tp_put(tp);
 
 	return;
@@ -2245,63 +2199,68 @@ on_bio_read_complete_error:
 }
 
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
-	int ret = 0;
-	struct bio *new_bio = NULL, *new_bio2 = NULL;
+	int ret;
+	struct bio *new_bio = NULL;
 	struct tracing_params *tp = NULL;
+	sector_t start_sect, end_sect;
+	unsigned int bytes, pages;
 	
-	//check if we need to do cow on this bio
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) goto snap_trace_bio_out;
+	//if we don't need to cow this bio just call the real mrf normally
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)){
+#ifdef HAVE_MAKE_REQUEST_FN_INT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
+		return dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
+#else
+		dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
+		return 0;
+#endif
+	}
 	
-	//allocate and populate read bio clone of the incoming write bio
-	ret = bio_make_read_clones(bio, dev->sd_sect_off, &new_bio, &new_bio2);
-	if(ret) goto snap_trace_bio_out;
-		
+	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
+	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
+	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
+	pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
+	
 	//allocate tracing_params struct to hold all pointers we will need across contexts
-	tp_alloc(dev, bio, bio_sector(new_bio), bio_last_sector(new_bio), (new_bio2)? bio_last_sector(new_bio2) : 0, &tp);
+	ret = tp_alloc(dev, bio, &tp);
+	if(ret) goto snap_trace_bio_error;
+	
+retry:
+	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
+	ret = bio_make_read_clone(bio->bi_bdev, start_sect, pages, &new_bio, &bytes);
+	if(ret) goto snap_trace_bio_error;
 	
 	//set pointers for read clone
 	tp_get(tp);
-	tp->clone1 = new_bio;
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
 		
-	//set pointers for second read clone, if it exists
-	if(new_bio2){
-		tp_get(tp);
-		new_bio2->bi_private = tp;
-		new_bio2->bi_end_io = on_bio_read_complete;
-	}
-		
 	//submit the bios
+	PRINT_BIO("submitting bio", new_bio);
 	submit_bio(0, new_bio);
-	if(new_bio2) submit_bio(0, new_bio2);
+	
+	//if our bio didn't cover the entire clone we must keep creating bios until we have
+	if(bytes / PAGE_SIZE < pages){
+		start_sect += bytes / KERNEL_SECTOR_SIZE;
+		pages -= bytes / PAGE_SIZE;
+		goto retry;
+	}
 	
 	//drop our reference to the tp
 	tp_put(tp);
 	
 	return 0;
 
-snap_trace_bio_out:
-	if(ret){
-		LOG_ERROR(ret, "error tracing bio for snapshot");
-		tracer_set_fail_state(dev, ret);
-		ret = 0;
-	}
+snap_trace_bio_error:
+	LOG_ERROR(ret, "error tracing bio for snapshot");
+	tracer_set_fail_state(dev, ret);
 
-	//clean up all of the memory we allocated
+	//clean up the bio we allocated (but did not submit)
 	if(new_bio) bio_free_clone(new_bio);
-	if(new_bio2) bio_free_clone(new_bio2);
-	if(tp) kfree(tp); //we don't use tp_put here because we don't want to queue the original bio
+	if(tp) tp_put(tp);
 	
-	//call the original_mrf, since we will not be doing this from our thread later
-#ifdef HAVE_MAKE_REQUEST_FN_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
-	ret = dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-#else
-	dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-#endif
-	
-	return ret;
+	//this function only returns non-zero if the real mrf does not. Errors set the fail state.
+	return 0;
 }
 
 static int inc_make_sset(struct snap_device *dev, sector_t sect, unsigned int len){
