@@ -163,20 +163,52 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	#define bdev_put(bdev) blkdev_put(bdev);
+	#define dattobd_blkdev_put(bdev) blkdev_put(bdev);
 #else
-	#define bdev_put(bdev) blkdev_put(bdev, FMODE_READ);
+	#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
 #ifndef HAVE_PART_NR_SECTS_READ
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
-	#define bdev_size(bdev) (bdev->bd_part->nr_sects)
+	#define dattobd_bdev_size(bdev) (bdev->bd_part->nr_sects)
 #else
-	#define bdev_size(bdev) part_nr_sects_read(bdev->bd_part)
+	#define dattobd_bdev_size(bdev) part_nr_sects_read(bdev->bd_part)
 #endif
 
 #ifndef HAVE_VZALLOC
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
+#endif
+
+#ifndef HAVE_BIO_ENDIO_1
+	#define dattobd_bio_endio(bio, err) bio_endio(bio, err)
+#else
+	#define dattobd_bio_endio(bio, err) \
+		(bio)->bi_error = (err); \
+		bio_endio(bio);
+#endif
+
+#ifdef HAVE_MAKE_REQUEST_FN_INT
+	#define MRF_RETURN_TYPE int
+	#define MRF_RETURN(ret) return ret
+	
+static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+	return fn(q, bio);
+}
+#elif defined HAVE_MAKE_REQUEST_FN_VOID
+	#define MRF_RETURN_TYPE void
+	#define MRF_RETURN(ret) return
+	
+static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+	fn(q, bio);
+	return 0;
+}
+#else
+	#define MRF_RETURN_TYPE blk_qc_t
+	#define MRF_RETURN(ret) return BLK_QC_T_NONE
+	
+static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+	return fn(q, bio);
+}
 #endif
 
 //this is defined in 3.16 and up
@@ -275,6 +307,9 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 
 //maximum number of clones per traced bio
 #define MAX_CLONES_PER_BIO 5
+
+//macros for compilation
+#define MAYBE_UNUSED(x) (void)(x)
 
 //macros for defining the state of a tracing struct (bit offsets)
 #define SNAPSHOT 0
@@ -2008,13 +2043,12 @@ inc_handle_sset_error:
 }
 
 static int snap_mrf_thread(void *data){
-#ifdef HAVE_MAKE_REQUEST_FN_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
 	int ret;
-#endif
 	struct snap_device *dev = data;
 	struct bio_queue *bq = &dev->sd_orig_bios;
 	struct bio *bio;
+	
+	MAYBE_UNUSED(ret);
 
 	//give this thread the highest priority we are allowed
 	set_user_nice(current, MIN_NICE);
@@ -2030,12 +2064,9 @@ static int snap_mrf_thread(void *data){
 		//submit the original bio to the block IO layer
 		bio_flag(bio, BIO_ALREADY_TRACED);
 	
+		ret = dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT	
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
-		ret = dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
 		if(ret) generic_make_request(bio);
-#else
-		dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
 #endif
 	}
 	
@@ -2073,7 +2104,7 @@ static int snap_cow_thread(void *data){
 		if(!bio_data_dir(bio)){
 			//if we're in the fail state just send back an IO error and free the bio
 			if(is_failed){
-				bio_endio(bio, -EIO); //end the bio with an IO error
+				dattobd_bio_endio(bio, -EIO); //end the bio with an IO error
 				continue;
 			}
 			
@@ -2083,7 +2114,7 @@ static int snap_cow_thread(void *data){
 				tracer_set_fail_state(dev, ret);
 			}
 			
-			bio_endio(bio, (ret)? -EIO : 0);
+			dattobd_bio_endio(bio, (ret)? -EIO : 0);
 		}else{
 			if(is_failed){
 				bio_free_clone(bio);
@@ -2152,12 +2183,18 @@ static int inc_sset_thread(void *data){
 
 /****************************BIO TRACING LOGIC*****************************/
 
+#ifndef HAVE_BIO_ENDIO_1
 static void on_bio_read_complete(struct bio *bio, int err){
+#else
+static void on_bio_read_complete(struct bio *bio){
+#endif
+
 	int ret;
 	unsigned short i;
 	struct tracing_params *tp = bio->bi_private;
 	struct snap_device *dev = tp->dev;
-	
+
+#ifndef HAVE_BIO_ENDIO_1	
 	//check for read errors
 	if(err){
 		ret = err;
@@ -2171,6 +2208,14 @@ static void on_bio_read_complete(struct bio *bio, int err){
 		LOG_ERROR(ret, "error reading from base device for copy on write (not up to date)");
 		goto on_bio_read_complete_error;
 	}
+#else
+	//check for read errors
+	if(bio->bi_error){
+		ret = bio->bi_error;
+		LOG_ERROR(ret, "error reading from base device for copy on write");
+		goto on_bio_read_complete_error;
+	}
+#endif
 	
 	//change the bio into a write bio
 	bio->bi_rw |= WRITE;
@@ -2215,15 +2260,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages, i = 0;
 	
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)){
-#ifdef HAVE_MAKE_REQUEST_FN_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
-		return dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-#else
-		dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-		return 0;
-#endif
-	}
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
 	
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -2334,22 +2371,17 @@ inc_trace_bio_out:
 	}
 
 	//call the original mrf
-#ifdef HAVE_MAKE_REQUEST_FN_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
-	ret = dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-#else
-	dev->sd_orig_mrf(bdev_get_queue(bio->bi_bdev), bio);
-#endif
+	ret = dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
 	
 	return ret;
 }
 
-#ifdef HAVE_MAKE_REQUEST_FN_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
-static int tracing_mrf(struct request_queue *q, struct bio *bio){
+static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	int i, ret = 0;
 	struct snap_device *dev;
 	make_request_fn *orig_mrf = NULL;
+	
+	MAYBE_UNUSED(ret);
 	
 	smp_rmb();
 	tracer_for_each(dev, i){
@@ -2369,83 +2401,33 @@ static int tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 	
 tracing_mrf_call_orig:
-	if(orig_mrf) ret = orig_mrf(q, bio);
+	if(orig_mrf) ret = dattobd_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
 	
 tracing_mrf_out:
-	return ret;
+	MRF_RETURN(ret);
 }
 
-static int snap_mrf(struct request_queue *q, struct bio *bio){
+static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 	struct snap_device *dev = q->queuedata;
 
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
-		bio_endio(bio, -EOPNOTSUPP);
-		return 0;
+		dattobd_bio_endio(bio, -EOPNOTSUPP);
+		MRF_RETURN(0);
 	}else if(tracer_read_fail_state(dev)){
-		bio_endio(bio, -EIO);
-		return 0;
+		dattobd_bio_endio(bio, -EIO);
+		MRF_RETURN(0);
 	}else if(!test_bit(ACTIVE, &dev->sd_state)){
-		bio_endio(bio, -EBUSY);
-		return 0;
+		dattobd_bio_endio(bio, -EBUSY);
+		MRF_RETURN(0);
 	}
 	
 	//queue bio for processing by kernel thread
 	bio_queue_add(&dev->sd_cow_bios, bio);
 	
-	return 0;
+	MRF_RETURN(0);
 }
-#else
-static void tracing_mrf(struct request_queue *q, struct bio *bio){
-	int i;
-	struct snap_device *dev;
-	make_request_fn *orig_mrf = NULL;
-	
-	smp_rmb();
-	tracer_for_each(dev, i){
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
-		
-		orig_mrf = dev->sd_orig_mrf;
-		if(bio_flagged(bio, BIO_ALREADY_TRACED)){
-			bio->bi_flags &= ~BIO_ALREADY_TRACED;
-			goto tracing_mrf_call_orig;
-		}
-		
-		if(tracer_should_trace_bio(dev, bio)){
-			if(test_bit(SNAPSHOT, &dev->sd_state)) snap_trace_bio(dev, bio);
-			else inc_trace_bio(dev, bio);
-			goto tracing_mrf_out;
-		}
-	}
-	
-tracing_mrf_call_orig:
-	if(orig_mrf) orig_mrf(q, bio);
-	else LOG_ERROR(-EFAULT, "error finding original_mrf");
-	
-tracing_mrf_out:
-	return;
-}
-
-static void snap_mrf(struct request_queue *q, struct bio *bio){
-	struct snap_device *dev = q->queuedata;
-	
-	//if a write request somehow gets sent in, discard it
-	if(bio_data_dir(bio)){
-		bio_endio(bio, -EOPNOTSUPP);
-		return;
-	}else if(tracer_read_fail_state(dev)){
-		bio_endio(bio, -EIO);
-		return;
-	}else if(!test_bit(ACTIVE, &dev->sd_state)){
-		bio_endio(bio, -EBUSY);
-		return;
-	}
-
-	//queue bio for processing by kernel thread
-	bio_queue_add(&dev->sd_cow_bios, bio);
-}
-#endif
 
 /*******************************SETUP HELPER FUNCTIONS********************************/
 
@@ -2529,11 +2511,10 @@ static int __tracer_should_reset_mrf(struct snap_device *dev){
 }
 
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
-#ifdef HAVE_THAW_BDEV_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 	int ret;
-#endif
 	struct super_block *sb = bdev->bd_super;
+	
+	MAYBE_UNUSED(ret);
 	
 	if(sb){
 		//freeze and sync block device
@@ -2629,7 +2610,7 @@ static void __tracer_destroy_base_dev(struct snap_device *dev){
 	
 	if(dev->sd_base_dev){
 		LOG_DEBUG("freeing base block device");
-		bdev_put(dev->sd_base_dev);
+		dattobd_blkdev_put(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
 	}
 }
@@ -2668,7 +2649,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev, char *bdev_path){
 	LOG_DEBUG("calculating block device size and offset");
 	if(dev->sd_base_dev->bd_contains != dev->sd_base_dev){
 		dev->sd_sect_off = dev->sd_base_dev->bd_part->start_sect;
-		dev->sd_size = bdev_size(dev->sd_base_dev);
+		dev->sd_size = dattobd_bdev_size(dev->sd_base_dev);
 	}else{
 		dev->sd_sect_off = 0;
 		dev->sd_size = get_capacity(dev->sd_base_dev->bd_disk);
@@ -2857,8 +2838,10 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	blk_set_stacking_limits(&dev->sd_queue->limits);
 	bdev_stack_limits(&dev->sd_queue->limits, bdev, 0);
 	
+#ifdef HAVE_MERGE_BVEC_FN
 	//we don't support request merging. if the underlying device does we can't send it requests that can be merged
 	if(bdev_get_queue(bdev)->merge_bvec_fn) blk_queue_max_hw_sectors(dev->sd_queue, PAGE_SIZE >> KERNEL_SECTOR_LOG_SIZE);
+#endif
 	
 	//allocate a gendisk struct
 	LOG_DEBUG("allocating gendisk");
@@ -3261,7 +3244,7 @@ static int __verify_bdev_writable(char *bdev_path, int *out){
 		ret = 0;
 	}
 	
-	if(bdev) bdev_put(bdev);
+	if(bdev) dattobd_blkdev_put(bdev);
 	return ret;
 }
 
@@ -3780,14 +3763,14 @@ static int __handle_bdev_mount_writable(char __user *dir_name, struct block_devi
 			if(cur_bdev == bdev){
 				LOG_DEBUG("block device mount detected for unverified device %d", i);
 				auto_transition_active(i, dir_name);
-				bdev_put(cur_bdev);
+				dattobd_blkdev_put(cur_bdev);
 				
 				ret = 0;
 				goto handle_bdev_mount_writable_out;
 			}
 				
 			//put the block device
-			bdev_put(cur_bdev);
+			dattobd_blkdev_put(cur_bdev);
 			
 		}else if(dev->sd_base_dev == bdev){
 			LOG_DEBUG("block device mount detected for dormant device %d", i);
