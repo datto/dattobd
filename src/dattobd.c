@@ -1917,6 +1917,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	void *orig_private;
 	bio_end_io_t *orig_end_io;
 	char *data;
+	sector_t bio_orig_sect;
 	unsigned int bio_orig_idx, bio_orig_size, bytes_written;
 	uint64_t block_mapping, curr_byte, curr_end_byte = bio_sector(bio) * KERNEL_SECTOR_SIZE;
 	
@@ -1925,6 +1926,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	orig_end_io = bio->bi_end_io;
 	bio_orig_idx = bio_idx(bio);
 	bio_orig_size = bio_size(bio);
+	bio_orig_sect = bio_sector(bio);
 	
 	bio->bi_bdev = dev->sd_base_dev;
 	
@@ -1934,6 +1936,11 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 		LOG_ERROR(ret, "error reading from base device for read");
 		goto snap_handle_bio_read_out;
 	}
+	
+	//reset the bio
+	bio_idx(bio) = bio_orig_idx;
+	bio_size(bio) = bio_orig_size;
+	bio_sector(bio) = bio_orig_sect;
 	
 	//iterate over all the segments and fill the bio. this more complex than writing since we don't have the block aligned guarantee
 	bio_for_each_segment(bvec, bio, iter){
