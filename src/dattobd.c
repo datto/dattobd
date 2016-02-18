@@ -317,6 +317,7 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 #define UNVERIFIED 2
 
 //macros for working with bios
+#define BIO_SET_SIZE 256
 #define bio_flag(bio, flag) (bio->bi_flags |= (1 << flag))
 #define BIO_ALREADY_TRACED 20
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE))
@@ -2866,7 +2867,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	int ret;
 	
 	//allocate the bio_set
-	dev->sd_bioset = bioset_create(BIO_POOL_SIZE, 0);
+	dev->sd_bioset = bioset_create(BIO_SET_SIZE, 0);
 	if(!dev->sd_bioset){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating bio set");
