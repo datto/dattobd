@@ -421,6 +421,7 @@ struct snap_device{
 	struct task_struct *sd_mrf_thread; //thread for handling file read/writes
 	struct bio_queue sd_orig_bios; //list of outstanding original bios
 	struct sset_queue sd_pending_ssets; //list of outstanding sector sets
+	struct bio_set *sd_bioset; //allocation pool for bios
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -437,6 +438,12 @@ static int snap_release(struct gendisk *gd, fmode_t mode);
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static void snap_release(struct gendisk *gd, fmode_t mode);
+#endif
+
+#ifndef HAVE_BIO_ENDIO_1
+static void on_bio_read_complete(struct bio *bio, int err);
+#else
+static void on_bio_read_complete(struct bio *bio);
 #endif
 
 static struct block_device_operations snap_ops = {
@@ -1846,6 +1853,18 @@ static int bio_needs_cow(struct bio *bio, struct inode *inode){
 	return 0;
 }
 
+#ifndef HAVE_BIO_BI_POOL
+static void bio_destructor_tp(struct bio *bio){
+	struct tracing_params *tp = bio->bi_private;
+	bio_free(bio, tp->dev->sd_bioset);
+}
+
+static void bio_destructor_snap_dev(struct bio *bio){
+	struct snap_device *dev = bio->bi_private;
+	bio_free(bio, dev->sd_bioset);
+}
+#endif
+
 static void bio_free_clone(struct bio *bio){
 	int i;
 	
@@ -1855,21 +1874,28 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int bio_make_read_clone(struct block_device *bdev, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
+static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct block_device *bdev, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
 	unsigned int i, bytes, total = 0;
 	
 	//allocate bio clone
-	new_bio = bio_alloc(GFP_NOIO, pages);
+	new_bio = bio_alloc_bioset(GFP_NOIO, pages, bs);
 	if(!new_bio){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating bio clone");
 		goto bio_make_read_clone_error;
 	}
 	
+#ifndef HAVE_BIO_BI_POOL
+	new_bio->bi_destructor = bio_destructor_tp;
+#endif
+	
 	//populate read bio
+	tp_get(tp);
+	new_bio->bi_private = tp;
+	new_bio->bi_end_io = on_bio_read_complete;
 	new_bio->bi_bdev = bdev;
 	new_bio->bi_rw = READ;
 	bio_sector(new_bio) = sect;
@@ -2201,7 +2227,7 @@ static void on_bio_read_complete(struct bio *bio){
 	struct tracing_params *tp = bio->bi_private;
 	struct snap_device *dev = tp->dev;
 
-#ifndef HAVE_BIO_ENDIO_1	
+#ifndef HAVE_BIO_ENDIO_1
 	//check for read errors
 	if(err){
 		ret = err;
@@ -2247,7 +2273,16 @@ static void on_bio_read_complete(struct bio *bio){
 	bio_queue_add(&dev->sd_cow_bios, bio);
 	smp_wmb();
 
-	//put a reference to the tp (will queue the orig_bio if nobody else is using it)
+	/*
+	 * drop our reference to the tp (will queue the orig_bio if nobody else is using it)
+	 * at this point we set bi_private to the snap_device and change the destructor to use
+	 * that instead. This only matters on older kernels
+	 */
+	bio->bi_private = dev;
+#ifndef HAVE_BIO_BI_POOL
+	bio->bi_destructor = bio_destructor_snap_dev;
+#endif
+
 	tp_put(tp);
 
 	return;
@@ -2280,7 +2315,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	
 retry:
 	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
-	ret = bio_make_read_clone(bio->bi_bdev, start_sect, pages, &new_bio, &bytes);
+	ret = bio_make_read_clone(dev->sd_bioset, tp, bio->bi_bdev, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto snap_trace_bio_error;
 	
 	//make sure we don't excede the max number of bio clones that tp can hold
@@ -2290,11 +2325,8 @@ retry:
 	}
 
 	//set pointers for read clone
-	tp_get(tp);
 	tp->bio_sects[i].bio = new_bio;
 	tp->bio_sects[i].sect = bio_sector(new_bio);
-	new_bio->bi_private = tp;
-	new_bio->bi_end_io = on_bio_read_complete;
 	i++;
 		
 	//submit the bios
@@ -2822,10 +2854,24 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 		blk_cleanup_queue(dev->sd_queue);
 		dev->sd_queue = NULL;
 	}
+	
+	if(dev->sd_bioset){
+		LOG_DEBUG("freeing bio set");
+		bioset_free(dev->sd_bioset);
+		dev->sd_bioset = NULL;
+	}
 }
 
 static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, struct block_device *bdev, sector_t size){
 	int ret;
+	
+	//allocate the bio_set
+	dev->sd_bioset = bioset_create(BIO_POOL_SIZE, 0);
+	if(!dev->sd_bioset){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating bio set");
+		goto tracer_setup_snap_error;
+	}
 	
 	//allocate request queue
 	LOG_DEBUG("allocating queue");
