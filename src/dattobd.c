@@ -1886,7 +1886,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	new_bio = bio_alloc_bioset(GFP_NOIO, pages, bs);
 	if(!new_bio){
 		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating bio clone");
+		LOG_ERROR(ret, "error allocating bio clone - bs = %p", bs);
 		goto bio_make_read_clone_error;
 	}
 	
@@ -2330,7 +2330,7 @@ retry:
 	tp->bio_sects[i].sect = bio_sector(new_bio);
 	tp->bio_sects[i].size = bio_size(new_bio);
 	
-	if(bytes / PAGE_SIZE < pages){
+	if(bytes / PAGE_SIZE < pages || i){
 		if(i == 0) PRINT_BIO("split orig bio", bio);
 		PRINT_BIO("\tclone bio", new_bio);
 	}
@@ -2701,6 +2701,8 @@ static int __tracer_setup_base_dev(struct snap_device *dev, char *bdev_path){
 		dev->sd_size = get_capacity(dev->sd_base_dev->bd_disk);
 	}
 	
+	LOG_DEBUG("bdev size = %llu, offset = %llu", (unsigned long long)dev->sd_size, (unsigned long long)dev->sd_sect_off);
+	
 	return 0;
 	
 tracer_setup_base_dev_error:
@@ -2873,6 +2875,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	int ret;
 	
 	//allocate the bio_set
+	LOG_DEBUG("creating bioset");
 	dev->sd_bioset = bioset_create(BIO_SET_SIZE, 0);
 	if(!dev->sd_bioset){
 		ret = -ENOMEM;
