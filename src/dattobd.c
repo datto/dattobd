@@ -371,6 +371,7 @@ struct sset_queue{
 struct bio_sector_map{
 	struct bio *bio;
 	sector_t sect;
+	unsigned int size;
 };
 
 struct tracing_params{
@@ -1813,7 +1814,7 @@ static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_par
 	}
 	
 	tp->dev = dev;
-	tp->orig_bio = bio;;
+	tp->orig_bio = bio;
 	atomic_set(&tp->refs, 1);
 	
 	*tp_out = tp;
@@ -2258,12 +2259,11 @@ static void on_bio_read_complete(struct bio *bio){
 	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
 		if(bio == tp->bio_sects[i].bio){
 			bio_sector(bio) = tp->bio_sects[i].sect - dev->sd_sect_off;
+			bio_size(bio) = tp->bio_sects[i].size;
+			bio_idx(bio) = 0;
 			break;
 		}
 	}
-
-	bio_size(bio) = bio->bi_vcnt * PAGE_SIZE;
-	bio_idx(bio) = 0;
 	
 	for(i = 0; i < bio->bi_vcnt; i++){
 		bio->bi_io_vec[i].bv_len = PAGE_SIZE;
@@ -2328,8 +2328,13 @@ retry:
 	//set pointers for read clone
 	tp->bio_sects[i].bio = new_bio;
 	tp->bio_sects[i].sect = bio_sector(new_bio);
-	i++;
-		
+	tp->bio_sects[i].size = bio_size(new_bio);
+	
+	if(bytes / PAGE_SIZE < pages){
+		if(i == 0) PRINT_BIO("split orig bio", bio);
+		PRINT_BIO("\tclone bio", new_bio);
+	}
+	
 	//submit the bios
 	submit_bio(0, new_bio);
 	
@@ -2337,6 +2342,7 @@ retry:
 	if(bytes / PAGE_SIZE < pages){
 		start_sect += bytes / KERNEL_SECTOR_SIZE;
 		pages -= bytes / PAGE_SIZE;
+		i++;
 		goto retry;
 	}
 	
