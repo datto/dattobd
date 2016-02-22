@@ -1880,10 +1880,10 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
-	unsigned int i, bytes, total = 0;
+	unsigned int i, bytes, total = 0, actual_pages = (pages > BIO_MAX_PAGES)? BIO_MAX_PAGES : pages;
 	
 	//allocate bio clone
-	new_bio = bio_alloc_bioset(GFP_NOIO, pages, bs);
+	new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
 	if(!new_bio){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating bio clone - bs = %p, pages = %u", bs, pages);
@@ -1904,7 +1904,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	bio_idx(new_bio) = 0;
 	
 	//fill the bio with pages
-	for(i = 0; i < pages; i++){
+	for(i = 0; i < actual_pages; i++){
 		//allocate a page and add it to our bio
 		pg = alloc_page(GFP_NOIO);
 		if(!pg){
