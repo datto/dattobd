@@ -2030,8 +2030,6 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 	char *data;
 	sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
 	
-	PRINT_BIO("snap_handle_write_bio", bio);
-	
 	//iterate through the bio and handle each segment (which is guaranteed to be block aligned)
 	bio_for_each_segment(bvec, bio, iter){		
 		//find the start and end block
@@ -2040,7 +2038,7 @@ static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
 		
 		//map the page into kernel space
 		data = kmap(bio_iter_page(bio, iter));
-				
+		
 		//loop through the blocks in the page
 		for(; start_block < end_block; start_block++){
 			//pas the block to the cow manager to be handled
@@ -2307,8 +2305,6 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	//if we don't need to cow this bio just call the real mrf normally
 	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
 	
-	PRINT_BIO("snap_trace_bio", bio);
-	
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -2333,11 +2329,6 @@ retry:
 	tp->bio_sects[i].bio = new_bio;
 	tp->bio_sects[i].sect = bio_sector(new_bio);
 	tp->bio_sects[i].size = bio_size(new_bio);
-	
-	if(bytes / PAGE_SIZE < pages || i){
-		if(i == 0) PRINT_BIO("split orig bio", bio);
-		PRINT_BIO("\tclone bio", new_bio);
-	}
 	
 	//submit the bios
 	submit_bio(0, new_bio);
@@ -2370,8 +2361,6 @@ snap_trace_bio_error:
 static int inc_make_sset(struct snap_device *dev, sector_t sect, unsigned int len){
 	struct sector_set *sset;
 	
-	LOG_DEBUG("inc_trace_bio: sect = %llu size = %u", (unsigned long long)sect, len);
-		
 	//allocate sector set to hold record of change sectors
 	sset = kmalloc(sizeof(struct sector_set), GFP_NOIO);
 	if(!sset){
