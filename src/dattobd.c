@@ -1886,7 +1886,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	new_bio = bio_alloc_bioset(GFP_NOIO, pages, bs);
 	if(!new_bio){
 		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating bio clone - bs = %p", bs);
+		LOG_ERROR(ret, "error allocating bio clone - bs = %p, pages = %u", bs, pages);
 		goto bio_make_read_clone_error;
 	}
 	
