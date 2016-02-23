@@ -2897,8 +2897,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	bdev_stack_limits(&dev->sd_queue->limits, bdev, 0);
 	
 #ifdef HAVE_MERGE_BVEC_FN
-	//we don't support request merging. if the underlying device does we can't send it requests that can be merged
-	if(bdev_get_queue(bdev)->merge_bvec_fn) blk_queue_max_hw_sectors(dev->sd_queue, PAGE_SIZE >> KERNEL_SECTOR_LOG_SIZE);
+	//use the same merge_bvec_fn as the base device
+	if(bdev_get_queue(bdev)->merge_bvec_fn) blk_queue_merge_bvec(dev->sd_queue, bdev_get_queue(bdev)->merge_bvec_fn);
 #endif
 	
 	//allocate a gendisk struct
