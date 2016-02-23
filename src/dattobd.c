@@ -2470,6 +2470,15 @@ static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 	MRF_RETURN(0);
 }
 
+#ifdef HAVE_MERGE_BVEC_FN
+static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec){
+	struct snap_device *dev = q->queuedata;
+	struct request_queue *base_queue = bdev_get_queue(dev->sd_base_dev);
+	
+	return base_queue->merge_bvec_fn(base_queue, bvm, bvec);
+}
+#endif
+
 /*******************************SETUP HELPER FUNCTIONS********************************/
 
 static int string_copy(char *str, char **dest){
@@ -2897,8 +2906,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	bdev_stack_limits(&dev->sd_queue->limits, bdev, 0);
 	
 #ifdef HAVE_MERGE_BVEC_FN
-	//use the same merge_bvec_fn as the base device
-	if(bdev_get_queue(bdev)->merge_bvec_fn) blk_queue_merge_bvec(dev->sd_queue, bdev_get_queue(bdev)->merge_bvec_fn);
+	//use a thin wrapper around the base device's merge_bvec_fn
+	if(bdev_get_queue(bdev)->merge_bvec_fn) blk_queue_merge_bvec(dev->sd_queue, snap_merge_bvec);
 #endif
 	
 	//allocate a gendisk struct
