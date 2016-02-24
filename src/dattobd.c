@@ -2475,6 +2475,8 @@ static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm,
 	struct snap_device *dev = q->queuedata;
 	struct request_queue *base_queue = bdev_get_queue(dev->sd_base_dev);
 
+	bvm->bi_bdev = dev->sd_base_dev;
+
 	return base_queue->merge_bvec_fn(base_queue, bvm, bvec);
 }
 #endif
