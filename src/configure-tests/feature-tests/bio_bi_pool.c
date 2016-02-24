@@ -11,6 +11,6 @@
 #include "../../includes.h"
 
 static inline void dummy(void){
-	struct request_queue q;
-	q.merge_bvec_fn = NULL;
+	struct bio bio;
+	bio.bi_pool = NULL;
 }
