@@ -22,8 +22,8 @@
 
 typedef unsigned long long sector_t;
 
-static void print_help(int status){
-	printf("Usage: img-merge <snapshot device> <cow file> <image file>\n");
+static void print_help(char* progname, int status){
+	printf("Usage: %s <snapshot device> <cow file> <image file>\n", progname);
 	exit(status);
 }
 
@@ -64,7 +64,7 @@ int main(int argc,char *argv[]){
 	FILE *cow = NULL, *snap = NULL, *img = NULL;
 	uint64_t *mappings = NULL;
 	
-	if(argc != 4) print_help(-1);
+	if(argc != 4) print_help(argv[0], -1);
 	
 	//open snapshot
 	snap = fopen(argv[1], "r");
