@@ -2270,10 +2270,6 @@ static void on_bio_read_complete(struct bio *bio){
 		bio->bi_io_vec[i].bv_offset = 0;
 	}
 
-	//queue cow bio for processing by kernel thread
-	bio_queue_add(&dev->sd_cow_bios, bio);
-	smp_wmb();
-
 	/*
 	 * drop our reference to the tp (will queue the orig_bio if nobody else is using it)
 	 * at this point we set bi_private to the snap_device and change the destructor to use
@@ -2283,6 +2279,10 @@ static void on_bio_read_complete(struct bio *bio){
 #ifndef HAVE_BIO_BI_POOL
 	bio->bi_destructor = bio_destructor_snap_dev;
 #endif
+
+	//queue cow bio for processing by kernel thread
+	bio_queue_add(&dev->sd_cow_bios, bio);
+	smp_wmb();
 
 	tp_put(tp);
 
@@ -2476,7 +2476,7 @@ static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm,
 	struct request_queue *base_queue = bdev_get_queue(dev->sd_base_dev);
 
 	bvm->bi_bdev = dev->sd_base_dev;
-
+	
 	return base_queue->merge_bvec_fn(base_queue, bvm, bvec);
 }
 #endif
