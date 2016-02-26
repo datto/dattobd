@@ -3,7 +3,7 @@
 
     This file is part of dattobd.
 
-    This program is free software; you can redistribute it and/or modify it 
+    This program is free software; you can redistribute it and/or modify it
     under the terms of the GNU General Public License version 2 as published
     by the Free Software Foundation.
 */
@@ -15,10 +15,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #define COW_META_HEADER_SIZE 4096
 #define COW_BLOCK_LOG_SIZE 12
 #define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
+#define INDEX_BUFFER_SIZE 4096 * 2
+
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 typedef unsigned long long sector_t;
 
@@ -27,108 +31,129 @@ static void print_help(char* progname, int status){
 	exit(status);
 }
 
-static int copy_sector(FILE *snap, FILE *img, sector_t block){
+static int copy_block(FILE *snap, FILE *img, sector_t block){
 	char buf[COW_BLOCK_SIZE];
 	int ret;
-	
-	ret = fseeko(snap, block * COW_BLOCK_SIZE, SEEK_SET);
-	if(ret){
-		perror("error seeking within snapshot");
-		return ret;
+	size_t bytes;
+
+	bytes = pread(fileno(snap), buf, COW_BLOCK_SIZE, block * COW_BLOCK_SIZE);
+	if(bytes != COW_BLOCK_SIZE){
+		ret = errno;
+		errno = 0;
+		printf("error reading data block from snapshot\n");
+		goto error;
 	}
-	
-	ret = (int)fread(buf, COW_BLOCK_SIZE, 1, snap);
-	if(ret != 1){
-		printf("error reading from sector %llu of snapshot\n", block);
-		return ret;
+
+	bytes = pwrite(fileno(img), buf, COW_BLOCK_SIZE, block * COW_BLOCK_SIZE);
+	if(bytes != COW_BLOCK_SIZE){
+		ret = errno;
+		errno = 0;
+		printf("error writing data block to output image\n");
+		goto error;
 	}
-	
-	ret = fseeko(img, block * COW_BLOCK_SIZE, SEEK_SET);
-	if(ret){
-		printf("error seeking to sector %llu of image\n", block);
-		return ret;
-	}
-	
-	ret = (int)fwrite(buf, COW_BLOCK_SIZE, 1, img);
-	if(ret != 1){
-		printf("error writing to sector %llu of image\n", block);
-		return ret;
-	}
-	
+
 	return 0;
+
+error:
+	printf("error copying sector to output image\n");
+	return ret;
 }
 
 int main(int argc,char *argv[]){
 	int ret;
-	sector_t blocks, bytes, i, count = 0, err_count = 0;
+	size_t snap_size, bytes, bytes_to_read, bytes_left;
+	sector_t chunks, blocks, i, j, count = 0, err_count = 0;
 	FILE *cow = NULL, *snap = NULL, *img = NULL;
 	uint64_t *mappings = NULL;
-	
-	if(argc != 4) print_help(argv[0], -1);
-	
+
+	if(argc != 4) print_help(argv[0], EINVAL);
+
 	//open snapshot
 	snap = fopen(argv[1], "r");
 	if(!snap){
-		perror("error opening snapshot");
-		goto out;
+		ret = errno;
+		errno = 0;
+		printf("error opening snapshot\n");
+		goto error;
 	}
-	
+
 	//open cow file
 	cow = fopen(argv[2], "r");
 	if(!cow){
-		perror("error opening cow file");
-		goto out;
+		ret = errno;
+		errno = 0;
+		printf("error opening cow file\n");
+		goto error;
 	}
-	
+
 	//open original image
 	img = fopen(argv[3], "r+");
 	if(!img){
-		perror("error opening image");
-		goto out;
+		ret = errno;
+		errno = 0;
+		printf("error opening image\n");
+		goto error;
 	}
-	
-	//get size of snapshot
+
+	//get size of snapshot, xalculate other needed sizes
 	fseeko(snap, 0, SEEK_END);
-	bytes = ftello(snap);
-	blocks = bytes / 4096;
+	snap_size = ftello(snap);
+	blocks = (snap_size + COW_BLOCK_SIZE - 1) / COW_BLOCK_SIZE;
+	chunks = (blocks + INDEX_BUFFER_SIZE - 1) / INDEX_BUFFER_SIZE;
+	bytes_left = blocks * sizeof(uint64_t);
 	rewind(snap);
-	
-	printf("snapshot is %llu blocks large, allocating mappings\n", blocks);
-	
-	//allocate mappings
-	mappings = malloc(blocks*sizeof(uint64_t));
+
+	printf("snapshot is %llu blocks large\n", blocks);
+
+	//allocate mappings array
+	mappings = malloc(INDEX_BUFFER_SIZE * sizeof(uint64_t));
 	if(!mappings){
+		ret = ENOMEM;
 		printf("error allocating mappings\n");
-		goto out;
+		goto error;
 	}
-	
-	//read mappings into buffer
-	//mappings may be sparse, read length may be smaller than actual length
-	printf("reading mappings into memory\n");
-	fseeko(cow, COW_META_HEADER_SIZE, SEEK_SET);
-	fread(mappings, blocks*sizeof(uint64_t), 1, cow);
-	
+
 	//count number of blocks changed while performing merge
 	printf("copying blocks\n");
-	for(i=0; i<blocks; i++){
-		if(!mappings[i]) continue;
-		
-		ret = copy_sector(snap, img, i);
-		if(ret){
-			printf("error copying block %llu\n", i);
-			err_count++;
+	for(i = 0; i < chunks; i++){
+		//read a chunk of mappings from the cow file
+		bytes_to_read = MIN(INDEX_BUFFER_SIZE * sizeof(uint64_t), bytes_left);
+
+		bytes = pread(fileno(cow), mappings, bytes_to_read, COW_META_HEADER_SIZE + (INDEX_BUFFER_SIZE * i));
+		if(bytes != bytes_to_read){
+			ret = errno;
+			errno = 0;
+			printf("error reading mappings into memory\n");
+			goto error;
 		}
-		count++;
+		bytes_left -= bytes;
+
+		//copy blocks where the mapping is set
+		for(j = 0; j < bytes / sizeof(uint64_t); j++){
+			if(!mappings[j]) continue;
+
+			ret = copy_block(snap, img, (INDEX_BUFFER_SIZE * i) + j);
+			if(ret) err_count++;
+
+			count++;
+		}
 	}
-	
+
 	//print number of blocks changed
 	printf("copying complete: %llu blocks changed, %llu errors\n", count, err_count);
-	
-out:
+
+	free(mappings);
+	fclose(cow);
+	fclose(snap);
+	fclose(img);
+
+	return 0;
+
+error:
 	if(mappings) free(mappings);
 	if(cow) fclose(cow);
 	if(snap) fclose(snap);
 	if(img) fclose(img);
-	
-	return 0;
+
+	return ret;
 }

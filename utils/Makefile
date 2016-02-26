@@ -5,7 +5,7 @@ SOURCES = update-img.c
 .PHONY: all clean install
 
 all:
-	$(CC) $(CCFLAGS) -o $(BINARY_NAME) -L $(BASE_DIR)/utils $(SOURCES)
+	$(CC) $(CCFLAGS) -o $(BINARY_NAME) $(SOURCES)
 
 install: all
 	mkdir -p $(INSTALLDIR)
