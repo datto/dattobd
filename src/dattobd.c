@@ -424,6 +424,8 @@ struct snap_device{
 	struct bio_queue sd_orig_bios; //list of outstanding original bios
 	struct sset_queue sd_pending_ssets; //list of outstanding sector sets
 	struct bio_set *sd_bioset; //allocation pool for bios
+	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
+	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -2117,7 +2119,7 @@ static int snap_cow_thread(void *data){
 	//give this thread the highest priority we are allowed
 	set_user_nice(current, MIN_NICE);
 
-	while(!kthread_should_stop() || !bio_queue_empty(bq)) {
+	while(!kthread_should_stop() || !bio_queue_empty(bq) || atomic64_read(&dev->sd_submitted_cnt) != atomic64_read(&dev->sd_received_cnt)) {
 		//wait for a bio to process or a kthread_stop call
 		wait_event_interruptible(bq->event, kthread_should_stop() || !bio_queue_empty(bq));
 
@@ -2265,14 +2267,16 @@ static void on_bio_read_complete(struct bio *bio){
 		}
 	}
 
+	if(i == MAX_CLONES_PER_BIO){
+		ret = -EIO;
+		LOG_ERROR(ret, "clone not found in tp struct");
+		goto on_bio_read_complete_error;
+	}
+
 	for(i = 0; i < bio->bi_vcnt; i++){
 		bio->bi_io_vec[i].bv_len = PAGE_SIZE;
 		bio->bi_io_vec[i].bv_offset = 0;
 	}
-
-	//queue cow bio for processing by kernel thread
-	bio_queue_add(&dev->sd_cow_bios, bio);
-	smp_wmb();
 
 	/*
 	 * drop our reference to the tp (will queue the orig_bio if nobody else is using it)
@@ -2283,6 +2287,11 @@ static void on_bio_read_complete(struct bio *bio){
 #ifndef HAVE_BIO_BI_POOL
 	bio->bi_destructor = bio_destructor_snap_dev;
 #endif
+
+	//queue cow bio for processing by kernel thread
+	bio_queue_add(&dev->sd_cow_bios, bio);
+	atomic64_inc(&dev->sd_received_cnt);
+	smp_wmb();
 
 	tp_put(tp);
 
@@ -2329,6 +2338,9 @@ retry:
 	tp->bio_sects[i].bio = new_bio;
 	tp->bio_sects[i].sect = bio_sector(new_bio);
 	tp->bio_sects[i].size = bio_size(new_bio);
+
+	atomic64_inc(&dev->sd_submitted_cnt);
+	smp_wmb();
 
 	//submit the bios
 	submit_bio(0, new_bio);
@@ -2959,6 +2971,9 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		LOG_ERROR(ret, "error starting mrf kernel thread");
 		goto tracer_setup_snap_error;
 	}
+
+	atomic64_set(&dev->sd_submitted_cnt, 0);
+	atomic64_set(&dev->sd_received_cnt, 0);
 
 	return 0;
 
