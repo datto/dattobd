@@ -1824,17 +1824,13 @@ static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_par
 }
 
 static void tp_get(struct tracing_params *tp){
-	LOG_DEBUG("getting tp: %p", tp);
 	atomic_inc(&tp->refs);
 }
 
 static void tp_put(struct tracing_params *tp){
-	LOG_DEBUG("putting tp: %p", tp);
-
 	//drop a reference to the tp
 	if(atomic_dec_and_test(&tp->refs)){
 		//if there are no references left, its safe to release the orig_bio
-		LOG_DEBUG("\tfreeing tp: %p", tp);
 		bio_queue_add(&tp->dev->sd_orig_bios, tp->orig_bio);
 		kfree(tp);
 	}
