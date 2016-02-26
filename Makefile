@@ -36,6 +36,7 @@ clean:
 install:
 	$(MAKE) -C lib install
 	$(MAKE) -C app install
+	$(MAKE) -C utils install
 
 install-static:
 	$(MAKE) -C app install-static

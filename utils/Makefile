@@ -1,7 +1,15 @@
-.PHONY: all clean
+BINARY_NAME = update-img
+INSTALLDIR = $(PREFIX)/bin
+SOURCES = update-img.c
+
+.PHONY: all clean install
 
 all:
-	gcc -Wall -o img-merge img-merge.c
-	
+	$(CC) $(CCFLAGS) -o $(BINARY_NAME) -L $(BASE_DIR)/utils $(SOURCES)
+
+install: all
+	mkdir -p $(INSTALLDIR)
+	install $(BINARY_NAME) $(INSTALLDIR)
+
 clean:
-	rm -f img-merge
+	rm -f $(BINARY_NAME)
