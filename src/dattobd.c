@@ -19,7 +19,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 
-#define VERSION_STRING "0.8.15"
+#define VERSION_STRING "0.9.0"
 MODULE_VERSION(VERSION_STRING);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
