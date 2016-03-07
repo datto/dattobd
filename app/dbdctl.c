@@ -337,5 +337,5 @@ int main(int argc, char **argv){
 	
 	if(ret)	perror("driver returned an error performing specified action. check dmesg for more info");
 	
-	return 0;
+	return ret;
 }
