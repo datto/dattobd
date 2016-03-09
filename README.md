@@ -15,7 +15,7 @@ For example, LVM snapshotting requires an unused volume in order to track COW da
 
 The Datto Block Driver (Dattobd) solves the above problems. Dattobd is an open source Linux kernel module for point-in-time live snapshotting.  Dattobd can be loaded onto a running Linux machine (without a reboot) and used to create an image file representing any block device at the instant the snapshot is taken.  After the first snapshot, Dattobd tracks incremental changes to the block device and can therefore efficiently update existing backups by copying only the blocks that have changed.  
 
-With a single command, Dattobd can almost instantly create a point-in-time snapshot device representing the snapshot state.  Between snapshots, disk writes are tracked so incremental changes can be quickly and efficiently applied to an existing image file (e.g., one created from a previous snapshot) to create an up-to-date backup (for an example, see img-merge in utils/).
+With a single command, Dattobd can almost instantly create a point-in-time snapshot device representing the snapshot state.  Between snapshots, disk writes are tracked so incremental changes can be quickly and efficiently applied to an existing image file (e.g., one created from a previous snapshot) to create an up-to-date backup (for an example, see update-img in utils/).
 
 Dattobd is designed to run on any linux device from small test virtual machines to live production servers with minimal impact on I/O or CPU performance.  Since the driver works at the block layer, it supports most common filesystems including EXT and XFS (although filesystems with their own block device management systems such as ZFS and BTRFS can not be supported).  All COW data is tracked in a file on the source block device itself, eliminating the need to have a spare volume in order to snapshot.  
 
@@ -61,10 +61,10 @@ This command requires the name of a new COW file to begin tracking changes again
 
 7) Copy the changes:
 
-	img-merge /dev/datto0 /.datto /backups/sda1-bkp
+	update-img /dev/datto0 /.datto /backups/sda1-bkp
 
 
-Here we can use the img-merge tool included with the driver. It takes 3 parameters: a snapshot (`/dev/datto0`), the list of changed blocks (`/.datto` from step 1), and an original image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
+Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/datto0`), the list of changed blocks (`/.datto` from step 1), and an original image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
 
 8) Clean up the leftover file:
 
@@ -72,7 +72,7 @@ Here we can use the img-merge tool included with the driver. It takes 3 paramete
 
 
 9) Go back to step 4 and repeat:
-Keep in mind it is important to specify a different COW file path for each use. If you use the same file name you will overwrite the list of changed blocks. As a result you will have to use dd to perform a full copy again instead of using the faster `img-merge` tool (which only copies the changed blocks).
+Keep in mind it is important to specify a different COW file path for each use. If you use the same file name you will overwrite the list of changed blocks. As a result you will have to use dd to perform a full copy again instead of using the faster `update-img` tool (which only copies the changed blocks).
 
 If you wish to keep multiple versions of the image, we recommend that you copy your images a snapshotting filesystem (such as BTRFS or ZFS). You can then snapshot the images after updating them (step 3 for the full backup or 7 the differential). This will allow you to keep a history of revisions to the image.
 
