@@ -1,0 +1,36 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "UPDATE\-IMG" "8" "March 2016" "Datto Inc" ""
+.
+.SH "NAME"
+\fBupdate\-img\fR
+.
+.SH "NAME"
+dattobd \- Control the Datto block device kernel module\.
+.
+.SH "SYNOPSIS"
+\fBupdate\-img <snapshot device> <cow file> <image file>\fR
+.
+.SH "DESCRIPTION"
+\fBupdate\-img\fR is a simple tool to efficiently update backup images made by the dattobd kernel module\. It uses the leftover COW file from dattobd\'s incremental state to efficiently update an existing backup image\. See the man page on \fBdbdctl\fR for an example use case\.
+.
+.SS "EXAMPLES"
+\fB# update\-img /dev/datto4 /var/backup/datto1 /mnt/data/backup\-img\fR
+.
+.P
+This command will update a previously backed up snapshot \fB/mnt/data/backup\-img\fR with the changed blocks indicated by \fB/var/backup/datto1\fR from \fB/dev/datto4\fR\.
+.
+.P
+NOTE: \fB<snapshot device>\fR MUST be the NEXT snapshot after the one that \fB<image file>\fR was copied from\. This tool is currently very simple and does not check that this is the case\. If this is not true, the updated image will not include any of the writes performed during the intermediate snapshot and the image will be corrupted\.
+.
+.SH "Bugs"
+.
+.SH "Author"
+.
+.nf
+
+Tom Caputi (tcaputi@datto\.com)
+.
+.fi
+

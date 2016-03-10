@@ -61,7 +61,6 @@
     <a href="#SUB-COMMANDS">SUB-COMMANDS</a>
     <a href="#Bugs">Bugs</a>
     <a href="#Author">Author</a>
-    <a href="#See-Also">See Also</a>
   </div>
 
   <ol class='man-decor man-head man head'>
@@ -101,83 +100,75 @@
 
 <h3 id="setup-snapshot">setup-snapshot</h3>
 
-<p><code>dbdctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] &lt;block device> &lt;cow file path> &lt;minor number></code></p>
+<p><code>dbdctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] &lt;block device> &lt;cow file path> &lt;minor></code></p>
 
-<p>Sets up a snapshot.</p>
+<p>Sets up a snapshot of <code>&lt;block device></code>, saving all COW data to <code>&lt;cow file path></code>. The snapdhot device will be <code>/dev/datto&lt;minor></code>. The minor number will be used as a reference number for all other <code>dbdctl</code> commands. <code>&lt;cow file path></code> must be a path on the <code>&lt;block device></code>.</p>
 
 <h3 id="reload-snapshot">reload-snapshot</h3>
 
 <p><code>dbdctl reload-snapshot [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
-<p>Reloads a COW file that was in snapshot mode.</p>
-
-<p>This command is meant to be run before block devices are mounted. It notifies the kernel driver to expect the block device specified to come back online.</p>
+<p>Reloads a snapshot. This command is meant to be run before the block device is mounted, after a reboot or after the driver is unloaded. It notifies the kernel driver to expect the block device specified to come back online. This command requires that the snapshot was cleanly unmounted in snapshot mode beforehand. If this is not the case, the snapshot will be put into the failure state once it attempts to come online. The minor number will be used as a reference number for all other <code>dbdctl</code> commands.</p>
 
 <h3 id="reload-incremental">reload-incremental</h3>
 
 <p><code>dbdctl reload-incremental [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
-<p>Reloads a COW file that was in incremental mode.</p>
-
-<h3 id="transition-to-snapshot">transition-to-snapshot</h3>
-
-<p><code>dbdctl transition-to-snapshot [-f &lt;fallocate>] &lt;cow file> &lt;minor></code></p>
-
-<p>Transitions a COW file in incremental mode to snapshot mode.</p>
+<p>Reloads a block device that was in incremental mode. See <code>reload-snapshot</code> for restrictions.</p>
 
 <h3 id="transition-to-incremental">transition-to-incremental</h3>
 
 <p><code>dbdctl transition-to-incremental &lt;minor></code></p>
 
-<p>Transitions a snapshot COW file to incremental mode.</p>
+<p>Transitions a snapshot COW file to incremental mode, which only tracks which blocks have changed since a snapshot started. This will remove the associated snapshot device.</p>
+
+<h3 id="transition-to-snapshot">transition-to-snapshot</h3>
+
+<p><code>dbdctl transition-to-snapshot [-f &lt;fallocate>] &lt;cow file> &lt;minor></code></p>
+
+<p>Transitions a block device in incremental mode to snapshot mode. This call ensures no writes are missed between tearing down the incremental and setting up the new snapshot. The new snapshot data will be recorded in <code>&lt;cow file></code>. The old cow file will still exist after this and can be used to efficiently copy only changed blocks using a tool succh as <code>update-img</code>.</p>
 
 <h3 id="destroy">destroy</h3>
 
 <p><code>dbdctl destroy &lt;minor></code></p>
 
-<p>Cleanly and completely removes the snapshot or incremental file corresponding to the given block device minor number.</p>
+<p>Cleanly and completely removes the snapshot or incremental, unlinking the associated COW file.</p>
 
 <h3 id="reconfigure">reconfigure</h3>
 
 <p><code>dbdctl reconfigure [-c &lt;cache size>] &lt;minor></code></p>
 
-<p>Allows you to reconfigure various parameters of a snapshot while it is online.</p>
+<p>Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.</p>
 
 <h3 id="EXAMPLES">EXAMPLES</h3>
 
-<p><code># dbdctl setup-snapshot /dev/sda1 /var/backup/datto-backup 4</code></p>
+<p><code># dbdctl setup-snapshot /dev/sda1 /var/backup/datto 4</code></p>
 
-<p>This command will setup a new COW snapshot device tracking <code>/dev/sda1</code> at <code>/dev/datto4</code>. This block device is backed by a new file created at the path <code>/var/backup/datto-backup</code>.</p>
+<p>This command will set up a new COW snapshot device tracking <code>/dev/sda1</code> at <code>/dev/datto4</code>. This block device is backed by a new file created at the path <code>/var/backup/datto</code>.</p>
 
-<p>NOTE: The COW file responsible for maintaining snapshots of a filesystem MUST RESIDE on the SAME block device as the filesystem it is snapshotting!</p>
+<p><code># dbdctl transition-to-incremental 4</code></p>
 
-<p><code># dbdctl reload-snapshot /dev/sda1 /var/backup/datto-backup 4</code></p>
+<p>Transitions the snapshot specified by the minor number to incremental mode.</p>
 
-<p>This will notify the driver that the COW snapshot file located at <code>/var/backup/datto-backup</code> is tracking <code>/dev/sda1</code>, and that the resulting block device should be <code>/dev/datto4</code>.</p>
+<p><code># dbdctl transition-to-snapshot /var/backup/datto1 4</code></p>
 
-<p>NOTE: The path to the COW file is relative <em>TO THE ROOT OF THE VOLUME ON WHICH THE FILE IS LOCATED</em>, <strong>NOT</strong> <code>/</code>!</p>
+<p>Cleanly transitions the incremental to a new snapshot, using <code>/var/backup/datto1</code> as the new COW file. At this point a second backup can be taken, either doing a full copy wiht a tool like <code>dd</code> or an incremental copy using a tool such as <code>update-img</code>, if a previous snapshot backup exists.</p>
 
-<p><code># dbdctl reload-incremental /dev/sda5 /var/backup/datto-backup &lt;whatever the minor number is></code></p>
+<p><code># dbdctl reconfigure -c 400 4</code></p>
 
-<p>This will notify the driver that the COW incremental file located at <code>/var/backup/datto-backup</code> is tracking <code>/dev/sda1</code>, and that the resulting block device created by the driver should be <code>/dev/datto4</code>.</p>
+<p>Reconfigures the block device to have an in-memory index cache size of 400 MB.</p>
 
-<p>NOTE: The path to the COW file is relative <em>TO THE ROOT OF THE VOLUME ON WHICH THE FILE IS LOCATED</em>, <strong>NOT</strong> <code>/</code>!</p>
+<p><code># dbdctl destroy 4</code></p>
 
-<p><code># dbdctl destroy 5</code></p>
+<p>This will stop tracking <code>/dev/sda1</code>, remove the associated <code>/dev/datto4</code> (since the device is in snapshot mode), delete the COW file backing it, and perform all other cleanup.</p>
 
-<p>This will destroy the block device located at <code>/dev/datto5</code>, delete the COW file backing it, and perform all other cleanup relating to that device.</p>
+<p><code># dbdctl reload-snapshot /dev/sda1 /var/backup/datto1 4</code></p>
 
-<p><code># dbdctl transition-to-incremental 5</code></p>
+<p>After a reboot, this command may be performed in the early stages of boot, before the block device is mounted read-write. This will notify the driver to expect a block device <code>/dev/sda1</code> that was left in snapshot mode to come online with a COW file located at <code>/var/backup/datto1</code> (relative to the mountpoint), and that the reloaded snapshot should come online at minor number 4. If a problem is discovered when the block device comes online, this block device will be put into the failure state, which will be reported in <code>/proc/datto-info</code></p>
 
-<p>Transitions the Datto device specified by the minor number to incremental mode.</p>
+<p><code># dbdctl reload-incremental /dev/sda5 /var/backup/datto1 4</code></p>
 
-<p><code># dbdctl transition-to-snapshot /var/backup/datto-backup 5</code></p>
-
-<p>Transitions the incremental COW file indicated by the minor number to snapshot mode.</p>
-
-<p><code># dbdctl reconfigure -c 400 5</code></p>
-
-<p>Reconfigures the snapshot at <code>/dev/datto5</code> to have an in-memory cache size of 400 MB.</p>
+<p>This will act the same as <code>reload-snapshot</code>, but for a device that was left in incremental mode.</p>
 
 <h2 id="Bugs">Bugs</h2>
 
@@ -186,14 +177,10 @@
 <pre><code>Tom Caputi (tcaputi@datto.com)
 </code></pre>
 
-<h2 id="See-Also">See Also</h2>
-
-<p><code>dlad</code>(1)</p>
-
 
   <ol class='man-decor man-foot man foot'>
-    <li class='tl'>Datto, Inc.</li>
-    <li class='tc'>August 2015</li>
+    <li class='tl'>Datto Inc</li>
+    <li class='tc'>March 2016</li>
     <li class='tr'>dbdctl(8)</li>
   </ol>
 
