@@ -5,7 +5,7 @@ KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 EXTRA_CFLAGS := -g
 default:
-	if [ ! -f kernel-config.h ]; then ./genconfig.sh $(KERNELVERSION); fi;
+	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;
 	$(MAKE) -I/usr/include -C $(KDIR) SUBDIRS=$(PWD) modules
 	
 clean:

@@ -4,8 +4,8 @@ utils/update-img
 
 # Dynamically generated files
 src/kernel-config.h
-src/modules.order
-src/dattobd.mod.c
-src/Module.symvers
-src/*.cmd
-src/.tmp_versions/
+modules.order
+*.mod.c
+Module.symvers
+*.cmd
+.tmp_versions/

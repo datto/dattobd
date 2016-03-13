@@ -8,6 +8,9 @@
     by the Free Software Foundation.
 */
 
+#ifndef DATTOBD_INCLUDES_H_
+#define DATTOBD_INCLUDES_H_
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/blkdev.h>
@@ -21,3 +24,5 @@
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
 #include <asm/div64.h>
+
+#endif
