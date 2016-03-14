@@ -4,29 +4,30 @@ export CCFLAGS = -Wall -std=gnu99
 export PREFIX = /usr/local
 export BASE_DIR = $(dir $(abspath ./Makefile))
 
-.PHONY: all driver library application utils clean
+.PHONY: all driver library-shared library-static library application application-shared utils clean install
 
 all: driver library application utils
 
-shared: driver utils
-	$(MAKE) -C lib shared
-	$(MAKE) -C app shared
-
 driver:
 	$(MAKE) -C src
-	
-library:
-	$(MAKE) -C lib
-	
+
+library-shared:
+	$(MAKE) -C lib shared
+
 library-static:
 	$(MAKE) -C lib static
-	
+
+library: library-shared library-static
+
 application: library-static
 	$(MAKE) -C app
-	
+
+application-shared: library-shared
+	$(MAKE) -C app shared
+
 utils:
 	$(MAKE) -C utils
-	
+
 clean:
 	$(MAKE) -C src clean
 	$(MAKE) -C lib clean
@@ -37,6 +38,3 @@ install:
 	$(MAKE) -C lib install
 	$(MAKE) -C app install
 	$(MAKE) -C utils install
-
-install-static:
-	$(MAKE) -C app install-static

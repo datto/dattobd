@@ -2,7 +2,7 @@ BINARY_NAME = update-img
 INSTALLDIR = $(PREFIX)/bin
 SOURCES = update-img.c
 
-.PHONY: all clean install
+.PHONY: all install clean
 
 all:
 	$(CC) $(CCFLAGS) -o $(BINARY_NAME) $(SOURCES)
