@@ -294,6 +294,11 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 #define COW_FALLOC_OFFSET 16
 #define COW_META_SIZE 24
 
+//macros for snapshot bio modes of operation
+#define READ_MODE_COW_FILE 1
+#define READ_MODE_BASE_DEVICE 2
+#define READ_MODE_MIXED 3
+
 //macros for defining sector and block sizes
 #define KERNEL_SECTOR_LOG_SIZE 9
 #define KERNEL_SECTOR_SIZE (1 << KERNEL_SECTOR_LOG_SIZE)
@@ -1940,8 +1945,49 @@ bio_make_read_clone_error:
 
 /*******************BIO / SECTOR_SET PROCESSING LOGIC***********************/
 
+static int snap_read_bio_get_mode(struct snap_device *dev, struct bio *bio, int *mode){
+	int ret, start_mode = 0;
+	bio_iter_t iter;
+	bio_iter_bvec_t bvec;
+	unsigned int bytes;
+	uint64_t block_mapping, curr_byte, curr_end_byte = bio_sector(bio) * KERNEL_SECTOR_SIZE;
+
+	bio_for_each_segment(bvec, bio, iter){
+		//reset the number of bytes we have traversed for this bio_vec
+		bytes = 0;
+
+		//while we still have data left to be written into the page
+		while(bytes < bio_iter_len(bio, iter)){
+			//find the start and stop byte for our next write
+			curr_byte = curr_end_byte;
+			curr_end_byte += min(COW_BLOCK_SIZE - (curr_byte % COW_BLOCK_SIZE), ((uint64_t)bio_iter_len(bio, iter)));
+
+			//check if the mapping exists
+			ret = cow_read_mapping(dev->sd_cow, curr_byte / COW_BLOCK_SIZE, &block_mapping);
+			if(ret) goto snap_read_bio_get_mode_error;
+
+			if(!start_mode && block_mapping) start_mode = READ_MODE_COW_FILE;
+			else if(!start_mode && !block_mapping) start_mode = READ_MODE_BASE_DEVICE;
+			else if((start_mode == READ_MODE_COW_FILE && !block_mapping) || (start_mode == READ_MODE_BASE_DEVICE && block_mapping)){
+				*mode = READ_MODE_MIXED;
+				return 0;
+			}
+
+			//increment the number of bytes we have written
+			bytes += curr_end_byte - curr_byte;
+		}
+	}
+
+	*mode = start_mode;
+	return 0;
+
+snap_read_bio_get_mode_error:
+	LOG_ERROR(ret, "error finding read mode");
+	return ret;
+}
+
 static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
-	int ret;
+	int ret, mode;
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 	void *orig_private;
@@ -1960,53 +2006,66 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 
 	bio->bi_bdev = dev->sd_base_dev;
 
+	//detect fastpath for bios completely contained within either the cow file or the base device
+	ret = snap_read_bio_get_mode(dev, bio, &mode);
+	if(ret) goto snap_handle_bio_read_out;
+
 	//submit the bio to the base device and wait for completion
-	ret = submit_bio_wait(READ_SYNC, bio);
-	if(ret){
-		LOG_ERROR(ret, "error reading from base device for read");
-		goto snap_handle_bio_read_out;
+	if(mode != READ_MODE_COW_FILE){
+		ret = submit_bio_wait(READ_SYNC, bio);
+		if(ret){
+			LOG_ERROR(ret, "error reading from base device for read");
+			goto snap_handle_bio_read_out;
+		}
+
+#ifdef HAVE_BIO_BI_REMAINING
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
+		atomic_inc(&bio->bi_remaining);
+#endif
 	}
 
-	//reset the bio
-	bio_idx(bio) = bio_orig_idx;
-	bio_size(bio) = bio_orig_size;
-	bio_sector(bio) = bio_orig_sect;
+	if(mode != READ_MODE_BASE_DEVICE){
+		//reset the bio
+		bio_idx(bio) = bio_orig_idx;
+		bio_size(bio) = bio_orig_size;
+		bio_sector(bio) = bio_orig_sect;
 
-	//iterate over all the segments and fill the bio. this more complex than writing since we don't have the block aligned guarantee
-	bio_for_each_segment(bvec, bio, iter){
-		//reset the number of bytes we have written to this bio_vec
-		bytes_written = 0;
+		//iterate over all the segments and fill the bio. this more complex than writing since we don't have the block aligned guarantee
+		bio_for_each_segment(bvec, bio, iter){
+			//reset the number of bytes we have written to this bio_vec
+			bytes_written = 0;
 
-		//map the page into kernel space
-		data = kmap(bio_iter_page(bio, iter));
+			//map the page into kernel space
+			data = kmap(bio_iter_page(bio, iter));
 
-		//while we still have data left to be written into the page
-		while(bytes_written < bio_iter_len(bio, iter)){
-			//find the start and stop byte for our next write
-			curr_byte = curr_end_byte;
-			curr_end_byte += min(COW_BLOCK_SIZE - (curr_byte % COW_BLOCK_SIZE), ((uint64_t)bio_iter_len(bio, iter)));
+			//while we still have data left to be written into the page
+			while(bytes_written < bio_iter_len(bio, iter)){
+				//find the start and stop byte for our next write
+				curr_byte = curr_end_byte;
+				curr_end_byte += min(COW_BLOCK_SIZE - (curr_byte % COW_BLOCK_SIZE), ((uint64_t)bio_iter_len(bio, iter)));
 
-			//check if the mapping exists
-			ret = cow_read_mapping(dev->sd_cow, curr_byte / COW_BLOCK_SIZE, &block_mapping);
-			if(ret){
-				kunmap(bio_iter_page(bio, iter));
-				goto snap_handle_bio_read_out;
-			}
-
-			//if the mapping exists, read it into the page, overwriting the live data
-			if(block_mapping){
-				ret = cow_read_data(dev->sd_cow, data + bio_iter_offset(bio, iter) + bytes_written, block_mapping, curr_byte % COW_BLOCK_SIZE, curr_end_byte - curr_byte);
+				//check if the mapping exists
+				ret = cow_read_mapping(dev->sd_cow, curr_byte / COW_BLOCK_SIZE, &block_mapping);
 				if(ret){
 					kunmap(bio_iter_page(bio, iter));
 					goto snap_handle_bio_read_out;
 				}
-			}
-			//increment the number of bytes we have written
-			bytes_written += curr_end_byte - curr_byte;
-		}
 
-		//unmap the page from kernel space
-		kunmap(bio_iter_page(bio, iter));
+				//if the mapping exists, read it into the page, overwriting the live data
+				if(block_mapping){
+					ret = cow_read_data(dev->sd_cow, data + bio_iter_offset(bio, iter) + bytes_written, block_mapping, curr_byte % COW_BLOCK_SIZE, curr_end_byte - curr_byte);
+					if(ret){
+						kunmap(bio_iter_page(bio, iter));
+						goto snap_handle_bio_read_out;
+					}
+				}
+				//increment the number of bytes we have written
+				bytes_written += curr_end_byte - curr_byte;
+			}
+
+			//unmap the page from kernel space
+			kunmap(bio_iter_page(bio, iter));
+		}
 	}
 
 snap_handle_bio_read_out:
@@ -2018,10 +2077,6 @@ snap_handle_bio_read_out:
 	bio_idx(bio) = bio_orig_idx;
 	bio_size(bio) = bio_orig_size;
 
-#ifdef HAVE_BIO_BI_REMAINING
-//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
-	atomic_inc(&bio->bi_remaining);
-#endif
 	return ret;
 }
 
