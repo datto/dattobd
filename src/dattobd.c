@@ -1776,6 +1776,43 @@ static struct bio *bio_queue_dequeue(struct bio_queue *bq){
 	return bio;
 }
 
+static int bio_overlap(struct bio *bio1, struct bio *bio2){
+	return max(bio_sector(bio1), bio_sector(bio2)) <= min(bio_sector(bio1) + (bio_size(bio1) / KERNEL_SECTOR_SIZE), bio_sector(bio2) + (bio_size(bio2) / KERNEL_SECTOR_SIZE));
+}
+
+static struct bio *bio_queue_dequeue_delay_read(struct bio_queue *bq){
+	unsigned long flags;
+	struct bio *bio, *tmp, *prev = NULL;
+
+	spin_lock_irqsave(&bq->lock, flags);
+	bio = bio_list_pop(&bq->bios);
+
+	if(!bio_data_dir(bio)){
+		bio_list_for_each(tmp, &bq->bios){
+			if(bio_data_dir(tmp) && bio_overlap(bio, tmp)){
+				LOG_DEBUG("cow read / write swap required");
+
+				if(prev) prev->bi_next = bio;
+				else bq->bios.head = bio;
+
+				if(bq->bios.tail == tmp) bq->bios.tail = bio;
+
+				bio->bi_next = tmp->bi_next;
+				tmp->bi_next = NULL;
+				bio = tmp;
+
+				goto bio_queue_dequeue_delay_read_out;
+			}
+			prev = tmp;
+		}
+	}
+
+bio_queue_dequeue_delay_read_out:
+	spin_unlock_irqrestore(&bq->lock, flags);
+
+	return bio;
+}
+
 /****************************SSET QUEUE FUNCTIONS****************************/
 
 static void sset_queue_init(struct sset_queue *sq){
@@ -2190,7 +2227,7 @@ static int snap_cow_thread(void *data){
 		if(bio_queue_empty(bq)) continue;
 
 		//safely dequeue a bio
-		bio = bio_queue_dequeue(bq);
+		bio = bio_queue_dequeue_delay_read(bq);
 
 		//pass bio to handler
 		if(!bio_data_dir(bio)){
