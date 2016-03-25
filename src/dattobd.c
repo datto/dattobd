@@ -234,7 +234,7 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 //printing macros
 #ifdef DATTO_DEBUG
 	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
-	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio))
+	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
 #else
 	#define LOG_DEBUG(fmt, args...)
 	#define PRINT_BIO(text, bio)
@@ -1790,8 +1790,6 @@ static struct bio *bio_queue_dequeue_delay_read(struct bio_queue *bq){
 	if(!bio_data_dir(bio)){
 		bio_list_for_each(tmp, &bq->bios){
 			if(bio_data_dir(tmp) && bio_overlap(bio, tmp)){
-				LOG_DEBUG("cow read / write swap required");
-
 				if(prev) prev->bi_next = bio;
 				else bq->bios.head = bio;
 
@@ -2030,9 +2028,9 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	void *orig_private;
 	bio_end_io_t *orig_end_io;
 	char *data;
-	sector_t bio_orig_sect;
-	unsigned int bio_orig_idx, bio_orig_size, bytes_written;
-	uint64_t block_mapping, curr_byte, curr_end_byte = bio_sector(bio) * KERNEL_SECTOR_SIZE;
+	sector_t bio_orig_sect, cur_block, cur_sect;
+	unsigned int bio_orig_idx, bio_orig_size, bytes_to_copy, block_off, bvec_off;
+	uint64_t block_mapping;
 
 	//save the original state of the bio
 	orig_private = bio->bi_private;
@@ -2066,23 +2064,21 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 		bio_idx(bio) = bio_orig_idx;
 		bio_size(bio) = bio_orig_size;
 		bio_sector(bio) = bio_orig_sect;
+		cur_sect = bio_sector(bio);
 
 		//iterate over all the segments and fill the bio. this more complex than writing since we don't have the block aligned guarantee
 		bio_for_each_segment(bvec, bio, iter){
-			//reset the number of bytes we have written to this bio_vec
-			bytes_written = 0;
-
 			//map the page into kernel space
 			data = kmap(bio_iter_page(bio, iter));
 
-			//while we still have data left to be written into the page
-			while(bytes_written < bio_iter_len(bio, iter)){
-				//find the start and stop byte for our next write
-				curr_byte = curr_end_byte;
-				curr_end_byte += min(COW_BLOCK_SIZE - (curr_byte % COW_BLOCK_SIZE), ((uint64_t)bio_iter_len(bio, iter)));
+			cur_block = (cur_sect * KERNEL_SECTOR_SIZE) / COW_BLOCK_SIZE;
+			block_off = (cur_sect * KERNEL_SECTOR_SIZE) % COW_BLOCK_SIZE;
+			bvec_off = bio_iter_offset(bio, iter);
 
+			while(bvec_off < bio_iter_offset(bio, iter) + bio_iter_len(bio, iter)){
+				bytes_to_copy = min(bio_iter_offset(bio, iter) + bio_iter_len(bio, iter) - bvec_off, COW_BLOCK_SIZE - block_off);
 				//check if the mapping exists
-				ret = cow_read_mapping(dev->sd_cow, curr_byte / COW_BLOCK_SIZE, &block_mapping);
+				ret = cow_read_mapping(dev->sd_cow, cur_block, &block_mapping);
 				if(ret){
 					kunmap(bio_iter_page(bio, iter));
 					goto snap_handle_bio_read_out;
@@ -2090,14 +2086,17 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 
 				//if the mapping exists, read it into the page, overwriting the live data
 				if(block_mapping){
-					ret = cow_read_data(dev->sd_cow, data + bio_iter_offset(bio, iter) + bytes_written, block_mapping, curr_byte % COW_BLOCK_SIZE, curr_end_byte - curr_byte);
+					ret = cow_read_data(dev->sd_cow, data + bvec_off, block_mapping, block_off, bytes_to_copy);
 					if(ret){
 						kunmap(bio_iter_page(bio, iter));
 						goto snap_handle_bio_read_out;
 					}
 				}
-				//increment the number of bytes we have written
-				bytes_written += curr_end_byte - curr_byte;
+
+				cur_sect += bytes_to_copy / KERNEL_SECTOR_SIZE;
+				cur_block = (cur_sect * KERNEL_SECTOR_SIZE) / COW_BLOCK_SIZE;
+				block_off = (cur_sect * KERNEL_SECTOR_SIZE) % COW_BLOCK_SIZE;
+				bvec_off += bytes_to_copy;
 			}
 
 			//unmap the page from kernel space
@@ -2106,13 +2105,16 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	}
 
 snap_handle_bio_read_out:
-	if(ret) LOG_ERROR(ret, "error handling read bio");
+	if(ret) {
+		LOG_ERROR(ret, "error handling read bio");
+		bio_idx(bio) = bio_orig_idx;
+		bio_size(bio) = bio_orig_size;
+		bio_sector(bio) = bio_orig_sect;
+	}
 
 	//revert bio's original data
 	bio->bi_private = orig_private;
 	bio->bi_end_io = orig_end_io;
-	bio_idx(bio) = bio_orig_idx;
-	bio_size(bio) = bio_orig_size;
 
 	return ret;
 }
