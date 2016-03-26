@@ -3,7 +3,7 @@
 
     This file is part of dattobd.
 
-    This program is free software; you can redistribute it and/or modify it 
+    This program is free software; you can redistribute it and/or modify it
     under the terms of the GNU General Public License version 2 as published
     by the Free Software Foundation.
 */
@@ -33,57 +33,57 @@ static void print_help(int status){
 	exit(status);
 }
 
-static int parse_ul(const char *str, unsigned long *out){	
+static int parse_ul(const char *str, unsigned long *out){
 	long long tmp;
 	const char *c = str;
-	
+
 	//check that string is an integer number and has a length
 	do{
 		if(!isdigit(*c)) goto parse_ul_error;
 		c++;
 	}while(*c);
-	
+
 	//convert to long long
 	tmp = strtoll(str, NULL, 0);
 	if(errno) goto parse_ul_error;
-	
+
 	//check boundaries
 	if(tmp < 0 || tmp == LLONG_MAX){
 		errno = ERANGE;
 		goto parse_ul_error;
 	}
-	
+
 	*out = (unsigned long)tmp;
 	return 0;
-	
+
 parse_ul_error:
 	*out = 0;
 	return -1;
 }
 
-static int parse_ui(const char *str, unsigned int *out){	
+static int parse_ui(const char *str, unsigned int *out){
 	long tmp;
 	const char *c = str;
-	
+
 	//check that string is an integer number and has a length
 	do{
 		if(!isdigit(*c)) goto parse_ui_error;
 		c++;
 	}while(*c);
-	
+
 	//convert to long
 	tmp = strtol(str, NULL, 0);
 	if(errno) goto parse_ui_error;
-	
+
 	//check boundaries
 	if(tmp < 0 || tmp == LONG_MAX){
 		errno = ERANGE;
 		goto parse_ui_error;
 	}
-	
+
 	*out = (unsigned int)tmp;
 	return 0;
-	
+
 parse_ui_error:
 	*out = 0;
 	return -1;
@@ -94,7 +94,7 @@ static int handle_setup_snap(int argc, char **argv){
 	unsigned int minor;
 	unsigned long cache_size = 0, fallocated_space = 0;
 	char *bdev, *cow;
-	
+
 	//get cache size and fallocated space params, if given
 	while((c = getopt(argc, argv, "c:f:")) != -1){
 		switch(c){
@@ -111,20 +111,20 @@ static int handle_setup_snap(int argc, char **argv){
 			goto handle_setup_snap_error;
 		}
 	}
-	
+
 	if(argc - optind != 3){
 		errno = EINVAL;
 		goto handle_setup_snap_error;
 	}
-	
+
 	bdev = argv[optind];
 	cow = argv[optind + 1];
-	
+
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_setup_snap_error;
-	
+
 	return setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
-	
+
 handle_setup_snap_error:
 	perror("error interpreting setup snapshot parameters");
 	print_help(-1);
@@ -136,7 +136,7 @@ static int handle_reload_snap(int argc, char **argv){
 	unsigned int minor;
 	unsigned long cache_size = 0;
 	char *bdev, *cow;
-	
+
 	//get cache size and fallocated space params, if given
 	while((c = getopt(argc, argv, "c:")) != -1){
 		switch(c){
@@ -149,20 +149,20 @@ static int handle_reload_snap(int argc, char **argv){
 			goto handle_reload_snap_error;
 		}
 	}
-	
+
 	if(argc - optind != 3){
 		errno = EINVAL;
 		goto handle_reload_snap_error;
 	}
-	
+
 	bdev = argv[optind];
 	cow = argv[optind + 1];
-	
+
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_reload_snap_error;
-	
+
 	return reload_snapshot(minor, bdev, cow, cache_size);
-	
+
 handle_reload_snap_error:
 	perror("error interpreting reload snapshot parameters");
 	print_help(-1);
@@ -174,7 +174,7 @@ static int handle_reload_inc(int argc, char **argv){
 	unsigned int minor;
 	unsigned long cache_size = 0;
 	char *bdev, *cow;
-	
+
 	//get cache size and fallocated space params, if given
 	while((c = getopt(argc, argv, "c:")) != -1){
 		switch(c){
@@ -187,20 +187,20 @@ static int handle_reload_inc(int argc, char **argv){
 			goto handle_reload_inc_error;
 		}
 	}
-	
+
 	if(argc - optind != 3){
 		errno = EINVAL;
 		goto handle_reload_inc_error;
 	}
-	
+
 	bdev = argv[optind];
 	cow = argv[optind + 1];
-	
+
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_reload_inc_error;
-	
+
 	return reload_incremental(minor, bdev, cow, cache_size);
-	
+
 handle_reload_inc_error:
 	perror("error interpreting reload incremental parameters");
 	print_help(-1);
@@ -210,17 +210,17 @@ handle_reload_inc_error:
 static int handle_destroy(int argc, char **argv){
 	int ret;
 	unsigned int minor;
-	
+
 	if(argc != 2){
 		errno = EINVAL;
 		goto handle_destroy_error;
 	}
-	
+
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto handle_destroy_error;
-	
+
 	return destroy(minor);
-	
+
 handle_destroy_error:
 	perror("error interpreting destroy parameters");
 	print_help(-1);
@@ -230,17 +230,17 @@ handle_destroy_error:
 static int handle_transition_inc(int argc, char **argv){
 	int ret;
 	unsigned int minor;
-	
+
 	if(argc != 2){
 		errno = EINVAL;
 		goto handle_transition_inc_error;
 	}
-	
+
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto handle_transition_inc_error;
-	
+
 	return transition_incremental(minor);
-	
+
 handle_transition_inc_error:
 	perror("error interpreting transition to incremental parameters");
 	print_help(-1);
@@ -252,7 +252,7 @@ static int handle_transition_snap(int argc, char **argv){
 	unsigned int minor;
 	unsigned long fallocated_space = 0;
 	char *cow;
-	
+
 	//get cache size and fallocated space params, if given
 	while((c = getopt(argc, argv, "f:")) != -1){
 		switch(c){
@@ -265,19 +265,19 @@ static int handle_transition_snap(int argc, char **argv){
 			goto handle_transition_snap_error;
 		}
 	}
-	
+
 	if(argc - optind != 2){
 		errno = EINVAL;
 		goto handle_transition_snap_error;
 	}
-	
+
 	cow = argv[optind];
-	
+
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto handle_transition_snap_error;
-		
+
 	return transition_snapshot(minor, cow, fallocated_space);
-	
+
 handle_transition_snap_error:
 	perror("error interpreting transition to snapshot parameters");
 	print_help(-1);
@@ -288,7 +288,7 @@ static int handle_reconfigure(int argc, char **argv){
 	int ret, c;
 	unsigned int minor;
 	unsigned long cache_size = 0;
-	
+
 	//get cache size and fallocated space params, if given
 	while((c = getopt(argc, argv, "c:")) != -1){
 		switch(c){
@@ -301,17 +301,17 @@ static int handle_reconfigure(int argc, char **argv){
 			goto handle_reconfigure_error;
 		}
 	}
-	
+
 	if(argc - optind != 1){
 		errno = EINVAL;
 		goto handle_reconfigure_error;
 	}
-	
+
 	ret = parse_ui(argv[optind], &minor);
 	if(ret) goto handle_reconfigure_error;
-	
+
 	return reconfigure(minor, cache_size);
-	
+
 handle_reconfigure_error:
 	perror("error interpreting reconfigure parameters");
 	print_help(-1);
@@ -320,10 +320,16 @@ handle_reconfigure_error:
 
 int main(int argc, char **argv){
 	int ret = 0;
-	
+
 	//check argc
 	if(argc < 2) print_help(-1);
-	
+
+	if(access("/dev/datto-ctl", F_OK) != 0){
+		errno = EINVAL;
+		perror("driver does not appear to be loaded");
+		return -1;
+	}
+
 	//route to appropriate handler or print help
 	if(!strcmp(argv[1], "setup-snapshot")) ret = handle_setup_snap(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "reload-snapshot")) ret = handle_reload_snap(argc - 1, argv + 1);
@@ -334,8 +340,8 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
-	
+
 	if(ret)	perror("driver returned an error performing specified action. check dmesg for more info");
-	
+
 	return ret;
 }

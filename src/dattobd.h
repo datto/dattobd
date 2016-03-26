@@ -3,13 +3,17 @@
 
     This file is part of dattobd.
 
-    This program is free software; you can redistribute it and/or modify it 
+    This program is free software; you can redistribute it and/or modify it
     under the terms of the GNU General Public License version 2 as published
     by the Free Software Foundation.
 */
 
 #ifndef DATTOBD_H_
 #define DATTOBD_H_
+
+#ifndef __KERNEL__
+#include <stdint.h>
+#endif
 
 #include <linux/ioctl.h>
 
@@ -39,6 +43,22 @@ struct transition_snap_params{
 struct reconfigure_params{
 	unsigned long cache_size; //maximum cache size (in bytes)
 	unsigned int minor; //requested minor number of the device
+};
+
+#define COW_BLOCK_LOG_SIZE 12
+#define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
+#define COW_HEADER_SIZE 4096
+#define COW_MAGIC ((uint32_t)4776)
+#define COW_CLEAN 0
+#define COW_INDEX_ONLY 1
+#define COW_VMALLOC_UPPER 2
+
+struct cow_header{
+	uint32_t magic; //COW header magic
+	uint32_t flags; //COW file flags
+	uint64_t fpos; //current file offset
+	uint64_t fsize; //file size
+	uint64_t seqid; //seqential id of snapshot (starts at 1)
 };
 
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above

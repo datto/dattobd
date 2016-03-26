@@ -279,21 +279,6 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 //macros for verifying file
 #define file_is_on_bdev(file, bdev) ((file)->f_path.mnt->mnt_sb == (bdev)->bd_super)
 
-//macros and flags for the cow manager
-#define COW_MAGIC ((uint32_t)4776)
-
-#define COW_CLEAN 0
-#define COW_INDEX_ONLY 1
-#define COW_VMALLOC_UPPER 2
-
-//macros for defining the offsets of the cow manager header
-#define COW_HEADER_SIZE 4096
-#define COW_MAGIC_OFFSET 0
-#define COW_FLAGS_OFFSET 4
-#define COW_FPOS_OFFSET 8
-#define COW_FALLOC_OFFSET 16
-#define COW_META_SIZE 24
-
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
 #define READ_MODE_BASE_DEVICE 2
@@ -303,8 +288,6 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 #define KERNEL_SECTOR_LOG_SIZE 9
 #define KERNEL_SECTOR_SIZE (1 << KERNEL_SECTOR_LOG_SIZE)
 #define SECTORS_PER_PAGE (PAGE_SIZE / KERNEL_SECTOR_SIZE)
-#define COW_BLOCK_LOG_SIZE 12
-#define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
 #define COW_SECTION_SIZE 4096
 #define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / KERNEL_SECTOR_SIZE)
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
@@ -398,6 +381,7 @@ struct cow_manager{
 	uint64_t curr_pos; //current write head position
 	uint64_t data_offset; //starting offset of data
 	uint64_t file_max; //max size of the file before an error is thrown
+	uint64_t seqid; //sequence id, increments on each transition to snapshot mode
 	unsigned int log_sect_pages; //log2 of the number of pages needed to store a section
 	unsigned long sect_size; //size of a section in number of elements it can contain
 	unsigned long allocated_sects; //number of currently allocated sections
@@ -1293,18 +1277,18 @@ static int __cow_cleanup_mappings(struct cow_manager *cm){
 
 static int __cow_write_header(struct cow_manager *cm, int is_clean){
 	int ret;
-	char header_buf[COW_META_SIZE];
-	uint32_t magic = COW_MAGIC;
+	struct cow_header ch;
 
 	if(is_clean) cm->flags |= (1 << COW_CLEAN);
 	else cm->flags &= ~(1 << COW_CLEAN);
 
-	memcpy(&header_buf[COW_MAGIC_OFFSET], &magic, sizeof(uint32_t));
-	memcpy(&header_buf[COW_FLAGS_OFFSET], &cm->flags, sizeof(uint32_t));
-	memcpy(&header_buf[COW_FPOS_OFFSET], &cm->curr_pos, sizeof(uint64_t));
-	memcpy(&header_buf[COW_FALLOC_OFFSET], &cm->file_max, sizeof(uint64_t));
+	ch.magic = COW_MAGIC;
+	ch.flags = cm->flags;
+	ch.fpos = cm->curr_pos;
+	ch.fsize = cm->file_max;
+	ch.seqid = cm->seqid;
 
-	ret = file_write(cm->filp, header_buf, 0, COW_META_SIZE);
+	ret = file_write(cm->filp, &ch, 0, sizeof(struct cow_header));
 	if(ret){
 		LOG_ERROR(ret, "error syncing cow manager header");
 		return ret;
@@ -1317,43 +1301,37 @@ static int __cow_write_header(struct cow_manager *cm, int is_clean){
 
 static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc){
 	int ret;
-	char header_buf[COW_META_SIZE];
-	uint32_t magic, flags;
-	uint64_t falloc_size, fpos;
+	struct cow_header ch;
 
-	ret = file_read(cm->filp, header_buf, 0, COW_META_SIZE);
+	ret = file_read(cm->filp, &ch, 0, sizeof(struct cow_header));
 	if(ret) goto cow_open_header_error;
 
-	memcpy(&magic, &header_buf[COW_MAGIC_OFFSET], sizeof(uint32_t));
-	memcpy(&flags, &header_buf[COW_FLAGS_OFFSET], sizeof(uint32_t));
-	memcpy(&fpos, &header_buf[COW_FPOS_OFFSET], sizeof(uint64_t));
-	memcpy(&falloc_size, &header_buf[COW_FALLOC_OFFSET], sizeof(uint64_t));
-
-	if(magic != COW_MAGIC){
+	if(ch.magic != COW_MAGIC){
 		ret = -EINVAL;
-		LOG_ERROR(-EINVAL, "bad magic number found in cow file: %lu", ((unsigned long)magic));
+		LOG_ERROR(-EINVAL, "bad magic number found in cow file: %lu", ((unsigned long)ch.magic));
 		goto cow_open_header_error;
 	}
 
-	if(!(flags & (1 << COW_CLEAN))){
+	if(!(ch.flags & (1 << COW_CLEAN))){
 		ret = -EINVAL;
-		LOG_ERROR(-EINVAL, "cow file not left in clean state: %lu", ((unsigned long)flags));
+		LOG_ERROR(-EINVAL, "cow file not left in clean state: %lu", ((unsigned long)ch.flags));
 		goto cow_open_header_error;
 	}
 
-	if(((flags & (1 << COW_INDEX_ONLY)) && !index_only) || (!(flags & (1 << COW_INDEX_ONLY)) && index_only)){
+	if(((ch.flags & (1 << COW_INDEX_ONLY)) && !index_only) || (!(ch.flags & (1 << COW_INDEX_ONLY)) && index_only)){
 		ret = -EINVAL;
-		LOG_ERROR(-EINVAL, "cow file not left in %s state: %lu", ((index_only)? "index only" : "data tracking"), (unsigned long)flags);
+		LOG_ERROR(-EINVAL, "cow file not left in %s state: %lu", ((index_only)? "index only" : "data tracking"), (unsigned long)ch.flags);
 		goto cow_open_header_error;
 	}
 
-	LOG_DEBUG("cow header opened with file pos = %llu", ((unsigned long long)fpos));
+	LOG_DEBUG("cow header opened with file pos = %llu, seqid = %llu", ((unsigned long long)ch.fpos), (unsigned long long)ch.seqid);
 
-	if(reset_vmalloc) cm->flags = flags & ~(1 << COW_VMALLOC_UPPER);
-	else cm->flags = flags;
+	if(reset_vmalloc) cm->flags = ch.flags & ~(1 << COW_VMALLOC_UPPER);
+	else cm->flags = ch.flags;
 
-	cm->curr_pos = fpos;
-	cm->file_max = falloc_size;
+	cm->curr_pos = ch.fpos;
+	cm->file_max = ch.fsize;
+	cm->seqid = ch.seqid;
 
 	ret = __cow_write_header_dirty(cm);
 	if(ret) goto cow_open_header_error;
@@ -1516,11 +1494,11 @@ cow_reload_error:
 	return ret;
 }
 
-static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, uint64_t file_max, struct cow_manager **cm_out){
+static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, uint64_t file_max, uint64_t seqid, struct cow_manager **cm_out){
 	int ret;
 	struct cow_manager *cm;
 
-	LOG_DEBUG("allocating cow manager");
+	LOG_DEBUG("allocating cow manager, seqid = %llu", (unsigned long long)seqid);
 	cm = kzalloc(sizeof(struct cow_manager), GFP_KERNEL);
 	if(!cm){
 		ret = -ENOMEM;
@@ -1536,6 +1514,7 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	cm->allocated_sects = 0;
 	cm->file_max = file_max;
 	cm->sect_size = sect_size;
+	cm->seqid = seqid;
 	cm->log_sect_pages = get_order(sect_size*8);
 	cm->total_sects = NUM_SEGMENTS(elements, cm->log_sect_pages + PAGE_SHIFT - 3);
 	cm->allowed_sects = __cow_calculate_allowed_sects(cache_size, cm->total_sects);
@@ -2858,7 +2837,7 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 #define __tracer_destroy_cow_sync_and_free(dev) __tracer_destroy_cow(dev, 1)
 #define __tracer_destroy_cow_sync_and_close(dev) __tracer_destroy_cow(dev, 2)
 
-static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, int open_method){
+static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, uint64_t seqid, int open_method){
 	int ret;
 	uint64_t max_file_size;
 
@@ -2885,7 +2864,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 			//create and open the cow manager
 			LOG_DEBUG("creating cow manager");
-			ret = cow_init(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, &dev->sd_cow);
+			ret = cow_init(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, seqid, &dev->sd_cow);
 			if(ret)	goto tracer_setup_cow_error;
 		}else{
 			//reload the cow manager
@@ -2916,10 +2895,10 @@ tracer_setup_cow_error:
 	__tracer_destroy_cow_free(dev);
 	return ret;
 }
-#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space, cache_size, 0)
-#define __tracer_setup_cow_reload_snap(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, 1)
-#define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, 2)
-#define __tracer_setup_cow_reopen(dev, bdev, cow_path) __tracer_setup_cow(dev, bdev, cow_path, 0, 0, 0, 3)
+#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, cache_size, seqid) __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space, cache_size, seqid, 0)
+#define __tracer_setup_cow_reload_snap(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, 0, 1)
+#define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, 0, 2)
+#define __tracer_setup_cow_reopen(dev, bdev, cow_path) __tracer_setup_cow(dev, bdev, cow_path, 0, 0, 0, 0, 3)
 
 static void __tracer_copy_cow(struct snap_device *src, struct snap_device *dest){
 	dest->sd_cow = src->sd_cow;
@@ -3180,7 +3159,7 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 	if(ret)	goto tracer_setup_active_snap_error;
 
 	//setup the cow manager
-	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size);
+	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, 1);
 	if(ret)	goto tracer_setup_active_snap_error;
 
 	//setup the cow path
@@ -3324,7 +3303,7 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, char *cow_path
 	__tracer_copy_base_dev(old_dev, dev);
 
 	//setup the cow manager
-	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size);
+	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size, old_dev->sd_cow->seqid + 1);
 	if(ret) goto tracer_active_inc_to_snap_error;
 
 	//setup the cow path
@@ -4206,9 +4185,12 @@ static int info_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"minor\": %u,\n", i);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
-
 		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT);
-		if(!test_bit(UNVERIFIED, &dev->sd_state)) seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
+
+		if(!test_bit(UNVERIFIED, &dev->sd_state)){
+			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
+			seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
+		}
 
 		error = tracer_read_fail_state(dev);
 		if(error) seq_printf(m, "\t\t\t\"error\": %d,\n", error);

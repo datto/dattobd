@@ -14,13 +14,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <stdint.h>
 #include <unistd.h>
+#include "../src/dattobd.h"
 
-#define COW_META_HEADER_SIZE 4096
-#define COW_BLOCK_LOG_SIZE 12
-#define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
-#define INDEX_BUFFER_SIZE 4096 * 2
+#define INDEX_BUFFER_SIZE 8192
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
@@ -61,6 +58,7 @@ error:
 
 int main(int argc,char *argv[]){
 	int ret;
+	struct cow_header ch;
 	size_t snap_size, bytes, blocks_to_read;
 	sector_t total_chunks, total_blocks, i, j, blocks_done = 0, count = 0, err_count = 0;
 	FILE *cow = NULL, *snap = NULL, *img = NULL;
@@ -95,7 +93,23 @@ int main(int argc,char *argv[]){
 		goto error;
 	}
 
-	//get size of snapshot, xalculate other needed sizes
+	//read cow header from cow file
+	bytes = pread(fileno(cow), &ch, sizeof(struct cow_header), 0);
+	if(bytes != sizeof(struct cow_header)){
+		ret = errno;
+		errno = 0;
+		printf("error reading cow header\n");
+		goto error;
+	}
+
+	//check the cow magic number
+	if(ch.magic != COW_MAGIC){
+		ret = EINVAL;
+		printf("bad cow file magic number\n");
+		goto error;
+	}
+
+	//get size of snapshot, calculate other needed sizes
 	fseeko(snap, 0, SEEK_END);
 	snap_size = ftello(snap);
 	total_blocks = (snap_size + COW_BLOCK_SIZE - 1) / COW_BLOCK_SIZE;
@@ -118,7 +132,7 @@ int main(int argc,char *argv[]){
 		//read a chunk of mappings from the cow file
 		blocks_to_read = MIN(INDEX_BUFFER_SIZE, total_blocks - blocks_done);
 
-		bytes = pread(fileno(cow), mappings, blocks_to_read * sizeof(uint64_t), COW_META_HEADER_SIZE + (INDEX_BUFFER_SIZE * sizeof(uint64_t) * i));
+		bytes = pread(fileno(cow), mappings, blocks_to_read * sizeof(uint64_t), COW_HEADER_SIZE + (INDEX_BUFFER_SIZE * sizeof(uint64_t) * i));
 		if(bytes != blocks_to_read * sizeof(uint64_t)){
 			ret = errno;
 			errno = 0;
