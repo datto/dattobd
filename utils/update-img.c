@@ -61,8 +61,8 @@ error:
 
 int main(int argc,char *argv[]){
 	int ret;
-	size_t snap_size, bytes, bytes_to_read, bytes_left;
-	sector_t chunks, blocks, i, j, count = 0, err_count = 0;
+	size_t snap_size, bytes, blocks_to_read;
+	sector_t total_chunks, total_blocks, i, j, blocks_done = 0, count = 0, err_count = 0;
 	FILE *cow = NULL, *snap = NULL, *img = NULL;
 	uint64_t *mappings = NULL;
 
@@ -98,12 +98,11 @@ int main(int argc,char *argv[]){
 	//get size of snapshot, xalculate other needed sizes
 	fseeko(snap, 0, SEEK_END);
 	snap_size = ftello(snap);
-	blocks = (snap_size + COW_BLOCK_SIZE - 1) / COW_BLOCK_SIZE;
-	chunks = (blocks + INDEX_BUFFER_SIZE - 1) / INDEX_BUFFER_SIZE;
-	bytes_left = blocks * sizeof(uint64_t);
+	total_blocks = (snap_size + COW_BLOCK_SIZE - 1) / COW_BLOCK_SIZE;
+	total_chunks = (total_blocks + INDEX_BUFFER_SIZE - 1) / INDEX_BUFFER_SIZE;
 	rewind(snap);
 
-	printf("snapshot is %llu blocks large\n", blocks);
+	printf("snapshot is %llu blocks large\n", total_blocks);
 
 	//allocate mappings array
 	mappings = malloc(INDEX_BUFFER_SIZE * sizeof(uint64_t));
@@ -115,21 +114,20 @@ int main(int argc,char *argv[]){
 
 	//count number of blocks changed while performing merge
 	printf("copying blocks\n");
-	for(i = 0; i < chunks; i++){
+	for(i = 0; i < total_chunks; i++){
 		//read a chunk of mappings from the cow file
-		bytes_to_read = MIN(INDEX_BUFFER_SIZE * sizeof(uint64_t), bytes_left);
+		blocks_to_read = MIN(INDEX_BUFFER_SIZE, total_blocks - blocks_done);
 
-		bytes = pread(fileno(cow), mappings, bytes_to_read, COW_META_HEADER_SIZE + (INDEX_BUFFER_SIZE * i));
-		if(bytes != bytes_to_read){
+		bytes = pread(fileno(cow), mappings, blocks_to_read * sizeof(uint64_t), COW_META_HEADER_SIZE + (INDEX_BUFFER_SIZE * sizeof(uint64_t) * i));
+		if(bytes != blocks_to_read * sizeof(uint64_t)){
 			ret = errno;
 			errno = 0;
 			printf("error reading mappings into memory\n");
 			goto error;
 		}
-		bytes_left -= bytes;
 
 		//copy blocks where the mapping is set
-		for(j = 0; j < bytes / sizeof(uint64_t); j++){
+		for(j = 0; j < blocks_to_read; j++){
 			if(!mappings[j]) continue;
 
 			ret = copy_block(snap, img, (INDEX_BUFFER_SIZE * i) + j);
@@ -137,6 +135,8 @@ int main(int argc,char *argv[]){
 
 			count++;
 		}
+
+		blocks_done += blocks_to_read;
 	}
 
 	//print number of blocks changed
