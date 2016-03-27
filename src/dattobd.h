@@ -45,6 +45,7 @@ struct reconfigure_params{
 	unsigned int minor; //requested minor number of the device
 };
 
+#define COW_UUID_SIZE 16
 #define COW_BLOCK_LOG_SIZE 12
 #define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
 #define COW_HEADER_SIZE 4096
@@ -59,6 +60,7 @@ struct cow_header{
 	uint64_t fpos; //current file offset
 	uint64_t fsize; //file size
 	uint64_t seqid; //seqential id of snapshot (starts at 1)
+	uint8_t uuid[COW_UUID_SIZE]; //uuid for this series of snapshots
 };
 
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above

@@ -23,6 +23,7 @@
 #include <linux/namei.h>
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
+#include <linux/random.h>
 #include <asm/div64.h>
 
 #endif
