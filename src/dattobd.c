@@ -294,6 +294,9 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
+//macro to indicate special case for printing the proc file header
+#define DATTOBD_PROC_PRINT_HEADER ((void *)1)
+
 //maximum number of clones per traced bio
 #define MAX_CLONES_PER_BIO 5
 
@@ -419,7 +422,6 @@ struct snap_device{
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
-static int info_proc_open(struct inode*, struct file*);
 
 #ifdef HAVE_BDOPS_OPEN_INODE
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
@@ -439,6 +441,13 @@ static void on_bio_read_complete(struct bio *bio, int err);
 #else
 static void on_bio_read_complete(struct bio *bio);
 #endif
+
+static int dattobd_proc_show(struct seq_file *m, void *v);
+static void *dattobd_proc_start(struct seq_file *m, loff_t *pos);
+static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos);
+static void dattobd_proc_stop(struct seq_file *m, void *v);
+static int dattobd_proc_open(struct inode *inode, struct file *filp);
+static int dattobd_proc_release(struct inode *inode, struct file *file);
 
 static struct block_device_operations snap_ops = {
 	.owner = THIS_MODULE,
@@ -460,12 +469,19 @@ static struct miscdevice snap_control_device = {
 	.fops = &snap_control_fops,
 };
 
-static struct file_operations info_proc_fops = {
+static struct seq_operations dattobd_seq_proc_ops = {
+	.start = dattobd_proc_start,
+	.next = dattobd_proc_next,
+	.stop = dattobd_proc_stop,
+	.show = dattobd_proc_show,
+};
+
+static struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
-	.open = info_proc_open,
+	.open = dattobd_proc_open,
 	.read = seq_read,
 	.llseek	= seq_lseek,
-	.release = single_release,
+	.release = dattobd_proc_release,
 };
 
 static int major;
@@ -3691,6 +3707,8 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		LOG_ERROR(ret, "invalid ioctl called");
 		break;
 	}
+
+	LOG_DEBUG("minor range = %u - %u", lowest_minor, highest_minor);
 	mutex_unlock(&ioctl_mutex);
 
 	if(bdev_path) kfree(bdev_path);
@@ -4192,23 +4210,25 @@ static void snap_release(struct gendisk *gd, fmode_t mode){
 }
 #endif
 
-static int info_proc_show(struct seq_file *m, void *v){
-	int i, error;
-	int add_comma = 0;
-	struct snap_device *dev;
+static int dattobd_proc_show(struct seq_file *m, void *v){
+	int error;
+	struct snap_device **dev_ptr = v;
+	struct snap_device *dev = NULL;
 
-	mutex_lock(&ioctl_mutex);
+	//print the header if the "pointer" really an indication to do so
+	if(dev_ptr == DATTOBD_PROC_PRINT_HEADER){
+		seq_printf(m, "{\n");
+		seq_printf(m, "\t\"version\": \"%s\",\n", VERSION_STRING);
+		seq_printf(m, "\t\"devices\": [\n");
+	}
 
-	seq_printf(m, "{\n");
-	seq_printf(m, "\t\"version\": \"%s\",\n", VERSION_STRING);
-	seq_printf(m, "\t\"devices\": [\n");
-	tracer_for_each(dev, i){
-		if(!dev) continue;
+	//if the pointer is actually a device print it
+	if(dev_ptr != DATTOBD_PROC_PRINT_HEADER && *dev_ptr != NULL){
+		dev = *dev_ptr;
 
-		if(!add_comma) add_comma = 1;
-		else seq_printf(m, ",\n");
+		if(dev->sd_minor != lowest_minor) seq_printf(m, ",\n");
 		seq_printf(m, "\t\t{\n");
-		seq_printf(m, "\t\t\t\"minor\": %u,\n", i);
+		seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
 		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT);
@@ -4224,16 +4244,40 @@ static int info_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"state\": %lu\n", dev->sd_state);
 		seq_printf(m, "\t\t}");
 	}
-	seq_printf(m, "\n\t]\n");
-	seq_printf(m, "}\n");
 
-	mutex_unlock(&ioctl_mutex);
+	//print the footer if there are no devices to print or if this device has the highest minor
+	if((dev_ptr == DATTOBD_PROC_PRINT_HEADER && lowest_minor > highest_minor) || (dev && dev->sd_minor == highest_minor)){
+		seq_printf(m, "\n\t]\n");
+		seq_printf(m, "}\n");
+	}
 
 	return 0;
 }
 
-static int info_proc_open(struct inode *inode, struct file *filp){
-	return single_open(filp, info_proc_show, NULL);
+static void *dattobd_proc_start(struct seq_file *m, loff_t *pos){
+	if(*pos == 0) return DATTOBD_PROC_PRINT_HEADER;
+	if(*pos > highest_minor) return NULL;
+	return &snap_devices[*pos];
+}
+
+static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos){
+	if(v != DATTOBD_PROC_PRINT_HEADER) (*pos)++;
+	if(*pos > highest_minor) return NULL;
+	return &snap_devices[*pos];
+}
+
+static void dattobd_proc_stop(struct seq_file *m, void *v){
+}
+
+static int dattobd_proc_open(struct inode *inode, struct file *filp){
+	mutex_lock(&ioctl_mutex);
+	return seq_open(filp, &dattobd_seq_proc_ops);
+}
+
+static int dattobd_proc_release(struct inode *inode, struct file *file){
+	seq_release(inode, file);
+	mutex_unlock(&ioctl_mutex);
+	return 0;
 }
 
 /************************MODULE SETUP AND DESTROY************************/
@@ -4319,7 +4363,7 @@ static int __init agent_init(void){
 
 	//register proc file
 	LOG_DEBUG("registering proc file");
-	info_proc = proc_create(INFO_PROC_FILE, 0, NULL, &info_proc_fops);
+	info_proc = proc_create(INFO_PROC_FILE, 0, NULL, &dattobd_proc_fops);
 	if(!info_proc){
 		ret = -ENOENT;
 		LOG_ERROR(ret, "error registering proc file");
