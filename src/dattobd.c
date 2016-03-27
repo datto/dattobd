@@ -264,7 +264,8 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 #define INC_THREAD_NAME_FMT "datto_inc%d"
 
 //macro for iterating over snap_devices (requires a null check on dev)
-#define tracer_for_each(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < MAX_SNAP_DEVICES; i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < MAX_SNAP_DEVICES; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
 #define tracer_queue_matches_bio(dev, bio) (bdev_get_queue(dev->sd_base_dev) == bdev_get_queue(bio->bi_bdev))
@@ -469,6 +470,7 @@ static struct file_operations info_proc_fops = {
 
 static int major;
 static struct mutex ioctl_mutex;
+static unsigned int highest_minor, lowest_minor;
 static struct snap_device **snap_devices;
 static struct proc_dir_entry *info_proc;
 static void **system_call_table = NULL;
@@ -3088,6 +3090,26 @@ tracer_start_cow_thread_error:
 #define __tracer_setup_inc_cow_thread(dev, minor)  __tracer_setup_cow_thread(dev, minor, 0)
 #define __tracer_setup_snap_cow_thread(dev, minor)  __tracer_setup_cow_thread(dev, minor, 1)
 
+static void minor_range_recalculate(void){
+	unsigned int i, highest = 0, lowest = MAX_SNAP_DEVICES - 1;
+	struct snap_device *dev;
+
+	tracer_for_each_full(dev, i){
+		if(!dev) continue;
+
+		if(i < lowest) lowest = i;
+		if(i > highest) highest = i;
+	}
+
+	lowest_minor = lowest;
+	highest_minor = highest;
+}
+
+static void minor_range_include(unsigned int minor){
+	if(minor < lowest_minor) lowest_minor = minor;
+	if(minor > highest_minor) highest_minor = minor;
+}
+
 static void __tracer_destroy_tracing(struct snap_device *dev){
 	if(dev->sd_orig_mrf){
 		LOG_DEBUG("replacing make_request_fn if needed");
@@ -3102,11 +3124,12 @@ static void __tracer_destroy_tracing(struct snap_device *dev){
 	}
 
 	dev->sd_minor = 0;
+	minor_range_recalculate();
 }
 
 static void __tracer_setup_tracing_unverified(struct snap_device *dev, unsigned int minor){
 	dev->sd_orig_mrf = NULL;
-
+	minor_range_include(minor);
 	smp_wmb();
 	dev->sd_minor = minor;
 	snap_devices[minor] = dev;
@@ -3118,6 +3141,7 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 	int ret;
 
 	dev->sd_minor = minor;
+	minor_range_include(minor);
 
 	//get the base block device's make_request_fn
 	LOG_DEBUG("getting the base block device's make_request_fn");
@@ -3133,6 +3157,7 @@ tracer_setup_tracing_error:
 	LOG_ERROR(ret, "error setting up tracing");
 	dev->sd_minor = 0;
 	dev->sd_orig_mrf = NULL;
+	minor_range_recalculate();
 	return ret;
 }
 
@@ -3206,6 +3231,7 @@ static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor
 	ret = string_copy(cow_path, &dev->sd_cow_path);
 	if(ret) goto tracer_setup_unverified_error;
 
+	//add the tracer to the array of devices
 	__tracer_setup_tracing_unverified(dev, minor);
 
 	return 0;
@@ -4245,8 +4271,10 @@ static void agent_exit(void){
 	LOG_DEBUG("destroying snap devices");
 	if(snap_devices){
 		tracer_for_each(dev, i){
-			LOG_DEBUG("snap - %p", dev);
-			if(dev) tracer_destroy(dev);
+			if(dev){
+				LOG_DEBUG("destroying minor - %d", i);
+				tracer_destroy(dev);
+			}
 		}
 		kfree(snap_devices);
 		snap_devices = NULL;
@@ -4266,6 +4294,10 @@ static int __init agent_init(void){
 
 	//init ioctl mutex
 	mutex_init(&ioctl_mutex);
+
+	//init minor range
+	highest_minor = 0;
+	lowest_minor = MAX_SNAP_DEVICES - 1;
 
 	//get a major number for the driver
 	LOG_DEBUG("get major number");
