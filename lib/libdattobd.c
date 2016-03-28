@@ -129,6 +129,20 @@ int reconfigure(unsigned int minor, unsigned long cache_size){
 	return ret;
 }
 
+int dattobd_info(unsigned int minor, struct dattobd_info *info){
+	int fd, ret;
+	
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+	
+	info->minor = minor;
+	
+	ret = ioctl(fd, IOCTL_DATTOBD_INFO, info);
+	
+	close(fd);
+	return ret;
+}
+
 #ifdef __cplusplus
 }
 #endif

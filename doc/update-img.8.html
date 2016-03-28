@@ -89,7 +89,7 @@
 
 <p>This command will update a previously backed up snapshot <code>/mnt/data/backup-img</code> with the changed blocks indicated by <code>/var/backup/datto1</code> from <code>/dev/datto4</code>.</p>
 
-<p>NOTE: <code>&lt;snapshot device></code> MUST be the NEXT snapshot after the one that <code>&lt;image file></code> was copied from. This tool is currently very simple and does not check that this is the case. If this is not true, the updated image will not include any of the writes performed during the intermediate snapshot and the image will be corrupted.</p>
+<p>NOTE: <code>&lt;snapshot device></code> MUST be the NEXT snapshot after the one that <code>&lt;image file></code> was copied from.</p>
 
 <h2 id="Bugs">Bugs</h2>
 

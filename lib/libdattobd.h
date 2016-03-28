@@ -31,6 +31,8 @@ int transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_
 
 int reconfigure(unsigned int minor, unsigned long cache_size);
 
+int dattobd_info(unsigned int minor, struct dattobd_info *info);
+
 #ifdef __cplusplus
 }
 #endif

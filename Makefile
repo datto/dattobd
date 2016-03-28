@@ -25,7 +25,7 @@ application: library-static
 application-shared: library-shared
 	$(MAKE) -C app shared
 
-utils:
+utils: library-static
 	$(MAKE) -C utils
 
 clean:

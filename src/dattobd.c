@@ -3398,9 +3398,28 @@ static void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size
 	if(test_bit(ACTIVE, &dev->sd_state)) cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
+static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *info){
+	info->minor = dev->sd_minor;
+	info->state = dev->sd_state;
+	info->error = tracer_read_fail_state(dev);
+	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT;
+	strncpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	strncpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	
+	if(!test_bit(UNVERIFIED, &dev->sd_state)){
+		info->falloc_size = dev->sd_falloc_size * 1024 * 1024;
+		info->seqid = dev->sd_cow->seqid;
+		memcpy(info->uuid, dev->sd_cow->uuid, COW_UUID_SIZE);
+	}else{
+		info->falloc_size = 0;
+		info->seqid = 0;
+		memset(info->uuid, 0, COW_UUID_SIZE);
+	}
+}
+
 /************************IOCTL HANDLER FUNCTIONS************************/
 
-static int __verify_minor(unsigned int minor, int in_use){
+static int __verify_minor(unsigned int minor, int mode){
 	//check minor number is within range
 	if(minor >= MAX_SNAP_DEVICES){
 		LOG_ERROR(-EINVAL, "minor number specified is out of range");
@@ -3408,7 +3427,7 @@ static int __verify_minor(unsigned int minor, int in_use){
 	}
 
 	//check if the device is in use
-	if(!in_use){
+	if(mode == 0){
 		if(snap_devices[minor]){
 			LOG_ERROR(-EBUSY, "device specified already exists");
 			return -EBUSY;
@@ -3419,8 +3438,8 @@ static int __verify_minor(unsigned int minor, int in_use){
 			return -EINVAL;
 		}
 
-		//check that the device is not busy
-		if(snap_devices[minor]->sd_refs){
+		//check that the device is not busy if we care
+		if(mode == 1 && snap_devices[minor]->sd_refs){
 			LOG_ERROR(-EINVAL, "device specified is busy");
 			return -EINVAL;
 		}
@@ -3429,7 +3448,8 @@ static int __verify_minor(unsigned int minor, int in_use){
 	return 0;
 }
 #define verify_minor_available(minor) __verify_minor(minor, 0)
-#define verify_minor_in_use(minor) __verify_minor(minor, 1)
+#define verify_minor_in_use_not_busy(minor) __verify_minor(minor, 1)
+#define verify_minor_in_use(minor) __verify_minor(minor, 2)
 
 static int __verify_bdev_writable(char *bdev_path, int *out){
 	int ret = 0;
@@ -3515,7 +3535,7 @@ static int ioctl_destroy(unsigned int minor){
 	LOG_DEBUG("received destroy ioctl - %u", minor);
 
 	//verify that the minor number is valid
-	ret = verify_minor_in_use(minor);
+	ret = verify_minor_in_use_not_busy(minor);
 	if(ret){
 		LOG_ERROR(ret, "error during destroy ioctl handler");
 		return ret;
@@ -3535,7 +3555,7 @@ static int ioctl_transition_inc(unsigned int minor){
 	LOG_DEBUG("received transition inc ioctl - %u", minor);
 
 	//verify that the minor number is valid
-	ret = verify_minor_in_use(minor);
+	ret = verify_minor_in_use_not_busy(minor);
 	if(ret) goto ioctl_transition_inc_error;
 
 	dev = snap_devices[minor];
@@ -3571,7 +3591,7 @@ static int ioctl_transition_snap(unsigned int minor, char *cow_path, unsigned lo
 	LOG_DEBUG("received transition snap ioctl - %u : %s", minor, cow_path);
 
 	//verify that the minor number is valid
-	ret = verify_minor_in_use(minor);
+	ret = verify_minor_in_use_not_busy(minor);
 	if(ret) goto ioctl_transition_snap_error;
 
 	dev = snap_devices[minor];
@@ -3607,7 +3627,7 @@ static int ioctl_reconfigure(unsigned int minor, unsigned long cache_size){
 	LOG_DEBUG("received reconfigure ioctl - %u : %lu", minor, cache_size);
 
 	//verify that the minor number is valid
-	ret = verify_minor_in_use(minor);
+	ret = verify_minor_in_use_not_busy(minor);
 	if(ret) goto ioctl_reconfigure_error;
 
 	dev = snap_devices[minor];
@@ -3628,10 +3648,32 @@ ioctl_reconfigure_error:
 	return ret;
 }
 
+static int ioctl_dattobd_info(struct dattobd_info *info){
+	int ret;
+	struct snap_device *dev;
+
+	LOG_DEBUG("received dattobd info ioctl - %u", info->minor);
+
+	//verify that the minor number is valid
+	ret = verify_minor_in_use(info->minor);
+	if(ret) goto ioctl_reconfigure_error;
+
+	dev = snap_devices[info->minor];
+
+	tracer_dattobd_info(dev, info);
+
+	return 0;
+
+ioctl_reconfigure_error:
+	LOG_ERROR(ret, "error during reconfigure ioctl handler");
+	return ret;
+}
+
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	int ret;
 	char *bdev_path = NULL;
 	char *cow_path = NULL;
+	struct dattobd_info *info = NULL;
 	unsigned int minor = 0;
 	unsigned long fallocated_space = 0, cache_size = 0;
 
@@ -3708,6 +3750,33 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		if(ret) break;
 
 		break;
+	case IOCTL_DATTOBD_INFO:
+		//get params from user space
+		info = kmalloc(sizeof(struct dattobd_info), GFP_KERNEL);
+		if(!info){
+			ret = -ENOMEM;
+			LOG_ERROR(ret, "error allocating memory for dattobd info");
+			break;
+		}
+	
+		ret = copy_from_user(info, (struct dattobd_info __user *)arg, sizeof(struct dattobd_info));
+		if(ret){
+			ret = -EFAULT;
+			LOG_ERROR(ret, "error copying dattobd info struct from user space");
+			break;
+		}
+
+		ret = ioctl_dattobd_info(info);
+		if(ret) break;
+		
+		ret = copy_to_user((struct dattobd_info __user *)arg, info, sizeof(struct dattobd_info));
+		if(ret){
+			ret = -EFAULT;
+			LOG_ERROR(ret, "error copying dattobd info struct to user space");
+			break;
+		}
+
+		break;
 	default:
 		ret = -EINVAL;
 		LOG_ERROR(ret, "invalid ioctl called");
@@ -3719,6 +3788,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
 	if(bdev_path) kfree(bdev_path);
 	if(cow_path) kfree(cow_path);
+	if(info) kfree(info);
 
 	return ret;
 }

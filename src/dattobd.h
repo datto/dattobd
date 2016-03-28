@@ -16,6 +16,7 @@
 #endif
 
 #include <linux/ioctl.h>
+#include <linux/limits.h>
 
 #define DATTO_IOCTL_MAGIC 0x91
 
@@ -63,6 +64,18 @@ struct cow_header{
 	uint8_t uuid[COW_UUID_SIZE]; //uuid for this series of snapshots
 };
 
+struct dattobd_info{
+	unsigned int minor;
+	unsigned long state;
+	int error;
+	unsigned long cache_size;
+	unsigned long long falloc_size;
+	unsigned long long seqid;
+	char uuid[COW_UUID_SIZE];
+	char cow[PATH_MAX];
+	char bdev[PATH_MAX];
+};
+
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
 #define IOCTL_RELOAD_SNAP _IOW(DATTO_IOCTL_MAGIC, 2, struct reload_params) //in: see above
 #define IOCTL_RELOAD_INC _IOW(DATTO_IOCTL_MAGIC, 3, struct reload_params) //in: see above
@@ -70,5 +83,6 @@ struct cow_header{
 #define IOCTL_TRANSITION_INC _IOW(DATTO_IOCTL_MAGIC, 5, unsigned int) //in: minor
 #define IOCTL_TRANSITION_SNAP _IOW(DATTO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
 #define IOCTL_RECONFIGURE _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
+#define IOCTL_DATTOBD_INFO _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) //in: see above
 
 #endif /* DATTOBD_H_ */
