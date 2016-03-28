@@ -3,7 +3,7 @@ obj-m := dattobd.o
 KERNELVERSION = $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
-EXTRA_CFLAGS := -g -DDATTO_DEBUG
+EXTRA_CFLAGS := -g
 default:
 	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;
 	$(MAKE) -I/usr/include -C $(KDIR) SUBDIRS=$(PWD) modules
