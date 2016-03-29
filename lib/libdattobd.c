@@ -9,8 +9,9 @@
 */
 
 #include <unistd.h>
-#include <sys/ioctl.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <sys/ioctl.h>
 #include "libdattobd.h"
 
 #ifdef __cplusplus
@@ -131,6 +132,11 @@ int reconfigure(unsigned int minor, unsigned long cache_size){
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info){
 	int fd, ret;
+	
+	if(!info){
+		errno = EINVAL;
+		return -1;
+	}
 	
 	fd = open("/dev/datto-ctl", O_RDONLY);
 	if(fd < 0) return -1;
