@@ -18,9 +18,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
-
-#define VERSION_STRING "0.9.5"
-MODULE_VERSION(VERSION_STRING);
+MODULE_VERSION(DATTOBD_VERSION);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
 
@@ -4294,7 +4292,7 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 	//print the header if the "pointer" really an indication to do so
 	if(dev_ptr == DATTOBD_PROC_PRINT_HEADER){
 		seq_printf(m, "{\n");
-		seq_printf(m, "\t\"version\": \"%s\",\n", VERSION_STRING);
+		seq_printf(m, "\t\"version\": \"%s\",\n", DATTOBD_VERSION);
 		seq_printf(m, "\t\"devices\": [\n");
 	}
 
