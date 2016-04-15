@@ -1369,10 +1369,10 @@ static void cow_free_members(struct cow_manager *cm){
 		for(i = 0; i < cm->total_sects; i++){
 			if(cm->sects[i].mappings) free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
 		}
-		
+
 		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
 		else kfree(cm->sects);
-		
+
 		cm->sects = NULL;
 	}
 
@@ -1547,7 +1547,7 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	cm->allowed_sects = __cow_calculate_allowed_sects(cache_size, cm->total_sects);
 	cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size*8));
 	cm->curr_pos = cm->data_offset / COW_BLOCK_SIZE;
-	
+
 	if(uuid) memcpy(cm->uuid, uuid, COW_UUID_SIZE);
 	else generate_random_uuid(cm->uuid);
 
@@ -2229,7 +2229,7 @@ static int snap_cow_thread(void *data){
 		if(!is_failed && tracer_read_fail_state(dev)){
 			LOG_DEBUG("error detected in cow thread, cleaning up cow");
 			is_failed = 1;
-			
+
 			if(dev->sd_cow) cow_free_members(dev->sd_cow);
 		}
 
@@ -2288,7 +2288,7 @@ static int inc_sset_thread(void *data){
 		if(!is_failed && tracer_read_fail_state(dev)){
 			LOG_DEBUG("error detected in sset thread, cleaning up cow");
 			is_failed = 1;
-			
+
 			if(dev->sd_cow) cow_free_members(dev->sd_cow);
 		}
 
@@ -3407,7 +3407,7 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT;
 	strncpy(info->cow, dev->sd_cow_path, PATH_MAX);
 	strncpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
-	
+
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_falloc_size * 1024 * 1024;
 		info->seqid = dev->sd_cow->seqid;
@@ -3760,7 +3760,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			LOG_ERROR(ret, "error allocating memory for dattobd info");
 			break;
 		}
-	
+
 		ret = copy_from_user(info, (struct dattobd_info __user *)arg, sizeof(struct dattobd_info));
 		if(ret){
 			ret = -EFAULT;
@@ -3770,7 +3770,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
 		ret = ioctl_dattobd_info(info);
 		if(ret) break;
-		
+
 		ret = copy_to_user((struct dattobd_info __user *)arg, info, sizeof(struct dattobd_info));
 		if(ret){
 			ret = -EFAULT;
@@ -4314,7 +4314,7 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
 			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
 			seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
-			
+
 			seq_printf(m, "\t\t\t\"uuid\": \"");
 			for(i = 0; i < COW_UUID_SIZE; i++){
 				seq_printf(m, "%02x", dev->sd_cow->uuid[i]);
