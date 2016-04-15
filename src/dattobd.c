@@ -1362,20 +1362,28 @@ cow_open_header_error:
 	return ret;
 }
 
-static void cow_free(struct cow_manager *cm){
+static void cow_free_members(struct cow_manager *cm){
 	unsigned long i;
 
-	for(i=0; i<cm->total_sects; i++){
-		if(cm->sects[i].mappings) free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
-	}
-
-	if(cm->filp) file_unlink_and_close(cm->filp);
-
 	if(cm->sects){
+		for(i = 0; i < cm->total_sects; i++){
+			if(cm->sects[i].mappings) free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
+		}
+		
 		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
 		else kfree(cm->sects);
+		
+		cm->sects = NULL;
 	}
 
+	if(cm->filp){
+		file_unlink_and_close(cm->filp);
+		cm->filp = NULL;
+	}
+}
+
+static void cow_free(struct cow_manager *cm){
+	cow_free_members(cm);
 	kfree(cm);
 }
 
@@ -2221,10 +2229,8 @@ static int snap_cow_thread(void *data){
 		if(!is_failed && tracer_read_fail_state(dev)){
 			LOG_DEBUG("error detected in cow thread, cleaning up cow");
 			is_failed = 1;
-			if(dev->sd_cow){
-				cow_free(dev->sd_cow);
-				dev->sd_cow = NULL;
-			}
+			
+			if(dev->sd_cow) cow_free_members(dev->sd_cow);
 		}
 
 		if(bio_queue_empty(bq)) continue;
@@ -2282,10 +2288,8 @@ static int inc_sset_thread(void *data){
 		if(!is_failed && tracer_read_fail_state(dev)){
 			LOG_DEBUG("error detected in sset thread, cleaning up cow");
 			is_failed = 1;
-			if(dev->sd_cow){
-				cow_free(dev->sd_cow);
-				dev->sd_cow = NULL;
-			}
+			
+			if(dev->sd_cow) cow_free_members(dev->sd_cow);
 		}
 
 		if(sset_queue_empty(sq)) continue;
