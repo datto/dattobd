@@ -11,6 +11,6 @@
 #include "../../includes.h"
 
 static inline void dummy(void){
-	struct inode i;
+	struct inode i = { 0 };
 	i.i_op->fallocate(&i, 0, 0, 0);
 }
