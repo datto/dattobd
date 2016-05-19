@@ -943,7 +943,7 @@ file_allocate_error:
 	return ret;
 }
 
-static int __file_unlink(struct file *filp, int close){
+static int __file_unlink(struct file *filp, int close, int force){
 	int ret = 0;
 	struct inode *dir_inode = filp->f_path.dentry->d_parent->d_inode;
 	struct dentry *file_dentry = filp->f_path.dentry;
@@ -979,7 +979,7 @@ file_unlink_error:
 	mutex_unlock(&dir_inode->i_mutex);
 	mnt_drop_write(mnt);
 
-	if(close && !ret) file_close(filp);
+	if(close && (!ret || force)) file_close(filp);
 
 file_unlink_mnt_error:
 	iput(dir_inode);
@@ -987,8 +987,9 @@ file_unlink_mnt_error:
 
 	return ret;
 }
-#define file_unlink(filp) __file_unlink(filp, 0)
-#define file_unlink_and_close(filp) __file_unlink(filp, 1)
+#define file_unlink(filp) __file_unlink(filp, 0, 0)
+#define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
+#define file_unlink_and_close_force(filp) __file_unlink(filp, 1, 1)
 
 #if !defined(HAVE___DENTRY_PATH) && !defined(HAVE_DENTRY_PATH_RAW)
 static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *len_res){
@@ -1377,7 +1378,7 @@ static void cow_free_members(struct cow_manager *cm){
 	}
 
 	if(cm->filp){
-		file_unlink_and_close(cm->filp);
+		file_unlink_and_close_force(cm->filp);
 		cm->filp = NULL;
 	}
 }
@@ -1429,7 +1430,7 @@ static int cow_sync_and_close(struct cow_manager *cm){
 
 cow_sync_and_close_error:
 	LOG_ERROR(ret, "error while syncing and closing cow manager");
-	cow_free(cm);
+	cow_free_members(cm);
 	return ret;
 }
 
@@ -4114,14 +4115,26 @@ handle_bdev_mount_event_out:
 #define handle_bdev_mounted_writable(dir_name, idx_out) handle_bdev_mount_event(dir_name, 0, idx_out, 1)
 
 static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx, char __user *dir_name){
+	struct block_device *bdev;
 	struct snap_device *dev;
 	struct super_block *sb;
 
 	//if we didn't do anything or failed, just return
 	if(dormant_ret) return;
 
+	dev = snap_devices[idx];
+
 	//if we successfully went dormant, but the umount call failed, reactivate
 	if(umount_ret){
+		bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+		if(!bdev || IS_ERR(bdev)){
+			LOG_DEBUG("device gone, moving to error state");
+			tracer_set_fail_state(dev, -ENODEV);
+			return;
+		}
+
+		dattobd_blkdev_put(bdev);
+
 		LOG_DEBUG("umount call failed, reactivating tracer %u", idx);
 		auto_transition_active(idx, dir_name);
 		return;
@@ -4131,7 +4144,6 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 	task_work_flush();
 
 	//if we went dormant, but the block device is still mounted somewhere, goto fail state
-	dev = snap_devices[idx];
 	sb = get_super(dev->sd_base_dev);
 	if(sb){
 		LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
@@ -4213,7 +4225,7 @@ static inline void disable_page_protection(unsigned long *cr0) {
 }
 
 static inline void reenable_page_protection(unsigned long *cr0) {
-    write_cr0(*cr0);
+	write_cr0(*cr0);
 }
 
 static void **find_sys_call_table(void){
