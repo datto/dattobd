@@ -178,4 +178,36 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 	#define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
 #endif
 
+//reimplementation of task_work_run() to force fput() and mntput() to perform their work synchronously
+#ifdef HAVE_TASK_STRUCT_TASK_WORKS_HLIST
+void task_work_flush(void);
+#elif defined HAVE_TASK_STRUCT_TASK_WORKS_CB_HEAD
+void task_work_flush(void);
+#else
+	#define task_work_flush()
+#endif
+
+//printing macros and general utilities
+#ifdef DATTO_DEBUG
+	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
+	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
+#else
+	#define LOG_DEBUG(fmt, args...)
+	#define PRINT_BIO(text, bio)
+#endif
+#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
+#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
+
+int copy_string_from_user(const char __user *data, char **out_ptr);
+
+//takes a value and the log of the value it should be rounded up to
+#define NUM_SEGMENTS(x, log_size) (((x) + (1<<(log_size)) - 1) >> (log_size))
+#define ROUND_UP(x, chunk) ((((x) + (chunk) - 1) / (chunk)) * (chunk))
+#define ROUND_DOWN(x, chunk) (((x) / (chunk)) * (chunk))
+
+//bitmap macros
+#define bitmap_is_marked(bitmap, pos) ((bitmap[(pos) / 8] & (1 << ((pos) % 8))) != 0)
+#define bitmap_mark(bitmap, pos) bitmap[(pos) / 8] |= (1 << ((pos) % 8))
+
+
 #endif

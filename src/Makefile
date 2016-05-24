@@ -1,6 +1,6 @@
 MODULE := dattobd
 obj-m := $(MODULE).o
-$(MODULE)-objs += driver.o universion.o
+$(MODULE)-objs += driver.o universion.o fileops.o
 
 KERNELVERSION = $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
