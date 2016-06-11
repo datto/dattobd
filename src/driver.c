@@ -300,8 +300,20 @@ static int get_setup_params(struct setup_params __user *in, unsigned int *minor,
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
 	if(ret)	goto get_setup_params_error;
 
+	if(!bdev_name){
+		ret = EINVAL;
+		LOG_ERROR(ret, "NULL bdev given");
+		goto get_setup_params_error;
+	}
+
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
 	if(ret)	goto get_setup_params_error;
+
+	if(!cow_path){
+		ret = EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_setup_params_error;
+	}
 
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
@@ -330,20 +342,32 @@ static int get_reload_params(struct reload_params __user *in, unsigned int *mino
 	if(ret){
 		ret = -EFAULT;
 		LOG_ERROR(ret, "error copying reload_params struct from user space");
-		goto get_setup_params_error;
+		goto get_reload_params_error;
 	}
 
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
-	if(ret)	goto get_setup_params_error;
+	if(ret)	goto get_reload_params_error;
+
+	if(!bdev_name){
+		ret = EINVAL;
+		LOG_ERROR(ret, "NULL bdev given");
+		goto get_reload_params_error;
+	}
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
-	if(ret)	goto get_setup_params_error;
+	if(ret)	goto get_reload_params_error;
+
+	if(!cow_path){
+		ret = EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_reload_params_error;
+	}
 
 	*minor = params.minor;
 	*cache_size = params.cache_size;
 	return 0;
 
-get_setup_params_error:
+get_reload_params_error:
 	LOG_ERROR(ret, "error copying reload_params from user space");
 	if(*bdev_name) kfree(*bdev_name);
 	if(*cow_path) kfree(*cow_path);
@@ -369,6 +393,12 @@ static int get_transition_snap_params(struct transition_snap_params __user *in, 
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
 	if(ret)	goto get_transition_snap_params_error;
+
+	if(!cow_path){
+		ret = EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_setup_params_error;
+	}
 
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
