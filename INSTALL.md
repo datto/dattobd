@@ -6,13 +6,13 @@ We recommend that you install the kernel module from Datto's repositories. Datto
 ### RHEL/CentOS
 The repository install package `datto-el-rpm-release` is available for EL6+.
 ```bash
-sudo yum localinstall https://cpkg.datto.com/datto-rpm/EnterpriseLinux/$(rpm -E %rhel)/x86_64/datto-el-rpm-release-$(rpm -E %rhel)-8.1.noarch.rpm
+sudo yum localinstall https://cpkg.datto.com/datto-rpm/repoconfig/datto-el-rpm-release-$(rpm -E %rhel)-10.1.noarch.rpm
 sudo yum install dkms-dattobd dattobd-utils
 ```
 ### Fedora
 The repository install package `datto-fedora-rpm-release` is available for F20+, excluding Rawhide.
 ```bash
-sudo yum install https://cpkg.datto.com/datto-rpm/Fedora/$(rpm -E %fedora)/x86_64/datto-fedora-rpm-release-$(rpm -E %fedora)-8.1.noarch.rpm
+sudo yum install https://cpkg.datto.com/datto-rpm/repoconfig/datto-fedora-rpm-release-$(rpm -E %fedora)-10.1.noarch.rpm
 sudo yum install kernel-devel-$(uname -r) dkms-dattobd dattobd-utils
 ```
 ### openSUSE
@@ -23,19 +23,19 @@ already get DKMS through an already-installed repository.
 #### openSUSE 13.1
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_13.1/X11:Bumblebee.repo
-sudo zypper install https://cpkg.datto.com/datto-rpm/openSUSE/13.1/x86_64/datto-opensuse-rpm-release-13.1-8.1.noarch.rpm
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-13.1-10.1.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 #### openSUSE 13.2
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_13.2/X11:Bumblebee.repo
-sudo zypper install https://cpkg.datto.com/datto-rpm/openSUSE/13.2/x86_64/datto-opensuse-rpm-release-13.2-8.1.noarch.rpm
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-13.2-10.1.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
-#### openSUSE 42.1
+#### openSUSE Leap 42.1
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.1/X11:Bumblebee.repo
-sudo zypper install https://cpkg.datto.com/datto-rpm/openSUSE/42.1/x86_64/datto-opensuse-rpm-release-42.1-8.1.noarch.rpm
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-10.1.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### Ubuntu LTS
