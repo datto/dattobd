@@ -8,8 +8,8 @@
     by the Free Software Foundation.
 */
 
-#include "fileops.h"
-#include "universion.h"
+#include <fileops.h>
+#include <universion.h>
 
 void file_close(struct file *f){
 	filp_close(f, 0);

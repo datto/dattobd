@@ -11,8 +11,7 @@
 #ifndef DATTOBD_UNIVERSION_H_
 #define DATTOBD_UNIVERSION_H_
 
-#include "kernel-config.h"
-#include "includes.h"
+#include <includes.h>
 
 #ifndef HAVE_BIO_LIST
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)

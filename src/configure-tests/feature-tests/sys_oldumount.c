@@ -8,7 +8,7 @@
     by the Free Software Foundation.
 */
 
-#include "../../includes.h"
+#include <includes.h>
 
 static inline int dummy(void){
 	return __NR_umount;

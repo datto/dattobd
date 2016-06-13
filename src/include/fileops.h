@@ -8,8 +8,7 @@
     by the Free Software Foundation.
 */
 
-#include "includes.h"
-#include "kernel-config.h"
+#include <includes.h>
 
 void file_close(struct file *f);
 int file_open(const char *filename, int flags, struct file **filp);

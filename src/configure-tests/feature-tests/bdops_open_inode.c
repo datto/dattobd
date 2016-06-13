@@ -8,7 +8,7 @@
     by the Free Software Foundation.
 */
 
-#include "../../includes.h"
+#include <includes.h>
 
 static int snap_open(struct inode *inode, struct file *filp){
 	return 0;

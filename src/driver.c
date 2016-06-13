@@ -8,10 +8,10 @@
     by the Free Software Foundation.
 */
 
-#include "includes.h"
-#include "universion.h"
-#include "fileops.h"
-#include "dattobd.h"
+#include <includes.h>
+#include <universion.h>
+#include <fileops.h>
+#include <dattobd.h>
 
 //current lowest supported kernel = 2.6.31
 
@@ -397,7 +397,7 @@ static int get_transition_snap_params(struct transition_snap_params __user *in, 
 	if(!cow_path){
 		ret = EINVAL;
 		LOG_ERROR(ret, "NULL cow given");
-		goto get_setup_params_error;
+		goto get_transition_snap_params_error;
 	}
 
 	*minor = params.minor;
