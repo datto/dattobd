@@ -3437,14 +3437,14 @@ static int __verify_minor(unsigned int minor, int mode){
 		}
 	}else{
 		if(!snap_devices[minor]){
-			LOG_ERROR(-EINVAL, "device specified does not exist");
-			return -EINVAL;
+			LOG_ERROR(-ENOENT, "device specified does not exist");
+			return -ENOENT;
 		}
 
 		//check that the device is not busy if we care
 		if(mode == 1 && snap_devices[minor]->sd_refs){
-			LOG_ERROR(-EINVAL, "device specified is busy");
-			return -EINVAL;
+			LOG_ERROR(-EBUSY, "device specified is busy");
+			return -EBUSY;
 		}
 	}
 
