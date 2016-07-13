@@ -3287,6 +3287,9 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	__tracer_copy_base_dev(old_dev, dev);
 	__tracer_copy_cow_path(old_dev, dev);
 
+	//copy cow manager to new device. Care must be taken to make sure it isn't used by multiple threads at once.
+	__tracer_copy_cow(old_dev, dev);
+
 	//setup the cow thread
 	ret = __tracer_setup_inc_cow_thread(dev, old_dev->sd_minor);
 	if(ret) goto tracer_transition_inc_error;
@@ -3295,10 +3298,15 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
 	if(ret)	goto tracer_transition_inc_error;
 
-	//stop the old cow thread
+	//Below this point, we are commited to the new device, so we must make sure it is in a good state.
+
+	//stop the old cow thread. Must be done before starting the new cow thread to prevent concurrent access.
 	__tracer_destroy_cow_thread(old_dev);
 
-	//sanity check to ensure no errors have occurred while cleaning up cow thread
+	//wake up new cow thread. Must happen regardless of errors syncing the old cow thread in order to ensure no IO's are leaked.
+	wake_up_process(dev->sd_cow_thread);
+
+	//sanity check to ensure no errors have occurred while cleaning up the old cow thread
 	ret = tracer_read_fail_state(old_dev);
 	if(ret){
 		LOG_ERROR(ret, "errors occurred while cleaning up cow thread, putting incremental into error state");
@@ -3308,12 +3316,6 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 
 		return ret;
 	}
-
-	//copy cow manager to new device, must be done after destroying cow thread to prevent double ownership
-	__tracer_copy_cow(old_dev, dev);
-
-	//wake up new cow thread
-	wake_up_process(dev->sd_cow_thread);
 
 	//truncate the cow file
 	ret = cow_truncate_to_index(dev->sd_cow);
