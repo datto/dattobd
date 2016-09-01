@@ -564,8 +564,20 @@ static int get_setup_params(struct setup_params __user *in, unsigned int *minor,
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
 	if(ret)	goto get_setup_params_error;
 
+	if(!*bdev_name){
+		ret = -EINVAL;
+		LOG_ERROR(ret, "NULL bdev given");
+		goto get_setup_params_error;
+	}
+
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
 	if(ret)	goto get_setup_params_error;
+
+	if(!*cow_path){
+		ret = -EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_setup_params_error;
+	}
 
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
@@ -594,20 +606,32 @@ static int get_reload_params(struct reload_params __user *in, unsigned int *mino
 	if(ret){
 		ret = -EFAULT;
 		LOG_ERROR(ret, "error copying reload_params struct from user space");
-		goto get_setup_params_error;
+		goto get_reload_params_error;
 	}
 
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
-	if(ret)	goto get_setup_params_error;
+	if(ret)	goto get_reload_params_error;
+
+	if(!*bdev_name){
+		ret = -EINVAL;
+		LOG_ERROR(ret, "NULL bdev given");
+		goto get_reload_params_error;
+	}
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
-	if(ret)	goto get_setup_params_error;
+	if(ret)	goto get_reload_params_error;
+
+	if(!*cow_path){
+		ret = -EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_reload_params_error;
+	}
 
 	*minor = params.minor;
 	*cache_size = params.cache_size;
 	return 0;
 
-get_setup_params_error:
+get_reload_params_error:
 	LOG_ERROR(ret, "error copying reload_params from user space");
 	if(*bdev_name) kfree(*bdev_name);
 	if(*cow_path) kfree(*cow_path);
@@ -633,6 +657,12 @@ static int get_transition_snap_params(struct transition_snap_params __user *in, 
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
 	if(ret)	goto get_transition_snap_params_error;
+
+	if(!*cow_path){
+		ret = -EINVAL;
+		LOG_ERROR(ret, "NULL cow given");
+		goto get_transition_snap_params_error;
+	}
 
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
@@ -2931,7 +2961,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 tracer_setup_cow_error:
 	LOG_ERROR(ret, "error setting up cow manager");
-	__tracer_destroy_cow_free(dev);
+	if(open_method != 3) __tracer_destroy_cow_free(dev);
 	return ret;
 }
 #define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, cache_size, uuid, seqid) __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space, cache_size, uuid, seqid, 0)
@@ -4339,13 +4369,16 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
 			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
-			seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
 
-			seq_printf(m, "\t\t\t\"uuid\": \"");
-			for(i = 0; i < COW_UUID_SIZE; i++){
-				seq_printf(m, "%02x", dev->sd_cow->uuid[i]);
+			if(dev->sd_cow){
+				seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
+
+				seq_printf(m, "\t\t\t\"uuid\": \"");
+				for(i = 0; i < COW_UUID_SIZE; i++){
+					seq_printf(m, "%02x", dev->sd_cow->uuid[i]);
+				}
+				seq_printf(m, "\",\n");
 			}
-			seq_printf(m, "\",\n");
 		}
 
 		error = tracer_read_fail_state(dev);
