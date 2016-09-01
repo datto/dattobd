@@ -229,13 +229,16 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 
 #ifndef HAVE_INODE_LOCK
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
-static inline void inode_lock(struct inode *inode){
-    mutex_lock(&inode->i_mutex);
+static inline void dattobd_inode_lock(struct inode *inode){
+	mutex_lock(&inode->i_mutex);
 }
 
-static inline void inode_unlock(struct inode *inode){
-    mutex_unlock(&inode->i_mutex);
+static inline void dattobd_inode_unlock(struct inode *inode){
+	mutex_unlock(&inode->i_mutex);
 }
+#else
+	#define dattobd_inode_lock inode_lock
+	#define dattobd_inode_unlock inode_unlock
 #endif
 
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
@@ -816,14 +819,14 @@ static int do_truncate2(struct dentry *dentry, loff_t length, unsigned int time_
 	ret = should_remove_suid(dentry);
 	if(ret) newattrs.ia_valid |= ret | ATTR_FORCE;
 
-	inode_lock(dentry->d_inode);
+	dattobd_inode_lock(dentry->d_inode);
 #ifdef HAVE_NOTIFY_CHANGE_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	ret = notify_change(dentry, &newattrs);
 #else
 	ret = notify_change(dentry, &newattrs, NULL);
 #endif
-	inode_unlock(dentry->d_inode);
+	dattobd_inode_unlock(dentry->d_inode);
 
 	return ret;
 }
