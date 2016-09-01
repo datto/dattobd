@@ -227,6 +227,17 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 	#define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
 #endif
 
+#ifndef HAVE_INODE_LOCK
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+static inline void inode_lock(struct inode *inode){
+    mutex_lock(&inode->i_mutex);
+}
+
+static inline void inode_unlock(struct inode *inode){
+    mutex_unlock(&inode->i_mutex);
+}
+#endif
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 //printing macros
@@ -805,14 +816,14 @@ static int do_truncate2(struct dentry *dentry, loff_t length, unsigned int time_
 	ret = should_remove_suid(dentry);
 	if(ret) newattrs.ia_valid |= ret | ATTR_FORCE;
 
-	mutex_lock(&dentry->d_inode->i_mutex);
+	inode_lock(dentry->d_inode);
 #ifdef HAVE_NOTIFY_CHANGE_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	ret = notify_change(dentry, &newattrs);
 #else
 	ret = notify_change(dentry, &newattrs, NULL);
 #endif
-	mutex_unlock(&dentry->d_inode->i_mutex);
+	inode_unlock(dentry->d_inode);
 
 	return ret;
 }
@@ -962,7 +973,6 @@ static int __file_unlink(struct file *filp, int close, int force){
 		LOG_ERROR(ret, "error getting write access to vfs mount");
 		goto file_unlink_mnt_error;
 	}
-	mutex_lock(&dir_inode->i_mutex);
 
 #ifdef HAVE_VFS_UNLINK_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
@@ -976,7 +986,6 @@ static int __file_unlink(struct file *filp, int close, int force){
 	}
 
 file_unlink_error:
-	mutex_unlock(&dir_inode->i_mutex);
 	mnt_drop_write(mnt);
 
 	if(close && (!ret || force)) file_close(filp);
