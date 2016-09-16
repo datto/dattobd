@@ -4273,20 +4273,23 @@ static inline void reenable_page_protection(unsigned long *cr0) {
 }
 
 static void **find_sys_call_table(void){
+	long long offset;
 	void **sct;
 
-	if(!SYS_MOUNT_ADDR || !SYS_UMOUNT_ADDR) return NULL;
+	if(!SYS_CALL_TABLE_ADDR || !SYS_MOUNT_ADDR || !SYS_UMOUNT_ADDR) return NULL;
 
-	for(sct = (void **)PAGE_OFFSET; sct < (void **)ULONG_MAX; sct++){
-		if(sct[__NR_mount] != (void *)SYS_MOUNT_ADDR) continue;
-		if(sct[__NR_umount2] != (void *)SYS_UMOUNT_ADDR) continue;
+	offset = ((void *)printk) - (void *)PRINTK_ADDR;
+	sct = (void **)SYS_CALL_TABLE_ADDR + offset / sizeof(void **);
+
+	if(sct[__NR_mount] != (void **)SYS_MOUNT_ADDR + offset / sizeof(void **)) return NULL;
+	if(sct[__NR_umount2] != (void **)SYS_UMOUNT_ADDR + offset / sizeof(void **)) return NULL;
 #ifdef HAVE_SYS_OLDUMOUNT
-		if(sct[__NR_umount] != (void *)SYS_OLDUMOUNT_ADDR) continue;
+	if(sct[__NR_umount] != (void **)SYS_OLDUMOUNT_ADDR + offset / sizeof(void **)) return NULL;
 #endif
-		return sct;
-	}
 
-	return NULL;
+	LOG_DEBUG("system call table located at 0x%p", sct);
+
+	return sct;
 }
 
 #define set_syscall(sys_nr, orig_call_save, new_call) 		\

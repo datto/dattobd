@@ -1,3 +1,5 @@
 sys_mount
 sys_umount
 sys_oldumount
+sys_call_table
+printk
