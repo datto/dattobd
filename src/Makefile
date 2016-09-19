@@ -3,13 +3,14 @@ obj-m := dattobd.o
 KERNELVERSION = $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
-EXTRA_CFLAGS := -g
+ccflags-y := -g
+
 default:
 	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;
-	$(MAKE) -I/usr/include -C $(KDIR) SUBDIRS=$(PWD) modules
-	
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
 clean:
-	$(MAKE) -I/usr/include -C $(KDIR) SUBDIRS=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
 	rm -f kernel-config.h
 
 insmod: default
