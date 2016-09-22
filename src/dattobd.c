@@ -287,7 +287,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 //should be called along with *_queue_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
-#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !(bio->bi_rw & REQ_DISCARD) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
+#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) == WRITE && bio_has_data(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for verifying file
 #define file_is_on_bdev(file, bdev) ((file)->f_path.mnt->mnt_sb == (bdev)->bd_super)
