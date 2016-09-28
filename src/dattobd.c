@@ -100,6 +100,8 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
+#ifndef HAVE_SUBMIT_BIO_1
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
 #ifndef HAVE_SUBMIT_BIO_WAIT
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 struct submit_bio_ret{
@@ -126,6 +128,25 @@ static int submit_bio_wait(int rw, struct bio *bio){
 	wait_for_completion(&ret.event);
 
 	return ret.error;
+}
+#endif
+
+#define submit_bio(bio) submit_bio(0, bio)
+#define submit_bio_wait(bio) submit_bio_wait(0, bio)
+
+#define bio_op(bio) (op_from_rq_bits((bio)->bi_rw))
+#define bio_set_op_attrs(bio, op, flags) ((bio)->bi_rw |= (op | flags))
+
+enum req_op{
+	REQ_OP_READ,
+	REQ_OP_WRITE = REQ_WRITE,
+	REQ_OP_DISCARD = REQ_DISCARD,
+};
+
+static inline int op_from_rq_bits(uint64_t flags){
+	if(flags & REQ_OP_DISCARD) return REQ_OP_DISCARD;
+	if(flags & REQ_OP_WRITE) return REQ_OP_WRITE;
+	else return REQ_OP_READ;
 }
 #endif
 
@@ -287,7 +308,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 //should be called along with *_queue_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
-#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !(bio->bi_rw & REQ_DISCARD) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
+#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && bio_op(bio) != REQ_OP_DISCARD && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for verifying file
 #define file_is_on_bdev(file, bdev) ((file)->f_path.mnt->mnt_sb == (bdev)->bd_super)
@@ -1993,7 +2014,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
 	new_bio->bi_bdev = bdev;
-	new_bio->bi_rw = READ;
+	bio_set_op_attrs(new_bio, REQ_OP_READ, 0);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
@@ -2099,7 +2120,8 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 
 	//submit the bio to the base device and wait for completion
 	if(mode != READ_MODE_COW_FILE){
-		ret = submit_bio_wait(READ_SYNC, bio);
+		bio_set_op_attrs(bio, REQ_OP_READ, READ_SYNC);
+		ret = submit_bio_wait(bio);
 		if(ret){
 			LOG_ERROR(ret, "error reading from base device for read");
 			goto snap_handle_bio_read_out;
@@ -2397,7 +2419,7 @@ static void on_bio_read_complete(struct bio *bio){
 #endif
 
 	//change the bio into a write bio
-	bio->bi_rw |= WRITE;
+	bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
 
 	//reset the bio iterator to its original state
 	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
@@ -2485,7 +2507,7 @@ retry:
 	smp_wmb();
 
 	//submit the bios
-	submit_bio(0, new_bio);
+	submit_bio(new_bio);
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
