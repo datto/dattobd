@@ -10,11 +10,11 @@
 
 #include "../../includes.h"
 
-static int dummy_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec){
+static int dummy_endio(struct bio *bio, unsigned int bytes, int err){
 	return 0;
 }
 
 static inline void dummy(void){
-	struct request_queue q;
-	q.merge_bvec_fn = dummy_merge_bvec;
+	struct bio bio;
+	bio.bi_end_io = dummy_endio;
 }
