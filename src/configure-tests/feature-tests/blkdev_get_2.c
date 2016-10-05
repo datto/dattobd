@@ -12,6 +12,6 @@
 
 static inline void dummy(void){
 	struct block_device *bdev;
-	mode_t fmode = 0;
+	mode_t mode = 0;
 	blkdev_get(bdev, mode);
 }
