@@ -104,7 +104,11 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	}
 
 	retbd = I_BDEV(inode);
-        r = blkdev_get(retbd, mode, 0);
+#ifdef HAVE_BLKDEV_GET_2
+	r = blkdev_get(retbdev, mode);
+#else
+	r = blkdev_get(retbdev, mode, 0);
+#endif
         if (r)
         	goto fail;
 out:
