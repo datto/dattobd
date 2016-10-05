@@ -78,25 +78,68 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 #endif
 
 
+#ifndef HAVE_BLKDEV_GET_BY_PATH
+struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
+	struct block_device *retbd;
+	struct nameidata nd;
+	struct inode *inode;
+	int r;
+	retbd = NULL;
+	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd))) {
+		retbd = ERR_PTR(r); // returns -errno
+		return retbd;
+	}
+#ifdef HAVE_STRUCT_PATH
+	inode = nd.path.dentry->d_inode;
+#else
+	inode = nd.dentry->d_inode;
+#endif
+	if (!inode) {
+		r = -ENOENT;
+		goto fail;
+	}
+	if (!S_ISBLK(inode->i_mode)) {
+		r = -ENOTBLK;
+		goto fail;
+	}
+
+	retbd = I_BDEV(inode);
+        r = blkdev_get(retbd, mode, 0);
+        if (r)
+        	goto fail;
+out:
+#ifdef HAVE_STRUCT_PATH
+	path_put(&nd.path);
+#else
+	dput(nd.dentry);
+	mntput(nd.mnt);
+#endif
+	return retbd;
+fail:
+	retbd = ERR_PTR(r);
+	goto out;
+}
+#endif
+
+
+
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-struct block_device *dattobd_lookup_bdev(const char *pathname);
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
-	int err;
 
-	bdev = dattobd_lookup_bdev(path);
+	bdev = dattobd_lookup_bdev(path, mode);
 	if(IS_ERR(bdev))
 		return bdev;
 
-#ifdef HAVE_BLKDEV_GET_2
-	err = blkdev_get(bdev, mode);
-#else
-	err = blkdev_get(bdev, mode, 0);
-#endif
-	if(err)
-		return ERR_PTR(err);
+//#ifdef HAVE_BLKDEV_GET_2
+//	err = blkdev_get(bdev, mode);
+//#else
+//	err = blkdev_get(bdev, mode, 0);
+//#endif
+//	if(err)
+//		return ERR_PTR(err);
 
 	if((mode & FMODE_WRITE) && bdev_read_only(bdev)) {
 #ifdef HAVE_BLKDEV_PUT_1
@@ -315,44 +358,6 @@ int dattobd_should_remove_suid(struct dentry *dentry)
         return 0;
 }
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
-struct block_device *dattobd_lookup_bdev(const char *pathname) {
-	struct block_device *retbd;
-	struct nameidata nd;
-	struct inode *inode;
-	int r;
-	retbd = NULL;
-	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd))) {
-		retbd = ERR_PTR(r); // returns -errno
-		return retbd;
-	}
-#ifdef HAVE_STRUCT_PATH
-	inode = nd.path.dentry->d_inode;
-#else
-	inode = nd.dentry->d_inode;
-#endif
-	if (!inode) {
-		r = -ENOENT;
-		goto fail;
-	}
-	if (!S_ISBLK(inode->i_mode)) {
-		r = -ENOTBLK;
-		goto fail;
-	}
-	retbd = I_BDEV(inode);
-out:
-#ifdef HAVE_STRUCT_PATH
-	path_put(&nd.path);
-#else
-	dput(nd.dentry);
-	mntput(nd.mnt);
-#endif
-	return retbd;
-fail:
-	retbd = ERR_PTR(r);
-	goto out;
-}
-#endif
 
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
