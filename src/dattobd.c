@@ -20,6 +20,17 @@ MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 MODULE_VERSION(DATTOBD_VERSION);
 
+//printing macros
+#ifdef DATTO_DEBUG
+	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
+	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
+#else
+	#define LOG_DEBUG(fmt, args...)
+	#define PRINT_BIO(text, bio)
+#endif
+#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
+#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
+
 /*********************************REDEFINED FUNCTIONS*******************************/
 
 #ifndef HAVE_BIO_LIST
@@ -77,22 +88,83 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 }
 #endif
 
+
+#ifndef HAVE_STRUCT_PATH
+struct path {
+	struct vfsmount *mnt;
+	struct dentry *dentry;
+};
+#define dattobd_get_dentry(f) f->f_dentry
+#define dattobd_get_mnt(f) f->f_vfsmnt
+#define dattobd_d_path(path, page_buf, page_size) d_path(path->dentry, path->mnt, page_buf, page_size)
+#define dattobd_get_nd_dentry(nd) nd.dentry
+#else
+#define dattobd_get_dentry(f) f->f_path.dentry
+#define dattobd_get_mnt(f) f->f_path.mnt
+#define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
+#define dattobd_get_nd_dentry(nd) nd.path.dentry
+#endif
+
+#ifndef HAVE_BLKDEV_GET_BY_PATH
+struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
+	int r;
+	struct block_device *retbd;
+	struct nameidata nd;
+	struct inode *inode;
+	dev_t dev;
+
+	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd)))
+		goto fail;
+
+	inode = dattobd_get_nd_dentry(nd)->d_inode;
+	if (!inode) {
+		r = -ENOENT;
+		goto fail;
+	}
+
+	if (!S_ISBLK(inode->i_mode)) {
+		r = -ENOTBLK;
+		goto fail;
+	}
+	dev = inode->i_rdev;
+	retbd = open_by_devnum(dev, mode);
+	
+out:
+#ifdef HAVE_STRUCT_PATH
+	path_put(&nd.path);
+#else
+	dput(nd.dentry);
+	mntput(nd.mnt);
+#endif
+	return retbd;
+fail:
+	retbd = ERR_PTR(r);
+	goto out;
+}
+#endif
+
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
-	int err;
-
-	bdev = lookup_bdev(path);
+	bdev = dattobd_lookup_bdev(path, mode);
 	if(IS_ERR(bdev))
 		return bdev;
 
-	err = blkdev_get(bdev, mode);
-	if(err)
-		return ERR_PTR(err);
+//#ifdef HAVE_BLKDEV_GET_2
+//	err = blkdev_get(bdev, mode);
+//#else
+//	err = blkdev_get(bdev, mode, 0);
+//#endif
+//	if(err)
+//		return ERR_PTR(err);
 
 	if((mode & FMODE_WRITE) && bdev_read_only(bdev)) {
+#ifdef HAVE_BLKDEV_PUT_1
+		blkdev_put(bdev);
+#else
 		blkdev_put(bdev, mode);
+#endif
 		return ERR_PTR(-EACCES);
 	}
 
@@ -107,11 +179,24 @@ struct submit_bio_ret{
 	int error;
 };
 
-static void submit_bio_wait_endio(struct bio *bio, int error){
+static void __submit_bio_wait_endio(struct bio *bio, int error){
 	struct submit_bio_ret *ret = bio->bi_private;
 	ret->error = error;
 	complete(&ret->event);
 }
+
+#ifdef HAVE_BIO_ENDIO_INT
+static int submit_bio_wait_endio(struct bio *bio, unsigned int bytes, int error){
+	if (bio->bi_size) return 1;
+	
+	__submit_bio_wait_endio(bio, error);
+	return 0;
+}
+#else
+static void submit_bio_wait_endio(struct bio *bio, int error){
+	__submit_bio_wait_endio(bio, error);
+}
+#endif
 
 static int submit_bio_wait(int rw, struct bio *bio){
 	struct submit_bio_ret ret;
@@ -126,6 +211,21 @@ static int submit_bio_wait(int rw, struct bio *bio){
 	wait_for_completion(&ret.event);
 
 	return ret.error;
+}
+#endif
+
+#ifdef HAVE_BIO_ENDIO_INT
+static void dattobd_bio_endio(struct bio *bio, int err){
+	bio_endio(bio, bio->bi_size, err);
+}
+#elif !defined HAVE_BIO_ENDIO_1
+static void dattobd_bio_endio(struct bio *bio, int err){
+	bio_endio(bio, err);
+}
+#else
+static void dattobd_bio_endio(struct bio *bio, int err){
+	bio->bi_error = err;
+	bio_endio(bio);
 }
 #endif
 
@@ -150,14 +250,125 @@ static int submit_bio_wait(int rw, struct bio *bio){
 	#define bio_idx(bio) (bio)->bi_iter.bi_idx
 #endif
 
+
+#ifndef HAVE_MNT_WANT_WRITE
+#define mnt_want_write(x) 0
+#define mnt_drop_write (void)sizeof
+#endif
+
+#ifndef HAVE_PATH_PUT
+void path_put(const struct path *path) {
+	dput(path->dentry);
+	mntput(path->mnt);
+}
+#endif
+
+#ifndef REQ_DISCARD
+#define REQ_DISCARD 0
+#endif
+
+#ifndef UMOUNT_NOFOLLOW
+#define UMOUNT_NOFOLLOW 0
+#endif
+
+#ifndef HAVE_BDEV_STACK_LIMITS
+#ifndef min_not_zero
+#define min_not_zero(l, r) (l == 0) ? r : ((r == 0) ? l : min(l, r))
+#endif
+int blk_stack_limits(struct request_queue *t, struct request_queue *b,
+		     sector_t offset)
+{
+	t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
+	t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
+	t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
+	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask,
+					    b->seg_boundary_mask);
+	t->max_phys_segments = min_not_zero(t->max_phys_segments,
+					    b->max_phys_segments);
+	t->max_hw_segments = min_not_zero(t->max_hw_segments,
+					  b->max_hw_segments);
+	t->max_segment_size = min_not_zero(t->max_segment_size,
+					   b->max_segment_size);
+	return 0;
+}
+int bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start)
+{
+	struct request_queue *bq = bdev_get_queue(bdev);
+	start += get_start_sect(bdev);
+	return blk_stack_limits(t, bq, start << 9);
+}
+
+#define dattobd_bdev_stack_limits(queue, bdev, start)
+#else
+#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(queue->limits, bdev, start)
+#endif	
+
 #ifndef HAVE_KERN_PATH
 static int kern_path(const char *name, unsigned int flags, struct path *path){
 	struct nameidata nd;
 	int ret = path_lookup(name, flags, &nd);
+#ifndef HAVE_STRUCT_PATH
+	if(!ret) { 
+		path->dentry = nd.dentry; 
+		path->mnt = nd.mnt; 
+	}
+#else
 	if(!ret) *path = nd.path;
+#endif
 	return ret;
 }
 #endif
+
+#ifndef HAVE_BLK_SET_DEFAULT_LIMITS
+#define blk_set_default_limits(ql)
+#endif
+
+#ifdef HAVE_BIOSET_CREATE_3
+#define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
+#else
+#define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
+#endif
+
+#ifndef HAVE_USER_PATH_AT
+int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *path) {
+	struct nameidata nd;
+	char *tmp = getname(name);
+	int err = PTR_ERR(tmp);
+	if (!IS_ERR(tmp)) {
+		BUG_ON(flags & LOOKUP_PARENT);
+		err = path_lookup(tmp, flags, &nd);
+		putname(tmp);
+		if (!err) { 
+			path->dentry = nd.dentry; 
+			path->mnt = nd.mnt; 
+		}
+	}
+	return err;
+}
+#endif
+
+int dattobd_should_remove_suid(struct dentry *dentry)
+{
+	mode_t mode = dentry->d_inode->i_mode;
+	int kill = 0;
+
+	/* suid always must be killed */
+	if (unlikely(mode & S_ISUID))
+		kill = ATTR_KILL_SUID;
+
+	/*
+	 * sgid without any exec bits is just a mandatory locking mark; leave
+	 * it alone.  If some exec bits are set, it's a real sgid; kill it.
+	 */
+	if (unlikely((mode & S_ISGID) && (mode & S_IXGRP)))
+		kill |= ATTR_KILL_SGID;
+
+	if (unlikely(kill && !capable(CAP_FSETID) && S_ISREG(mode)))
+		return kill;
+
+	return 0;
+}
+
 
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
@@ -175,14 +386,6 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 
 #ifndef HAVE_VZALLOC
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
-#endif
-
-#ifndef HAVE_BIO_ENDIO_1
-	#define dattobd_bio_endio(bio, err) bio_endio(bio, err)
-#else
-	#define dattobd_bio_endio(bio, err) \
-		(bio)->bi_error = (err); \
-		bio_endio(bio);
 #endif
 
 #ifdef HAVE_MAKE_REQUEST_FN_INT
@@ -243,16 +446,6 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
-//printing macros
-#ifdef DATTO_DEBUG
-	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
-	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
-#else
-	#define LOG_DEBUG(fmt, args...)
-	#define PRINT_BIO(text, bio)
-#endif
-#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
-#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
 
 //memory macros
 #define get_zeroed_pages(flags, order) __get_free_pages((flags | __GFP_ZERO), order)
@@ -290,7 +483,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !(bio->bi_rw & REQ_DISCARD) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for verifying file
-#define file_is_on_bdev(file, bdev) ((file)->f_path.mnt->mnt_sb == (bdev)->bd_super)
+#define file_is_on_bdev(file, bdev) ((dattobd_get_mnt(file))->mnt_sb == (bdev)->bd_super)
 
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
@@ -330,12 +523,12 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #define CR0_WP 0x00010000
 
 //global module parameters
-static bool MAY_HOOK_SYSCALLS = 1;
+static int MAY_HOOK_SYSCALLS = 1;
 static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
 static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
 static unsigned int MAX_SNAP_DEVICES = 24;
 
-module_param(MAY_HOOK_SYSCALLS, bool, 0);
+module_param(MAY_HOOK_SYSCALLS, int, 0);
 MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
 module_param(COW_MAX_MEMORY_DEFAULT, ulong, 0);
@@ -449,7 +642,10 @@ static int snap_open(struct block_device *bdev, fmode_t mode);
 static void snap_release(struct gendisk *gd, fmode_t mode);
 #endif
 
-#ifndef HAVE_BIO_ENDIO_1
+
+#ifdef HAVE_BIO_ENDIO_INT
+static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int error);
+#elif !defined HAVE_BIO_ENDIO_1
 static void on_bio_read_complete(struct bio *bio, int err);
 #else
 static void on_bio_read_complete(struct bio *bio);
@@ -519,7 +715,7 @@ static inline int tracer_read_fail_state(struct snap_device *dev){
 
 static inline void tracer_set_fail_state(struct snap_device *dev, int error){
 	smp_mb();
-	atomic_cmpxchg(&dev->sd_fail_code, 0, error);
+	(void)atomic_cmpxchg(&dev->sd_fail_code, 0, error);
 	smp_mb();
 }
 
@@ -784,7 +980,7 @@ static int file_open(const char *filename, int flags, struct file **filp){
 		f = NULL;
 		LOG_ERROR(ret, "error creating/opening file '%s' - %d", filename, (int)PTR_ERR(f));
 		goto file_open_error;
-	}else if(!S_ISREG(f->f_path.dentry->d_inode->i_mode)){
+	}else if(!S_ISREG(dattobd_get_dentry(f)->d_inode->i_mode)){
 		ret = -EINVAL;
 		LOG_ERROR(ret, "file specified is not a regular file");
 		goto file_open_error;
@@ -833,7 +1029,7 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 #define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
 
 //reimplemented from linux kernel (it isn't exported in the vanilla kernel)
-static int do_truncate2(struct dentry *dentry, loff_t length, unsigned int time_attrs, struct file *filp){
+static int dattobd_do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs, struct file *filp){
 	int ret;
 	struct iattr newattrs;
 
@@ -846,7 +1042,7 @@ static int do_truncate2(struct dentry *dentry, loff_t length, unsigned int time_
 		newattrs.ia_valid |= ATTR_FILE;
 	}
 
-	ret = should_remove_suid(dentry);
+	ret = dattobd_should_remove_suid(dentry);
 	if(ret) newattrs.ia_valid |= ret | ATTR_FORCE;
 
 	dattobd_inode_lock(dentry->d_inode);
@@ -866,7 +1062,7 @@ static int file_truncate(struct file *filp, loff_t len){
 	struct dentry *dentry;
 	int ret;
 
-	dentry = filp->f_path.dentry;
+	dentry = dattobd_get_dentry(filp);
 	inode = dentry->d_inode;
 
 	ret = locks_verify_truncate(inode, filp, len);
@@ -880,7 +1076,7 @@ static int file_truncate(struct file *filp, loff_t len){
 	sb_start_write(inode->i_sb);
 #endif
 
-	ret = do_truncate2(dentry, len, ATTR_MTIME|ATTR_CTIME, filp);
+	ret = dattobd_do_truncate(dentry, len, ATTR_MTIME|ATTR_CTIME, filp);
 
 #ifdef HAVE_SB_START_WRITE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
@@ -909,7 +1105,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 	loff_t len = length;
 	#ifndef HAVE_FILE_INODE
 	//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
-	struct inode *inode = f->f_path.dentry->d_inode;
+	struct inode *inode = dattobd_get_dentry(f)->d_inode;
 	#else
 	struct inode *inode = file_inode(f);
 	#endif
@@ -989,9 +1185,9 @@ file_allocate_error:
 
 static int __file_unlink(struct file *filp, int close, int force){
 	int ret = 0;
-	struct inode *dir_inode = filp->f_path.dentry->d_parent->d_inode;
-	struct dentry *file_dentry = filp->f_path.dentry;
-	struct vfsmount *mnt = filp->f_path.mnt;
+	struct inode *dir_inode = dattobd_get_dentry(filp)->d_parent->d_inode;
+	struct dentry *file_dentry = dattobd_get_dentry(filp);
+	struct vfsmount *mnt = dattobd_get_mnt(filp);
 
 	if(d_unlinked(file_dentry)){
 		if(close) file_close(filp);
@@ -1125,7 +1321,7 @@ static int path_get_absolute_pathname(struct path *path, char **buf, int *len_re
 		goto path_get_absolute_pathname_error;
 	}
 
-	pathname = d_path(path, page_buf, PAGE_SIZE);
+	pathname = dattobd_d_path(path, page_buf, PAGE_SIZE);
 	if(IS_ERR(pathname)){
 		ret = PTR_ERR(pathname);
 		pathname = NULL;
@@ -2362,39 +2558,18 @@ static int inc_sset_thread(void *data){
 
 /****************************BIO TRACING LOGIC*****************************/
 
-#ifndef HAVE_BIO_ENDIO_1
-static void on_bio_read_complete(struct bio *bio, int err){
-#else
-static void on_bio_read_complete(struct bio *bio){
-#endif
-
+static void __on_bio_read_complete(struct bio *bio, int err){
 	int ret;
 	unsigned short i;
 	struct tracing_params *tp = bio->bi_private;
 	struct snap_device *dev = tp->dev;
 
-#ifndef HAVE_BIO_ENDIO_1
 	//check for read errors
 	if(err){
 		ret = err;
 		LOG_ERROR(ret, "error reading from base device for copy on write");
 		goto on_bio_read_complete_error;
 	}
-
-	//check to make sure the bio is up to date
-	if(!test_bit(BIO_UPTODATE, &bio->bi_flags)){
-		ret = -EIO;
-		LOG_ERROR(ret, "error reading from base device for copy on write (not up to date)");
-		goto on_bio_read_complete_error;
-	}
-#else
-	//check for read errors
-	if(bio->bi_error){
-		ret = bio->bi_error;
-		LOG_ERROR(ret, "error reading from base device for copy on write");
-		goto on_bio_read_complete_error;
-	}
-#endif
 
 	//change the bio into a write bio
 	bio->bi_rw |= WRITE;
@@ -2445,6 +2620,23 @@ on_bio_read_complete_error:
 	tp_put(tp);
 	bio_free_clone(bio);
 }
+
+#ifdef HAVE_BIO_ENDIO_INT
+static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int err){
+	if(bio->bi_size) return 1;
+	__on_bio_read_complete(bio, err);
+	return 0;
+}
+#elif !defined HAVE_BIO_ENDIO_1
+static void on_bio_read_complete(struct bio *bio, int err){
+	if(!test_bit(BIO_UPTODATE, &bio->bi_flags)) err = -EIO;	
+	__on_bio_read_complete(bio, err);
+}
+#else
+static void on_bio_read_complete(struct bio *bio){
+	__on_bio_read_complete(bio, bio->bi_error);
+}
+#endif
 
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	int ret;
@@ -2625,6 +2817,7 @@ static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 }
 
 #ifdef HAVE_MERGE_BVEC_FN
+#ifdef HAVE_BVEC_MERGE_DATA
 static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec){
 	struct snap_device *dev = q->queuedata;
 	struct request_queue *base_queue = bdev_get_queue(dev->sd_base_dev);
@@ -2633,6 +2826,16 @@ static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm,
 
 	return base_queue->merge_bvec_fn(base_queue, bvm, bvec);
 }
+#else
+static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm, struct bio_vec *bvec){
+	struct snap_device *dev = q->queuedata;
+	struct request_queue *base_queue = bdev_get_queue(dev->sd_base_dev);
+
+	bio_bvm->bi_bdev = dev->sd_base_dev;
+
+	return base_queue->merge_bvec_fn(base_queue, bio_bvm, bvec);
+}
+#endif
 #endif
 
 /*******************************SETUP HELPER FUNCTIONS********************************/
@@ -2955,7 +3158,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 	//find the cow file's inode number
 	LOG_DEBUG("finding cow file inode");
-	dev->sd_cow_inode = dev->sd_cow->filp->f_path.dentry->d_inode;
+	dev->sd_cow_inode = dattobd_get_dentry(dev->sd_cow->filp)->d_inode;
 
 	return 0;
 
@@ -2989,7 +3192,7 @@ static int __tracer_setup_cow_path(struct snap_device *dev, struct file *cow_fil
 
 	//get the pathname of the cow file (relative to the mountpoint)
 	LOG_DEBUG("getting relative pathname of cow file");
-	ret = dentry_get_relative_pathname(cow_file->f_path.dentry, &dev->sd_cow_path, NULL);
+	ret = dentry_get_relative_pathname(dattobd_get_dentry(cow_file), &dev->sd_cow_path, NULL);
 	if(ret) goto tracer_setup_cow_path_error;
 
 	return 0;
@@ -3036,7 +3239,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//allocate the bio_set
 	LOG_DEBUG("creating bioset");
-	dev->sd_bioset = bioset_create(BIO_SET_SIZE, 0);
+	dev->sd_bioset = dattobd_bioset_create(BIO_SET_SIZE, BIO_SET_SIZE, 0);
 	if(!dev->sd_bioset){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating bio set");
@@ -3059,7 +3262,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	//give our request queue the same properties as the base device's
 	LOG_DEBUG("setting queue limits");
 	blk_set_stacking_limits(&dev->sd_queue->limits);
-	bdev_stack_limits(&dev->sd_queue->limits, bdev, 0);
+	dattobd_bdev_stack_limits(&dev->sd_queue, bdev, 0);
 
 #ifdef HAVE_MERGE_BVEC_FN
 	//use a thin wrapper around the base device's merge_bvec_fn
@@ -3504,6 +3707,7 @@ static int __verify_bdev_writable(char *bdev_path, int *out){
 
 	//open the base block device
 	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+
 	if(IS_ERR(bdev)){
 		bdev = NULL;
 		*out = 0;
@@ -4050,7 +4254,7 @@ static int __handle_bdev_mount_nowrite(struct vfsmount *mnt, unsigned int *idx_o
 		if(!dev || !test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev) || dev->sd_base_dev != mnt->mnt_sb->s_bdev) continue;
 
 		//if we are unmounting the vfsmount we are using go to dormant state
-		if(mnt == dev->sd_cow->filp->f_path.mnt){
+		if(mnt == dattobd_get_mnt(dev->sd_cow->filp)){
 			LOG_DEBUG("block device umount detected for device %d", i);
 			auto_transition_dormant(i);
 

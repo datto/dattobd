@@ -10,11 +10,9 @@
 
 #include "../../includes.h"
 
-static int dummy_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec){
-	return 0;
-}
-
 static inline void dummy(void){
-	struct request_queue q;
-	q.merge_bvec_fn = dummy_merge_bvec;
+	struct queue_limits *t;
+	struct block_device *bdev;
+	sector_t start;
+	bdev_stack_limits(t, bdev, start);
 }
