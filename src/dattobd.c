@@ -78,6 +78,23 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 #endif
 
 
+#ifndef HAVE_STRUCT_PATH
+struct path {
+        struct vfsmount *mnt;
+        struct dentry *dentry;
+};
+#define dattobd_get_dentry(f) f->f_dentry
+#define dattobd_get_mnt(f) f->f_vfsmnt
+#define dattobd_d_path(path,page_buf,page_size) d_path(path->dentry,path->mnt,page_buf,page_size)
+#define dattobd_get_nd_dentry(nd) nd.dentry
+#else
+#define dattobd_get_dentry(f) f->f_path.dentry
+#define dattobd_get_mnt(f) f->f_path.mnt
+#define dattobd_d_path(path,page_buf,page_size) d_path(path,page_buf,page_size)
+#define dattobd_get_nd_dentry(nd) nd.path.dentry
+#endif
+
+
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	struct block_device *retbd;
@@ -89,11 +106,7 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 		retbd = ERR_PTR(r); // returns -errno
 		return retbd;
 	}
-#ifdef HAVE_STRUCT_PATH
-	inode = nd.path.dentry->d_inode;
-#else
-	inode = nd.dentry->d_inode;
-#endif
+	inode = dattobd_get_nd_dentry(nd)->d_inode;
 	if (!inode) {
 		r = -ENOENT;
 		goto fail;
@@ -236,19 +249,6 @@ static void dattobd_bio_endio(struct bio *bio, int err){
 	#define bio_idx(bio) (bio)->bi_iter.bi_idx
 #endif
 
-#ifndef HAVE_STRUCT_PATH
-struct path {
-        struct vfsmount *mnt;
-        struct dentry *dentry;
-};
-#define dattobd_get_dentry(f) f->f_dentry
-#define dattobd_get_mnt(f) f->f_vfsmnt
-#define dattobd_d_path(path,page_buf,page_size) d_path(path->dentry,path->mnt,page_buf,page_size)
-#else
-#define dattobd_get_dentry(f) f->f_path.dentry
-#define dattobd_get_mnt(f) f->f_path.mnt
-#define dattobd_d_path(path,page_buf,page_size) d_path(path,page_buf,page_size)
-#endif
 
 #ifndef HAVE_MNT_WANT_WRITE
 #define mnt_want_write(x) 0
