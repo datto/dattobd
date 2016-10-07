@@ -96,12 +96,12 @@ struct path {
 };
 #define dattobd_get_dentry(f) f->f_dentry
 #define dattobd_get_mnt(f) f->f_vfsmnt
-#define dattobd_d_path(path,page_buf,page_size) d_path(path->dentry,path->mnt,page_buf,page_size)
+#define dattobd_d_path(path, page_buf, page_size) d_path(path->dentry, path->mnt, page_buf, page_size)
 #define dattobd_get_nd_dentry(nd) nd.dentry
 #else
 #define dattobd_get_dentry(f) f->f_path.dentry
 #define dattobd_get_mnt(f) f->f_path.mnt
-#define dattobd_d_path(path,page_buf,page_size) d_path(path,page_buf,page_size)
+#define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
 #define dattobd_get_nd_dentry(nd) nd.path.dentry
 #endif
 
@@ -126,14 +126,9 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 		r = -ENOTBLK;
 		goto fail;
 	}
-	LOG_DEBUG("dattobd_lookup_bdev inode from path_lookup: %p", inode);
 	dev = inode->i_rdev;
-	LOG_DEBUG("dattobd_lookup_bdev dev_t from inode: %d", dev);
 	retbd = open_by_devnum(dev, mode);
 	
-	LOG_DEBUG("dattobd_lookup_bdev blkdev_get, retbd %p", retbd);
-	LOG_DEBUG("dattobd_lookup_bdev retbd inode %p", retbd->bd_inode);
-	LOG_DEBUG("dattobd_lookup_bdev retbd block_size %d", retbd->bd_block_size);
 out:
 #ifdef HAVE_STRUCT_PATH
 	path_put(&nd.path);
@@ -143,7 +138,6 @@ out:
 #endif
 	return retbd;
 fail:
-	LOG_DEBUG("dattobd_lookup_bdev failed %d", r);
 	retbd = ERR_PTR(r);
 	goto out;
 }
@@ -314,7 +308,10 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 	struct nameidata nd;
 	int ret = path_lookup(name, flags, &nd);
 #ifndef HAVE_STRUCT_PATH
-	if(!ret) { path->dentry = nd.dentry; path->mnt = nd.mnt; }
+	if(!ret) { 
+		path->dentry = nd.dentry; 
+		path->mnt = nd.mnt; 
+	}
 #else
 	if(!ret) *path = nd.path;
 #endif
@@ -327,9 +324,9 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 #endif
 
 #ifdef HAVE_BIOSET_CREATE_3
-#define dattobd_bioset_create(bio_size,bvec_size,scale) bioset_create(bio_size,bvec_size,scale)
+#define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
 #else
-#define dattobd_bioset_create(bio_size,bvec_size,scale) bioset_create(bio_size,scale)
+#define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
 #endif
 
 #ifndef HAVE_USER_PATH_AT
@@ -341,7 +338,10 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 		BUG_ON(flags & LOOKUP_PARENT);
 		err = path_lookup(tmp, flags, &nd);
 		putname(tmp);
-		if (!err) { path->dentry = nd.dentry; path->mnt = nd.mnt; }
+		if (!err) { 
+			path->dentry = nd.dentry; 
+			path->mnt = nd.mnt; 
+		}
 	}
 	return err;
 }
