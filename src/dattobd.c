@@ -20,6 +20,17 @@ MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
 MODULE_VERSION(DATTOBD_VERSION);
 
+//printing macros
+#ifdef DATTO_DEBUG
+	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
+	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
+#else
+	#define LOG_DEBUG(fmt, args...)
+	#define PRINT_BIO(text, bio)
+#endif
+#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
+#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
+
 /*********************************REDEFINED FUNCTIONS*******************************/
 
 #ifndef HAVE_BIO_LIST
@@ -80,8 +91,8 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 
 #ifndef HAVE_STRUCT_PATH
 struct path {
-        struct vfsmount *mnt;
-        struct dentry *dentry;
+	struct vfsmount *mnt;
+	struct dentry *dentry;
 };
 #define dattobd_get_dentry(f) f->f_dentry
 #define dattobd_get_mnt(f) f->f_vfsmnt
@@ -94,36 +105,35 @@ struct path {
 #define dattobd_get_nd_dentry(nd) nd.path.dentry
 #endif
 
-
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
+	int r;
 	struct block_device *retbd;
 	struct nameidata nd;
 	struct inode *inode;
-	int r;
-	retbd = NULL;
-	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd))) {
-		retbd = ERR_PTR(r); // returns -errno
-		return retbd;
-	}
+	dev_t dev;
+
+	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd)))
+		goto fail;
+
 	inode = dattobd_get_nd_dentry(nd)->d_inode;
 	if (!inode) {
 		r = -ENOENT;
 		goto fail;
 	}
+
 	if (!S_ISBLK(inode->i_mode)) {
 		r = -ENOTBLK;
 		goto fail;
 	}
-
-	retbd = I_BDEV(inode);
-#ifdef HAVE_BLKDEV_GET_2
-	r = blkdev_get(retbd, mode);
-#else
-	r = blkdev_get(retbd, mode, 0);
-#endif
-        if (r)
-        	goto fail;
+	LOG_DEBUG("dattobd_lookup_bdev inode from path_lookup: %p", inode);
+	dev = inode->i_rdev;
+	LOG_DEBUG("dattobd_lookup_bdev dev_t from inode: %d", dev);
+	retbd = open_by_devnum(dev, mode);
+	
+	LOG_DEBUG("dattobd_lookup_bdev blkdev_get, retbd %p", retbd);
+	LOG_DEBUG("dattobd_lookup_bdev retbd inode %p", retbd->bd_inode);
+	LOG_DEBUG("dattobd_lookup_bdev retbd block_size %d", retbd->bd_block_size);
 out:
 #ifdef HAVE_STRUCT_PATH
 	path_put(&nd.path);
@@ -133,19 +143,16 @@ out:
 #endif
 	return retbd;
 fail:
+	LOG_DEBUG("dattobd_lookup_bdev failed %d", r);
 	retbd = ERR_PTR(r);
 	goto out;
 }
 #endif
 
-
-
-
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
-
 	bdev = dattobd_lookup_bdev(path, mode);
 	if(IS_ERR(bdev))
 		return bdev;
@@ -275,20 +282,20 @@ void path_put(const struct path *path) {
 #define min_not_zero(l, r) (l == 0) ? r : ((r == 0) ? l : min(l, r))
 #endif
 int blk_stack_limits(struct request_queue *t, struct request_queue *b,
-                     sector_t offset)
+		     sector_t offset)
 {
-        t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
-        t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-        t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
-        t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask,
-                                            b->seg_boundary_mask);
-        t->max_phys_segments = min_not_zero(t->max_phys_segments,
-                                            b->max_phys_segments);
-        t->max_hw_segments = min_not_zero(t->max_hw_segments,
-                                          b->max_hw_segments);
-        t->max_segment_size = min_not_zero(t->max_segment_size,
-                                           b->max_segment_size);
-        return 0;
+	t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
+	t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
+	t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
+	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask,
+					    b->seg_boundary_mask);
+	t->max_phys_segments = min_not_zero(t->max_phys_segments,
+					    b->max_phys_segments);
+	t->max_hw_segments = min_not_zero(t->max_hw_segments,
+					  b->max_hw_segments);
+	t->max_segment_size = min_not_zero(t->max_segment_size,
+					   b->max_segment_size);
+	return 0;
 }
 int bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start)
 {
@@ -300,7 +307,7 @@ int bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector
 #define dattobd_bdev_stack_limits(queue, bdev, start)
 #else
 #define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(queue->limits, bdev, start)
-#endif        
+#endif	
 
 #ifndef HAVE_KERN_PATH
 static int kern_path(const char *name, unsigned int flags, struct path *path){
@@ -327,39 +334,39 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 
 #ifndef HAVE_USER_PATH_AT
 int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *path) {
-        struct nameidata nd;
-        char *tmp = getname(name);
-        int err = PTR_ERR(tmp);
-        if (!IS_ERR(tmp)) {
-                BUG_ON(flags & LOOKUP_PARENT);
-                err = path_lookup(tmp, flags, &nd);
-                putname(tmp);
-                if (!err) { path->dentry = nd.dentry; path->mnt = nd.mnt; }
-        }
-        return err;
+	struct nameidata nd;
+	char *tmp = getname(name);
+	int err = PTR_ERR(tmp);
+	if (!IS_ERR(tmp)) {
+		BUG_ON(flags & LOOKUP_PARENT);
+		err = path_lookup(tmp, flags, &nd);
+		putname(tmp);
+		if (!err) { path->dentry = nd.dentry; path->mnt = nd.mnt; }
+	}
+	return err;
 }
 #endif
 
 int dattobd_should_remove_suid(struct dentry *dentry)
 {
-        mode_t mode = dentry->d_inode->i_mode;
-        int kill = 0;
+	mode_t mode = dentry->d_inode->i_mode;
+	int kill = 0;
 
-        /* suid always must be killed */
-        if (unlikely(mode & S_ISUID))
-                kill = ATTR_KILL_SUID;
+	/* suid always must be killed */
+	if (unlikely(mode & S_ISUID))
+		kill = ATTR_KILL_SUID;
 
-        /*
-         * sgid without any exec bits is just a mandatory locking mark; leave
-         * it alone.  If some exec bits are set, it's a real sgid; kill it.
-         */
-        if (unlikely((mode & S_ISGID) && (mode & S_IXGRP)))
-                kill |= ATTR_KILL_SGID;
+	/*
+	 * sgid without any exec bits is just a mandatory locking mark; leave
+	 * it alone.  If some exec bits are set, it's a real sgid; kill it.
+	 */
+	if (unlikely((mode & S_ISGID) && (mode & S_IXGRP)))
+		kill |= ATTR_KILL_SGID;
 
-        if (unlikely(kill && !capable(CAP_FSETID) && S_ISREG(mode)))
-                return kill;
+	if (unlikely(kill && !capable(CAP_FSETID) && S_ISREG(mode)))
+		return kill;
 
-        return 0;
+	return 0;
 }
 
 
@@ -439,16 +446,6 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
-//printing macros
-#ifdef DATTO_DEBUG
-	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
-	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
-#else
-	#define LOG_DEBUG(fmt, args...)
-	#define PRINT_BIO(text, bio)
-#endif
-#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
-#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
 
 //memory macros
 #define get_zeroed_pages(flags, order) __get_free_pages((flags | __GFP_ZERO), order)
@@ -3710,6 +3707,7 @@ static int __verify_bdev_writable(char *bdev_path, int *out){
 
 	//open the base block device
 	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+
 	if(IS_ERR(bdev)){
 		bdev = NULL;
 		*out = 0;
