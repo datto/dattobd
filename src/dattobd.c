@@ -105,6 +105,26 @@ struct path {
 #define dattobd_get_nd_dentry(nd) nd.path.dentry
 #endif
 
+#ifndef HAVE_FMODE_T
+typedef mode_t fmode_t;
+#endif
+
+#ifdef HAVE_BD_SUPER
+#define dattobd_get_super(bdev) bdev->bd_super
+#define dattobd_drop_super(sb)
+#define dattobd_get_super_free(bdev) bdev->bd_super
+#else
+#define dattobd_get_super(bdev) get_super(bdev)
+#define dattobd_drop_super(sb) drop_super(sb)
+struct super_block *dattobd_get_super_free(struct block_device *bdev){
+	struct super_block *ret = dattobd_get_super(bdev);
+	if (ret) {
+		dattobd_drop_super(ret);
+	}
+	return ret;
+}
+#endif
+
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
@@ -339,8 +359,13 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 		err = path_lookup(tmp, flags, &nd);
 		putname(tmp);
 		if (!err) { 
-			path->dentry = nd.dentry; 
-			path->mnt = nd.mnt; 
+#ifdef HAVE_STRUCT_PATH
+			path->dentry = nd.path.dentry;
+			path->mnt = nd.path.mnt;
+#else
+			path->dentry = nd.dentry;
+			path->mnt = nd.mnt;
+#endif
 		}
 	}
 	return err;
@@ -483,7 +508,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !(bio->bi_rw & REQ_DISCARD) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for verifying file
-#define file_is_on_bdev(file, bdev) ((dattobd_get_mnt(file))->mnt_sb == (bdev)->bd_super)
+#define file_is_on_bdev(file, bdev) ((dattobd_get_mnt(file))->mnt_sb == dattobd_get_super_free(bdev))
 
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
@@ -2921,19 +2946,21 @@ static int __tracer_should_reset_mrf(struct snap_device *dev){
 
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
 	int ret;
-	struct super_block *sb = bdev->bd_super;
-
+	struct super_block *origsb = dattobd_get_super(bdev);
+	struct super_block *sb = NULL;
 	MAYBE_UNUSED(ret);
 
-	if(sb){
+	if(origsb){
 		//freeze and sync block device
 		LOG_DEBUG("freezing block device");
 		sb = freeze_bdev(bdev);
 		if(!sb){
 			LOG_ERROR(-EFAULT, "error freezing block device: null");
+			dattobd_drop_super(origsb);
 			return -EFAULT;
 		}else if(IS_ERR(sb)){
 			LOG_ERROR((int)PTR_ERR(sb), "error freezing block device: error");
+			dattobd_drop_super(origsb);
 			return (int)PTR_ERR(sb);
 		}
 	}
@@ -2952,7 +2979,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	}
 	smp_wmb();
 
-	if(sb){
+	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing block device");
 #ifndef HAVE_THAW_BDEV_INT
@@ -2966,6 +2993,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 			//pretend we succeeded so we don't break the block device
 		}
 #endif
+		dattobd_drop_super(origsb);
 	}
 
 	return 0;
@@ -3704,6 +3732,7 @@ static int __verify_minor(unsigned int minor, int mode){
 static int __verify_bdev_writable(char *bdev_path, int *out){
 	int ret = 0;
 	struct block_device *bdev;
+	struct super_block *sb;
 
 	//open the base block device
 	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
@@ -3712,14 +3741,17 @@ static int __verify_bdev_writable(char *bdev_path, int *out){
 		bdev = NULL;
 		*out = 0;
 		ret = 0;
-	}else if(!bdev->bd_super || (bdev->bd_super->s_flags & MS_RDONLY)){
+	}else{
+	sb = dattobd_get_super(bdev);
+	if(!sb || (sb->s_flags & MS_RDONLY)){
 		*out = 0;
 		ret = 0;
 	}else{
 		*out = 1;
 		ret = 0;
 	}
-
+	dattobd_drop_super(sb);
+	}
 	if(bdev) dattobd_blkdev_put(bdev);
 	return ret;
 }
