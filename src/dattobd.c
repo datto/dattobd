@@ -140,7 +140,7 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	}
 	dev = inode->i_rdev;
 	retbd = open_by_devnum(dev, mode);
-	
+
 out:
 #ifdef HAVE_STRUCT_PATH
 	path_put(&nd.path);
@@ -163,14 +163,6 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 	if(IS_ERR(bdev))
 		return bdev;
 
-//#ifdef HAVE_BLKDEV_GET_2
-//	err = blkdev_get(bdev, mode);
-//#else
-//	err = blkdev_get(bdev, mode, 0);
-//#endif
-//	if(err)
-//		return ERR_PTR(err);
-
 	if((mode & FMODE_WRITE) && bdev_read_only(bdev)) {
 #ifdef HAVE_BLKDEV_PUT_1
 		blkdev_put(bdev);
@@ -184,7 +176,85 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
-#ifndef HAVE_SUBMIT_BIO_WAIT
+#ifndef REQ_WRITE
+#define REQ_WRITE WRITE
+#endif
+
+#ifndef REQ_FLUSH
+#define REQ_FLUSH (1 << BIO_RW_BARRIER)
+#endif
+
+#if !defined REQ_SYNC && !defined BIO_RW_SYNCIO
+#define REQ_SYNC (1 << BIO_RW_SYNC)
+#elif !defined REQ_SYNC
+#define REQ_SYNC ((1 << BIO_RW_SYNCIO) | (1 << BIO_RW_UNPLUG))
+#endif
+
+//if these don't exist they are not supported
+#ifndef REQ_DISCARD
+#define REQ_DISCARD 0
+#endif
+
+#ifndef REQ_SECURE
+#define REQ_SECURE 0
+#endif
+
+#ifndef REQ_WRITE_SAME
+#define REQ_WRITE_SAME 0
+#endif
+
+#ifndef HAVE_SUBMIT_BIO_1
+enum req_op {
+        REQ_OP_READ,
+        REQ_OP_WRITE,
+        REQ_OP_DISCARD,         /* request to discard sectors */
+        REQ_OP_SECURE_ERASE,    /* request to securely erase sectors */
+        REQ_OP_WRITE_SAME,      /* write same block many times */
+        REQ_OP_FLUSH,           /* request for cache flush */
+};
+
+static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned op_flags){
+	bio->bi_rw = 0;
+
+	switch(op){
+	case REQ_OP_READ:
+		break;
+        case REQ_OP_WRITE:
+		bio->bi_rw |= REQ_WRITE;
+		break;
+        case REQ_OP_DISCARD:
+		bio->bi_rw |= REQ_DISCARD;
+		break;
+        case REQ_OP_SECURE_ERASE:
+		bio->bi_rw |= REQ_DISCARD | REQ_SECURE;
+		break;
+        case REQ_OP_WRITE_SAME:
+		bio->bi_rw |= REQ_WRITE_SAME;
+		break;
+        case REQ_OP_FLUSH:
+		bio->bi_rw |= REQ_FLUSH;
+		break;
+	}
+
+	bio->bi_rw |= op_flags;
+}
+
+	#define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
+	#define dattobd_submit_bio(bio) submit_bio(0, bio)
+	#define dattobd_submit_bio_wait(bio) submit_bio_wait(0, bio)
+#else
+
+static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned op_flags){
+	bio->bi_opf = 0;
+	bio_set_op_attrs(bio, op, op_flags);
+}
+
+	#define bio_is_discard(bio) ((bio)->bi_opf & REQ_DISCARD)
+	#define dattobd_submit_bio(bio) submit_bio(bio)
+	#define dattobd_submit_bio_wait(bio) submit_bio_wait(bio)
+#endif
+
+#if !defined HAVE_SUBMIT_BIO_WAIT && !defined HAVE_SUBMIT_BIO_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 struct submit_bio_ret{
 	struct completion event;
@@ -200,7 +270,7 @@ static void __submit_bio_wait_endio(struct bio *bio, int error){
 #ifdef HAVE_BIO_ENDIO_INT
 static int submit_bio_wait_endio(struct bio *bio, unsigned int bytes, int error){
 	if (bio->bi_size) return 1;
-	
+
 	__submit_bio_wait_endio(bio, error);
 	return 0;
 }
@@ -213,9 +283,7 @@ static void submit_bio_wait_endio(struct bio *bio, int error){
 static int submit_bio_wait(int rw, struct bio *bio){
 	struct submit_bio_ret ret;
 
-	//kernel implementation has the line below, but all our calls will have this already and it changes across kernel versions
-	//rw |= REQ_SYNC;
-
+	rw |= REQ_SYNC;
 	init_completion(&ret.event);
 	bio->bi_private = &ret;
 	bio->bi_end_io = submit_bio_wait_endio;
@@ -275,10 +343,6 @@ void path_put(const struct path *path) {
 }
 #endif
 
-#ifndef REQ_DISCARD
-#define REQ_DISCARD 0
-#endif
-
 #ifndef UMOUNT_NOFOLLOW
 #define UMOUNT_NOFOLLOW 0
 #endif
@@ -313,16 +377,16 @@ int bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector
 #define dattobd_bdev_stack_limits(queue, bdev, start)
 #else
 #define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(queue->limits, bdev, start)
-#endif	
+#endif
 
 #ifndef HAVE_KERN_PATH
 static int kern_path(const char *name, unsigned int flags, struct path *path){
 	struct nameidata nd;
 	int ret = path_lookup(name, flags, &nd);
 #ifndef HAVE_STRUCT_PATH
-	if(!ret) { 
-		path->dentry = nd.dentry; 
-		path->mnt = nd.mnt; 
+	if(!ret) {
+		path->dentry = nd.dentry;
+		path->mnt = nd.mnt;
 	}
 #else
 	if(!ret) *path = nd.path;
@@ -350,7 +414,7 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 		BUG_ON(flags & LOOKUP_PARENT);
 		err = path_lookup(tmp, flags, &nd);
 		putname(tmp);
-		if (!err) { 
+		if (!err) {
 #ifdef HAVE_STRUCT_PATH
 			path->dentry = nd.path.dentry;
 			path->mnt = nd.path.mnt;
@@ -497,9 +561,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 //should be called along with *_queue_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
-#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !(bio->bi_rw & REQ_DISCARD) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
-
-
+#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !bio_is_discard(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
@@ -2205,7 +2267,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
 	new_bio->bi_bdev = bdev;
-	new_bio->bi_rw = READ;
+	dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
@@ -2304,6 +2366,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	bio_orig_sect = bio_sector(bio);
 
 	bio->bi_bdev = dev->sd_base_dev;
+	dattobd_set_bio_ops(bio, REQ_OP_READ, REQ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
@@ -2311,7 +2374,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 
 	//submit the bio to the base device and wait for completion
 	if(mode != READ_MODE_COW_FILE){
-		ret = submit_bio_wait(READ_SYNC, bio);
+		ret = dattobd_submit_bio_wait(bio);
 		if(ret){
 			LOG_ERROR(ret, "error reading from base device for read");
 			goto snap_handle_bio_read_out;
@@ -2588,7 +2651,7 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	}
 
 	//change the bio into a write bio
-	bio->bi_rw |= WRITE;
+	dattobd_set_bio_ops(bio, REQ_OP_WRITE, 0);
 
 	//reset the bio iterator to its original state
 	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
@@ -2645,7 +2708,7 @@ static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int err){
 }
 #elif !defined HAVE_BIO_ENDIO_1
 static void on_bio_read_complete(struct bio *bio, int err){
-	if(!test_bit(BIO_UPTODATE, &bio->bi_flags)) err = -EIO;	
+	if(!test_bit(BIO_UPTODATE, &bio->bi_flags)) err = -EIO;
 	__on_bio_read_complete(bio, err);
 }
 #else
@@ -2693,7 +2756,7 @@ retry:
 	smp_wmb();
 
 	//submit the bios
-	submit_bio(0, new_bio);
+	dattobd_submit_bio(new_bio);
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
