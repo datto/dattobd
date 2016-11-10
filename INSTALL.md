@@ -4,7 +4,7 @@
 We recommend that you install the kernel module from Datto's repositories. Datto provides repos for RHEL/CentOS, Fedora, openSUSE, and Ubuntu LTS.
 
 ### RHEL/CentOS
-The repository install package `datto-el-rpm-release` is available for EL6+.
+The repository install package `datto-el-rpm-release` is available for EL5+.
 ```bash
 sudo yum localinstall https://cpkg.datto.com/datto-rpm/repoconfig/datto-el-rpm-release-$(rpm -E %rhel)-latest.noarch.rpm
 sudo yum install dkms-dattobd dattobd-utils
@@ -53,7 +53,7 @@ These packages will install and configure the kernel module to start during the 
 
 ### Dependencies
 
-Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below.
+Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below. The lowest supported kernel is 2.6.18.
 
 #### Debian/Ubuntu
 ```
