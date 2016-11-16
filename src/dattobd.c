@@ -184,7 +184,7 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #define REQ_FLUSH (1 << BIO_RW_BARRIER)
 #endif
 
-#if !defined REQ_SYNC && !defined BIO_RW_SYNCIO
+#if !defined REQ_SYNC && !defined BIO_RW_SYNCIO && !defined HAVE_BIO_RW_FLAGS
 #define REQ_SYNC (1 << BIO_RW_SYNC)
 #elif !defined REQ_SYNC
 #define REQ_SYNC ((1 << BIO_RW_SYNCIO) | (1 << BIO_RW_UNPLUG))
