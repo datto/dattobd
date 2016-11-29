@@ -15,6 +15,6 @@ clean:
 
 insmod: default
 	insmod dattobd.ko
-	
+
 rmmod:
 	rmmod dattobd

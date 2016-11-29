@@ -63,7 +63,7 @@ static int verify_files(FILE *cow, unsigned minor){
 	size_t bytes;
 	struct cow_header ch;
 	struct dattobd_info *info = NULL;
-	
+
 	//allocate a buffer for the proc data
 	info = malloc(sizeof(struct dattobd_info));
 	if(!info){
@@ -72,7 +72,7 @@ static int verify_files(FILE *cow, unsigned minor){
 		fprintf(stderr, "error allocating mmeory for dattobd info\n");
 		goto error;
 	}
-	
+
 	//read info from the dattobd driver
 	ret = dattobd_info(minor, info);
 	if(ret){
@@ -81,7 +81,7 @@ static int verify_files(FILE *cow, unsigned minor){
 		fprintf(stderr, "error reading dattobd info from driver\n");
 		goto error;
 	}
-	
+
 	//read cow header from cow file
 	bytes = pread(fileno(cow), &ch, sizeof(struct cow_header), 0);
 	if(bytes != sizeof(struct cow_header)){
@@ -90,32 +90,32 @@ static int verify_files(FILE *cow, unsigned minor){
 		fprintf(stderr, "error reading cow header\n");
 		goto error;
 	}
-	
+
 	//check the cow file's magic number
 	if(ch.magic != COW_MAGIC){
 		ret = EINVAL;
 		fprintf(stderr, "invalid magic number from cow file\n");
 		goto error;
 	}
-	
+
 	//check the uuid
 	if(memcmp(ch.uuid, info->uuid, COW_UUID_SIZE) != 0){
 		ret = EINVAL;
 		fprintf(stderr, "cow file uuid does not match snapshot\n");
 		goto error;
 	}
-	
+
 	//check the sequence id
 	if(ch.seqid != info->seqid - 1){
 		ret = EINVAL;
 		fprintf(stderr, "snapshot provided does not immediately follow the snapshot that created the cow file\n");
 		goto error;
 	}
-	
+
 	free(info);
-	
+
 	return 0;
-	
+
 error:
 	if(info) free(info);
 	return ret;
@@ -159,7 +159,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "error opening image\n");
 		goto error;
 	}
-	
+
 	//get the full path of the cow file
 	snap_path = realpath(argv[1], snap_path_buf);
 	if(!snap_path){
@@ -168,7 +168,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "error determining full path of snapshot\n");
 		goto error;
 	}
-	
+
 	//get the minor number of the snapshot
 	ret = sscanf(snap_path, "/dev/datto%u", &minor);
 	if(ret != 1){
@@ -177,7 +177,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "snapshot does not appear to be a dattobd snapshot device\n");
 		goto error;
 	}
-	
+
 	//verify all of the inputs before attempting to merge
 	ret = verify_files(cow, minor);
 	if(ret) goto error;

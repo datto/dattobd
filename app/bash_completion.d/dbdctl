@@ -1,4 +1,4 @@
-_dbdctl()   
+_dbdctl()
 {
     local cur prev opts
     COMPREPLY=()

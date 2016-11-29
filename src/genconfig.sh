@@ -38,7 +38,7 @@ while read SYMBOL_NAME; do
 	if [ -z "$SYMBOL_NAME" ]; then
 		continue
 	fi
-	
+
 	echo "performing $SYMBOL_NAME lookup"
 	MACRO_NAME="$(echo ${SYMBOL_NAME} | awk '{print toupper($0)}')_ADDR"
 	SYMBOL_ADDR=$(grep " ${SYMBOL_NAME}$" "/boot/System.map-$1" | awk '{print $1}')
