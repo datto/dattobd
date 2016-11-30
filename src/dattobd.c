@@ -347,36 +347,42 @@ void path_put(const struct path *path) {
 #define UMOUNT_NOFOLLOW 0
 #endif
 
-#ifndef HAVE_BDEV_STACK_LIMITS
+#if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
+
 #ifndef min_not_zero
 #define min_not_zero(l, r) (l == 0) ? r : ((r == 0) ? l : min(l, r))
 #endif
-int blk_stack_limits(struct request_queue *t, struct request_queue *b,
-		     sector_t offset)
-{
+
+int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t offset){
 	t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
 	t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
 	t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
-	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask,
-					    b->seg_boundary_mask);
-	t->max_phys_segments = min_not_zero(t->max_phys_segments,
-					    b->max_phys_segments);
-	t->max_hw_segments = min_not_zero(t->max_hw_segments,
-					  b->max_hw_segments);
-	t->max_segment_size = min_not_zero(t->max_segment_size,
-					   b->max_segment_size);
+	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
+	t->max_phys_segments = min_not_zero(t->max_phys_segments, b->max_phys_segments);
+	t->max_hw_segments = min_not_zero(t->max_hw_segments, b->max_hw_segments);
+	t->max_segment_size = min_not_zero(t->max_segment_size, b->max_segment_size);
 	return 0;
 }
-int bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start)
-{
+
+int dattobd_bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start){
 	struct request_queue *bq = bdev_get_queue(bdev);
 	start += get_start_sect(bdev);
 	return blk_stack_limits(t, bq, start << 9);
 }
 
-#define dattobd_bdev_stack_limits(queue, bdev, start)
+#elif !defined(HAVE_BDEV_STACK_LIMITS)
+//#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+
+int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
+	struct request_queue *bq = bdev_get_queue(bdev);
+	start += get_start_sect(bdev);
+	return blk_stack_limits(t, bq, start << 9);
+}
+#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
+
 #else
-#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(queue->limits, bdev, start)
+#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
 #endif
 
 #ifndef HAVE_KERN_PATH
@@ -3355,7 +3361,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	//give our request queue the same properties as the base device's
 	LOG_DEBUG("setting queue limits");
 	blk_set_stacking_limits(&dev->sd_queue->limits);
-	dattobd_bdev_stack_limits(&dev->sd_queue, bdev, 0);
+	dattobd_bdev_stack_limits(dev->sd_queue, bdev, 0);
 
 #ifdef HAVE_MERGE_BVEC_FN
 	//use a thin wrapper around the base device's merge_bvec_fn
