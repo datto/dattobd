@@ -40,7 +40,7 @@ struct bio_list {
 	struct bio *tail;
 };
 
-#define BIO_EMPTY_LIST	{ NULL, NULL }
+#define BIO_EMPTY_LIST { NULL, NULL }
 #define bio_list_for_each(bio, bl) for((bio) = (bl)->head; (bio); (bio) = (bio)->bi_next)
 
 static inline int bio_list_empty(const struct bio_list *bl){
@@ -205,12 +205,12 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 
 #ifndef HAVE_SUBMIT_BIO_1
 enum req_op {
-        REQ_OP_READ,
-        REQ_OP_WRITE,
-        REQ_OP_DISCARD,         /* request to discard sectors */
-        REQ_OP_SECURE_ERASE,    /* request to securely erase sectors */
-        REQ_OP_WRITE_SAME,      /* write same block many times */
-        REQ_OP_FLUSH,           /* request for cache flush */
+	REQ_OP_READ,
+	REQ_OP_WRITE,
+	REQ_OP_DISCARD,         /* request to discard sectors */
+	REQ_OP_SECURE_ERASE,    /* request to securely erase sectors */
+	REQ_OP_WRITE_SAME,      /* write same block many times */
+	REQ_OP_FLUSH,           /* request for cache flush */
 };
 
 static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned op_flags){
@@ -219,19 +219,19 @@ static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned
 	switch(op){
 	case REQ_OP_READ:
 		break;
-        case REQ_OP_WRITE:
+	case REQ_OP_WRITE:
 		bio->bi_rw |= REQ_WRITE;
 		break;
-        case REQ_OP_DISCARD:
+	case REQ_OP_DISCARD:
 		bio->bi_rw |= REQ_DISCARD;
 		break;
-        case REQ_OP_SECURE_ERASE:
+	case REQ_OP_SECURE_ERASE:
 		bio->bi_rw |= REQ_DISCARD | REQ_SECURE;
 		break;
-        case REQ_OP_WRITE_SAME:
+	case REQ_OP_WRITE_SAME:
 		bio->bi_rw |= REQ_WRITE_SAME;
 		break;
-        case REQ_OP_FLUSH:
+	case REQ_OP_FLUSH:
 		bio->bi_rw |= REQ_FLUSH;
 		break;
 	}
@@ -767,7 +767,7 @@ static struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = dattobd_proc_open,
 	.read = seq_read,
-	.llseek	= seq_lseek,
+	.llseek = seq_lseek,
 	.release = dattobd_proc_release,
 };
 
@@ -836,7 +836,7 @@ static int get_setup_params(struct setup_params __user *in, unsigned int *minor,
 	}
 
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
-	if(ret)	goto get_setup_params_error;
+	if(ret) goto get_setup_params_error;
 
 	if(!*bdev_name){
 		ret = -EINVAL;
@@ -845,7 +845,7 @@ static int get_setup_params(struct setup_params __user *in, unsigned int *minor,
 	}
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
-	if(ret)	goto get_setup_params_error;
+	if(ret) goto get_setup_params_error;
 
 	if(!*cow_path){
 		ret = -EINVAL;
@@ -884,7 +884,7 @@ static int get_reload_params(struct reload_params __user *in, unsigned int *mino
 	}
 
 	ret = copy_string_from_user((char __user *)params.bdev, bdev_name);
-	if(ret)	goto get_reload_params_error;
+	if(ret) goto get_reload_params_error;
 
 	if(!*bdev_name){
 		ret = -EINVAL;
@@ -893,7 +893,7 @@ static int get_reload_params(struct reload_params __user *in, unsigned int *mino
 	}
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
-	if(ret)	goto get_reload_params_error;
+	if(ret) goto get_reload_params_error;
 
 	if(!*cow_path){
 		ret = -EINVAL;
@@ -930,7 +930,7 @@ static int get_transition_snap_params(struct transition_snap_params __user *in, 
 	}
 
 	ret = copy_string_from_user((char __user *)params.cow, cow_path);
-	if(ret)	goto get_transition_snap_params_error;
+	if(ret) goto get_transition_snap_params_error;
 
 	if(!*cow_path){
 		ret = -EINVAL;
@@ -1241,7 +1241,7 @@ static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 	//if not page aligned, write zeros to that point
 	if(offset % PAGE_SIZE != 0){
 		ret = file_write(f, page_buf, offset, PAGE_SIZE - (offset % PAGE_SIZE));
-		if(ret)	goto file_allocate_error;
+		if(ret) goto file_allocate_error;
 
 		offset += PAGE_SIZE - (offset % PAGE_SIZE);
 	}
@@ -1708,7 +1708,7 @@ static int cow_sync_and_free(struct cow_manager *cm){
 	int ret;
 
 	ret = __cow_sync_and_free_sections(cm, 0);
-	if(ret)	goto cow_sync_and_free_error;
+	if(ret) goto cow_sync_and_free_error;
 
 	ret = __cow_close_header(cm);
 	if(ret) goto cow_sync_and_free_error;
@@ -1734,7 +1734,7 @@ static int cow_sync_and_close(struct cow_manager *cm){
 	int ret;
 
 	ret = __cow_sync_and_free_sections(cm, 0);
-	if(ret)	goto cow_sync_and_close_error;
+	if(ret) goto cow_sync_and_close_error;
 
 	ret = __cow_close_header(cm);
 	if(ret) goto cow_sync_and_close_error;
@@ -1759,7 +1759,7 @@ static int cow_reopen(struct cow_manager *cm, char *pathname){
 
 	LOG_DEBUG("opening cow header");
 	ret = __cow_open_header(cm, (cm->flags & (1 << COW_INDEX_ONLY)), 0);
-	if(ret)	goto cow_reopen_error;
+	if(ret) goto cow_reopen_error;
 
 	return 0;
 
@@ -1801,7 +1801,7 @@ static int cow_reload(char *path, uint64_t elements, unsigned long sect_size, un
 	cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size*8));
 
 	ret = __cow_open_header(cm, index_only, 1);
-	if(ret)	goto cow_reload_error;
+	if(ret) goto cow_reload_error;
 
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
 	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL);
@@ -1852,7 +1852,7 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 
 	LOG_DEBUG("creating cow file");
 	ret = file_open(path, O_CREAT | O_TRUNC, &cm->filp);
-	if(ret)	goto cow_init_error;
+	if(ret) goto cow_init_error;
 
 	cm->flags = 0;
 	cm->allocated_sects = 0;
@@ -1869,7 +1869,7 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	else generate_random_uuid(cm->uuid);
 
 	ret = __cow_write_header_dirty(cm);
-	if(ret)	goto cow_init_error;
+	if(ret) goto cow_init_error;
 
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
 	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL);
@@ -1929,7 +1929,7 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 			return 0;
 		}else{
 			ret = __cow_load_section(cm, sect_idx);
-			if(ret)	goto cow_read_mapping_error;
+			if(ret) goto cow_read_mapping_error;
 		}
 	}
 
@@ -1937,7 +1937,7 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 
 	if(cm->allocated_sects > cm->allowed_sects){
 		ret = __cow_cleanup_mappings(cm);
-		if(ret)	goto cow_read_mapping_error;
+		if(ret) goto cow_read_mapping_error;
 	}
 
 	return 0;
@@ -1957,7 +1957,7 @@ static int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t va
 	if(!cm->sects[sect_idx].mappings){
 		if(!cm->sects[sect_idx].has_data){
 			ret = __cow_alloc_section(cm, sect_idx, 1);
-			if(ret)	goto cow_write_mapping_error;
+			if(ret) goto cow_write_mapping_error;
 		}else{
 			ret = __cow_load_section(cm, sect_idx);
 			if(ret) goto cow_write_mapping_error;
@@ -2007,14 +2007,14 @@ static int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf){
 
 	//read this mapping from the cow manager
 	ret = cow_read_mapping(cm, block, &block_mapping);
-	if(ret)	goto cow_write_current_error;
+	if(ret) goto cow_write_current_error;
 
 	//if the block mapping already exists return so we don't overwrite it
 	if(block_mapping) return 0;
 
 	//write the mapping
 	ret = __cow_write_current_mapping(cm, block);
-	if(ret)	goto cow_write_current_error;
+	if(ret) goto cow_write_current_error;
 
 	//write the data
 	ret = __cow_write_data(cm, buf);
@@ -2817,7 +2817,7 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 		}else{
 			if(is_initialized && end_sect - start_sect > 0){
 				ret = inc_make_sset(dev, start_sect, end_sect - start_sect);
-				if(ret)	goto inc_trace_bio_out;
+				if(ret) goto inc_trace_bio_out;
 			}
 			is_initialized = 0;
 		}
@@ -2826,7 +2826,7 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 
 	if(is_initialized && end_sect - start_sect > 0){
 		ret = inc_make_sset(dev, start_sect, end_sect - start_sect);
-		if(ret)	goto inc_trace_bio_out;
+		if(ret) goto inc_trace_bio_out;
 	}
 
 inc_trace_bio_out:
@@ -2939,7 +2939,7 @@ static int string_copy(char *str, char **dest){
 
 string_copy_error:
 	LOG_ERROR(ret, "error copying string");
-	if(out)	kfree(out);
+	if(out) kfree(out);
 
 	*dest = NULL;
 	return ret;
@@ -3134,7 +3134,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev, char *bdev_path){
 	//fetch the absolute pathname for the base device
 	LOG_DEBUG("fetching the absolute pathname for the base device");
 	ret = pathname_to_absolute(bdev_path, &dev->sd_bdev_path, NULL);
-	if(ret)	goto tracer_setup_base_dev_error;
+	if(ret) goto tracer_setup_base_dev_error;
 
 	//check if device represents a partition, calculate size and offset
 	LOG_DEBUG("calculating block device size and offset");
@@ -3230,12 +3230,12 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 			//create and open the cow manager
 			LOG_DEBUG("creating cow manager");
 			ret = cow_init(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, uuid, seqid, &dev->sd_cow);
-			if(ret)	goto tracer_setup_cow_error;
+			if(ret) goto tracer_setup_cow_error;
 		}else{
 			//reload the cow manager
 			LOG_DEBUG("reloading cow manager");
 			ret = cow_reload(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, (open_method == 2), &dev->sd_cow);
-			if(ret)	goto tracer_setup_cow_error;
+			if(ret) goto tracer_setup_cow_error;
 
 			dev->sd_falloc_size = dev->sd_cow->file_max;
 			do_div(dev->sd_falloc_size, (1024 * 1024));
@@ -3512,7 +3512,7 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 	if(ret) goto tracer_setup_tracing_error;
 
 	ret = __tracer_transition_tracing(dev, dev->sd_base_dev, tracing_mrf, &snap_devices[minor]);
-	if(ret)	goto tracer_setup_tracing_error;
+	if(ret) goto tracer_setup_tracing_error;
 
 	return 0;
 
@@ -3544,29 +3544,29 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 
 	//setup base device
 	ret = __tracer_setup_base_dev(dev, bdev_path);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	//setup the cow manager
 	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, NULL, 1);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	//setup the cow path
 	ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	//setup the snapshot values
 	ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	//setup the cow thread and run it
 	ret = __tracer_setup_snap_cow_thread(dev, minor);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	wake_up_process(dev->sd_cow_thread);
 
 	//inject the tracing function
 	ret = __tracer_setup_tracing(dev, minor);
-	if(ret)	goto tracer_setup_active_snap_error;
+	if(ret) goto tracer_setup_active_snap_error;
 
 	return 0;
 
@@ -3634,7 +3634,7 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 
 	//inject the tracing function
 	ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
-	if(ret)	goto tracer_transition_inc_error;
+	if(ret) goto tracer_transition_inc_error;
 
 	//Below this point, we are commited to the new device, so we must make sure it is in a good state.
 
@@ -4183,7 +4183,7 @@ static void __tracer_unverified_snap_to_active(struct snap_device *dev, char __u
 
 	//setup base device
 	ret = __tracer_setup_base_dev(dev, bdev_path);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	//generate the full pathname
 	ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
@@ -4191,25 +4191,25 @@ static void __tracer_unverified_snap_to_active(struct snap_device *dev, char __u
 
 	//setup the cow manager
 	ret = __tracer_setup_cow_reload_snap(dev, dev->sd_base_dev, cow_path, dev->sd_size, dev->sd_cache_size);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	//setup the cow path
 	ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	//setup the snapshot values
 	ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	//setup the cow thread and run it
 	ret = __tracer_setup_snap_cow_thread(dev, minor);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	wake_up_process(dev->sd_cow_thread);
 
 	//inject the tracing function
 	ret = __tracer_setup_tracing(dev, minor);
-	if(ret)	goto tracer_unverified_snap_to_active_error;
+	if(ret) goto tracer_unverified_snap_to_active_error;
 
 	kfree(bdev_path);
 	kfree(rel_path);
@@ -4245,7 +4245,7 @@ static void __tracer_unverified_inc_to_active(struct snap_device *dev, char __us
 
 	//setup base device
 	ret = __tracer_setup_base_dev(dev, bdev_path);
-	if(ret)	goto tracer_unverified_inc_to_active_error;
+	if(ret) goto tracer_unverified_inc_to_active_error;
 
 	//generate the full pathname
 	ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
@@ -4253,21 +4253,21 @@ static void __tracer_unverified_inc_to_active(struct snap_device *dev, char __us
 
 	//setup the cow manager
 	ret = __tracer_setup_cow_reload_inc(dev, dev->sd_base_dev, cow_path, dev->sd_size, dev->sd_cache_size);
-	if(ret)	goto tracer_unverified_inc_to_active_error;
+	if(ret) goto tracer_unverified_inc_to_active_error;
 
 	//setup the cow path
 	ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-	if(ret)	goto tracer_unverified_inc_to_active_error;
+	if(ret) goto tracer_unverified_inc_to_active_error;
 
 	//setup the cow thread and run it
 	ret = __tracer_setup_inc_cow_thread(dev, minor);
-	if(ret)	goto tracer_unverified_inc_to_active_error;
+	if(ret) goto tracer_unverified_inc_to_active_error;
 
 	wake_up_process(dev->sd_cow_thread);
 
 	//inject the tracing function
 	ret = __tracer_setup_tracing(dev, minor);
-	if(ret)	goto tracer_unverified_inc_to_active_error;
+	if(ret) goto tracer_unverified_inc_to_active_error;
 
 	kfree(bdev_path);
 	kfree(rel_path);
@@ -4295,7 +4295,7 @@ static void __tracer_dormant_to_active(struct snap_device *dev, char __user *use
 
 	//setup the cow manager
 	ret = __tracer_setup_cow_reopen(dev, dev->sd_base_dev, cow_path);
-	if(ret)	goto tracer_dormant_to_active_error;
+	if(ret) goto tracer_dormant_to_active_error;
 
 	//restart the cow thread
 	if(test_bit(SNAPSHOT, &dev->sd_state)) ret = __tracer_setup_snap_cow_thread(dev, dev->sd_minor);

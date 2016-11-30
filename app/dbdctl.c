@@ -341,7 +341,7 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
 
-	if(ret)	perror("driver returned an error performing specified action. check dmesg for more info");
+	if(ret) perror("driver returned an error performing specified action. check dmesg for more info");
 
 	return ret;
 }
