@@ -94,15 +94,15 @@ struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;
 };
-#define dattobd_get_dentry(f) f->f_dentry
-#define dattobd_get_mnt(f) f->f_vfsmnt
-#define dattobd_d_path(path, page_buf, page_size) d_path(path->dentry, path->mnt, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) nd.dentry
+#define dattobd_get_dentry(f) (f)->f_dentry
+#define dattobd_get_mnt(f) (f)->f_vfsmnt
+#define dattobd_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
+#define dattobd_get_nd_dentry(nd) (nd).dentry
 #else
-#define dattobd_get_dentry(f) f->f_path.dentry
-#define dattobd_get_mnt(f) f->f_path.mnt
+#define dattobd_get_dentry(f) (f)->f_path.dentry
+#define dattobd_get_mnt(f) (f)->f_path.mnt
 #define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) nd.path.dentry
+#define dattobd_get_nd_dentry(nd) (nd).path.dentry
 #endif
 
 #ifndef HAVE_FMODE_T
@@ -110,7 +110,7 @@ typedef mode_t fmode_t;
 #endif
 
 #ifdef HAVE_BD_SUPER
-#define dattobd_get_super(bdev) bdev->bd_super
+#define dattobd_get_super(bdev) (bdev)->bd_super
 #define dattobd_drop_super(sb)
 #else
 #define dattobd_get_super(bdev) get_super(bdev)
@@ -324,7 +324,7 @@ static void dattobd_bio_endio(struct bio *bio, int err){
 #else
 	typedef struct bvec_iter bio_iter_t;
 	typedef struct bio_vec bio_iter_bvec_t;
-	#define bio_iter_idx(iter) (iter.bi_idx)
+	#define bio_iter_idx(iter) ((iter).bi_idx)
 	#define bio_sector(bio) (bio)->bi_iter.bi_sector
 	#define bio_size(bio) (bio)->bi_iter.bi_size
 	#define bio_idx(bio) (bio)->bi_iter.bi_idx
@@ -351,7 +351,7 @@ void path_put(const struct path *path) {
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 
 #ifndef min_not_zero
-#define min_not_zero(l, r) (l == 0) ? r : ((r == 0) ? l : min(l, r))
+#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
 #endif
 
 int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t offset){
@@ -466,9 +466,9 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 
 #ifndef HAVE_PART_NR_SECTS_READ
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
-	#define dattobd_bdev_size(bdev) (bdev->bd_part->nr_sects)
+	#define dattobd_bdev_size(bdev) ((bdev)->bd_part->nr_sects)
 #else
-	#define dattobd_bdev_size(bdev) part_nr_sects_read(bdev->bd_part)
+	#define dattobd_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
 #endif
 
 #ifndef HAVE_VZALLOC
@@ -535,7 +535,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 
 //memory macros
-#define get_zeroed_pages(flags, order) __get_free_pages((flags | __GFP_ZERO), order)
+#define get_zeroed_pages(flags, order) __get_free_pages(((flags) | __GFP_ZERO), order)
 
 //takes a value and the log of the value it should be rounded up to
 #define NUM_SEGMENTS(x, log_size) (((x) + (1<<(log_size)) - 1) >> (log_size))
@@ -543,8 +543,8 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #define ROUND_DOWN(x, chunk) (((x) / (chunk)) * (chunk))
 
 //bitmap macros
-#define bitmap_is_marked(bitmap, pos) ((bitmap[(pos) / 8] & (1 << ((pos) % 8))) != 0)
-#define bitmap_mark(bitmap, pos) bitmap[(pos) / 8] |= (1 << ((pos) % 8))
+#define bitmap_is_marked(bitmap, pos) (((bitmap)[(pos) / 8] & (1 << ((pos) % 8))) != 0)
+#define bitmap_mark(bitmap, pos) (bitmap)[(pos) / 8] |= (1 << ((pos) % 8))
 
 //name macros
 #define INFO_PROC_FILE "datto-info"
@@ -560,10 +560,10 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < MAX_SNAP_DEVICES; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
-#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue(dev->sd_base_dev) == bdev_get_queue(bio->bi_bdev))
+#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == bdev_get_queue((bio)->bi_bdev))
 
 //returns true if tracing struct's sector range matches the sector of the bio
-#define tracer_sector_matches_bio(dev, bio) (bio_sector(bio) >= dev->sd_sect_off && bio_sector(bio) < dev->sd_sect_off + dev->sd_size)
+#define tracer_sector_matches_bio(dev, bio) (bio_sector(bio) >= (dev)->sd_sect_off && bio_sector(bio) < (dev)->sd_sect_off + (dev)->sd_size)
 
 //should be called along with *_queue_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
@@ -599,7 +599,7 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 
 //macros for working with bios
 #define BIO_SET_SIZE 256
-#define bio_flag(bio, flag) (bio->bi_flags |= (1 << flag))
+#define bio_flag(bio, flag) ((bio)->bi_flags |= (1 << (flag)))
 #define BIO_ALREADY_TRACED 20
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE))
 
