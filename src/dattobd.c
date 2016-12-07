@@ -532,6 +532,23 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 	#define dattobd_inode_unlock inode_unlock
 #endif
 
+#ifndef HAVE_PROC_CREATE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+static inline struct proc_dir_entry *proc_create(const char *name, mode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops){
+	struct proc_dir_entry *ent;
+
+	ent = create_proc_entry(name, mode, parent);
+	if(!ent) goto error;
+
+	ent->proc_fops = proc_fops;
+
+	return ent;
+
+error:
+	return NULL;
+}
+#endif
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 
@@ -4612,7 +4629,7 @@ static void **find_sys_call_table(void){
 /***************************BLOCK DEVICE DRIVER***************************/
 
 static int __tracer_add_ref(struct snap_device *dev, int ref_cnt){
-	int ret = 0;;
+	int ret = 0;
 
 	if(!dev){
 		ret = -EFAULT;
