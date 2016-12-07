@@ -90,19 +90,31 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 
 
 #ifndef HAVE_STRUCT_PATH
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;
 };
 #define dattobd_get_dentry(f) (f)->f_dentry
 #define dattobd_get_mnt(f) (f)->f_vfsmnt
-#define dattobd_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) (nd).dentry
 #else
 #define dattobd_get_dentry(f) (f)->f_path.dentry
 #define dattobd_get_mnt(f) (f)->f_path.mnt
+#endif
+
+#ifndef HAVE_PATH_PUT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+void path_put(const struct path *path) {
+	dput(path->dentry);
+	mntput(path->mnt);
+}
+#define dattobd_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
+#define dattobd_get_nd_dentry(nd) (nd).dentry
+#define dattobd_get_nd_mnt(nd) (nd).mnt
+#else
 #define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
 #define dattobd_get_nd_dentry(nd) (nd).path.dentry
+#define dattobd_get_nd_mnt(nd) (nd).path.mnt
 #endif
 
 #ifndef HAVE_FMODE_T
@@ -142,7 +154,7 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	retbd = open_by_devnum(dev, mode);
 
 out:
-#ifdef HAVE_STRUCT_PATH
+#ifdef HAVE_PATH_PUT
 	path_put(&nd.path);
 #else
 	dput(nd.dentry);
@@ -336,13 +348,6 @@ static void dattobd_bio_endio(struct bio *bio, int err){
 #define mnt_drop_write (void)sizeof
 #endif
 
-#ifndef HAVE_PATH_PUT
-void path_put(const struct path *path) {
-	dput(path->dentry);
-	mntput(path->mnt);
-}
-#endif
-
 #ifndef UMOUNT_NOFOLLOW
 #define UMOUNT_NOFOLLOW 0
 #endif
@@ -377,7 +382,7 @@ int dattobd_bdev_stack_limits(struct request_queue *t, struct block_device *bdev
 int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
 	struct request_queue *bq = bdev_get_queue(bdev);
 	start += get_start_sect(bdev);
-	return blk_stack_limits(t, bq, start << 9);
+	return blk_stack_limits(t, &bq->limits, start << 9);
 }
 #define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
 
@@ -386,17 +391,14 @@ int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_
 #endif
 
 #ifndef HAVE_KERN_PATH
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 static int kern_path(const char *name, unsigned int flags, struct path *path){
 	struct nameidata nd;
 	int ret = path_lookup(name, flags, &nd);
-#ifndef HAVE_STRUCT_PATH
-	if(!ret) {
-		path->dentry = nd.dentry;
-		path->mnt = nd.mnt;
+	if(!ret){
+		path->dentry = dattobd_get_nd_dentry(nd);
+		path->mnt = dattobd_get_nd_mnt(nd);
 	}
-#else
-	if(!ret) *path = nd.path;
-#endif
 	return ret;
 }
 #endif
@@ -421,13 +423,8 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 		err = path_lookup(tmp, flags, &nd);
 		putname(tmp);
 		if (!err) {
-#ifdef HAVE_STRUCT_PATH
-			path->dentry = nd.path.dentry;
-			path->mnt = nd.path.mnt;
-#else
-			path->dentry = nd.dentry;
-			path->mnt = nd.mnt;
-#endif
+			path->dentry = dattobd_get_nd_dentry(nd);
+			path->mnt = dattobd_get_nd_mnt(nd);
 		}
 	}
 	return err;
@@ -497,6 +494,10 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
+#endif
+
+#ifndef ACCESS_ONCE
+	#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
 #endif
 
 //this is defined in 3.16 and up
@@ -1196,12 +1197,14 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 
 	if(off + len > inode->i_sb->s_maxbytes || off + len < 0) return -EFBIG;
 
-	#ifdef HAVE_IOPS_FALLOCATE
+	#if !defined(HAVE_IOPS_FALLOCATE) && !defined(HAVE_FOPS_FALLOCATE)
+	//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
+	return -EOPNOTSUPP;
+	#elif defined(HAVE_IOPS_FALLOCATE)
 	//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	if(!inode->i_op->fallocate) return -EOPNOTSUPP;
 	ret = inode->i_op->fallocate(inode, 0, offset, len);
 	#else
-
 	if(!f->f_op->fallocate) return -EOPNOTSUPP;
 		#ifdef HAVE_SB_START_WRITE
 		//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
