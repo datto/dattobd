@@ -1100,6 +1100,220 @@ file_open_error:
 	return ret;
 }
 
+#if !defined(HAVE___DENTRY_PATH) && !defined(HAVE_DENTRY_PATH_RAW)
+static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *len_res){
+	int len = 0;
+	char *pathname;
+	struct dentry *parent = dentry;
+
+	while(parent->d_parent != parent){
+		len += parent->d_name.len + 1;
+		parent = parent->d_parent;
+	}
+
+	pathname = kmalloc(len + 1, GFP_KERNEL);
+	if(!pathname){
+		LOG_ERROR(-ENOMEM, "error allocating pathname for dentry");
+		return -ENOMEM;
+	}
+	pathname[len] = '\0';
+	if(len_res) *len_res = len;
+	*buf = pathname;
+
+	parent = dentry;
+	while(parent->d_parent != parent){
+		len -= parent->d_name.len + 1;
+		pathname[len] = '/';
+		strncpy(&pathname[len + 1], parent->d_name.name, parent->d_name.len);
+		parent = parent->d_parent;
+	}
+
+	return 0;
+}
+#else
+static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *len_res){
+	int ret, len;
+	char *pathname, *page_buf, *final_buf = NULL;
+
+	page_buf = (char *)__get_free_page(GFP_KERNEL);
+	if(!page_buf){
+		LOG_ERROR(-ENOMEM, "error allocating page for dentry pathname");
+		return -ENOMEM;
+	}
+
+	#ifdef HAVE___DENTRY_PATH
+	spin_lock(&dcache_lock);
+	pathname = __dentry_path(dentry, page_buf, PAGE_SIZE);
+	spin_unlock(&dcache_lock);
+	#else
+	pathname = dentry_path_raw(dentry, page_buf, PAGE_SIZE);
+	#endif
+	if(IS_ERR(pathname)){
+		ret = PTR_ERR(pathname);
+		pathname = NULL;
+		LOG_ERROR(ret, "error fetching dentry pathname");
+		goto dentry_get_relative_pathname_error;
+	}
+
+	len = page_buf + PAGE_SIZE - pathname;
+	final_buf = kmalloc(len, GFP_KERNEL);
+	if(!final_buf){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating pathname for dentry");
+		goto dentry_get_relative_pathname_error;
+	}
+
+	strncpy(final_buf, pathname, len);
+	free_page((unsigned long)page_buf);
+
+	*buf = final_buf;
+	if(len_res) *len_res = len;
+	return 0;
+
+dentry_get_relative_pathname_error:
+	LOG_ERROR(ret, "error converting dentry to relative path name");
+	if(final_buf) kfree(final_buf);
+	if(page_buf) free_page((unsigned long)page_buf);
+
+	*buf = NULL;
+	if(len_res) *len_res = 0;
+	return ret;
+}
+#endif
+
+static int path_get_absolute_pathname(struct path *path, char **buf, int *len_res){
+	int ret, len;
+	char *pathname, *page_buf, *final_buf = NULL;
+
+	page_buf = (char *)__get_free_page(GFP_KERNEL);
+	if(!page_buf){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating page for absolute pathname");
+		goto path_get_absolute_pathname_error;
+	}
+
+	pathname = dattobd_d_path(path, page_buf, PAGE_SIZE);
+	if(IS_ERR(pathname)){
+		ret = PTR_ERR(pathname);
+		pathname = NULL;
+		LOG_ERROR(ret, "error fetching absolute pathname");
+		goto path_get_absolute_pathname_error;
+	}
+
+	len = page_buf + PAGE_SIZE - pathname;
+	final_buf = kmalloc(len, GFP_KERNEL);
+	if(!final_buf){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating buffer for absolute pathname");
+		goto path_get_absolute_pathname_error;
+	}
+
+	strncpy(final_buf, pathname, len);
+	free_page((unsigned long)page_buf);
+
+	*buf = final_buf;
+	if(len_res) *len_res = len;
+	return 0;
+
+path_get_absolute_pathname_error:
+	LOG_ERROR(ret, "error getting absolute pathname from path");
+	if(final_buf) kfree(final_buf);
+	if(page_buf) free_page((unsigned long)page_buf);
+
+	*buf = NULL;
+	if(len_res) *len_res = 0;
+	return ret;
+}
+
+static int file_get_absolute_pathname(struct file *filp, char **buf, int *len_res){
+	struct path path;
+	int ret;
+
+	path.mnt = dattobd_get_mnt(filp);
+	path.dentry = dattobd_get_dentry(filp);
+
+	ret = path_get_absolute_pathname(&path, buf, len_res);
+	if(ret) goto file_get_absolute_pathname_error;
+
+	return 0;
+
+file_get_absolute_pathname_error:
+	LOG_ERROR(ret, "error converting file to absolute pathname");
+	*buf = NULL;
+	*len_res = 0;
+
+	return ret;
+}
+
+static int pathname_to_absolute(char *pathname, char **buf, int *len_res){
+	int ret;
+	struct path path = {};
+
+	ret = kern_path(pathname, LOOKUP_FOLLOW, &path);
+	if(ret){
+		LOG_ERROR(ret, "error finding path for pathname");
+		return ret;
+	}
+
+	ret = path_get_absolute_pathname(&path, buf, len_res);
+	if(ret) goto pathname_to_absolute_error;
+
+	path_put(&path);
+	return 0;
+
+pathname_to_absolute_error:
+	LOG_ERROR(ret, "error converting pathname to absolute pathname");
+	path_put(&path);
+	return ret;
+}
+
+static int pathname_concat(char *pathname1, char *pathname2, char **path_out){
+	int pathname1_len, pathname2_len, need_leading_slash = 0;
+	char *full_pathname;
+
+	pathname1_len = strlen(pathname1);
+	pathname2_len = strlen(pathname2);
+
+	if(pathname1[pathname1_len - 1] != '/' && pathname2[0] != '/') need_leading_slash = 1;
+	else if(pathname1[pathname1_len - 1] == '/' && pathname2[0] == '/') pathname1_len--;
+
+	full_pathname = kmalloc(pathname1_len + pathname2_len + need_leading_slash + 1, GFP_KERNEL);
+	if(!full_pathname){
+		LOG_ERROR(-ENOMEM, "error allocating buffer for pathname concatenation");
+		*path_out = NULL;
+		return -ENOMEM;
+	}
+	full_pathname[pathname1_len + need_leading_slash + pathname2_len] = '\0';
+
+	strncpy(full_pathname, pathname1, pathname1_len);
+	if(need_leading_slash) full_pathname[pathname1_len] = '/';
+	strncpy(full_pathname + pathname1_len + need_leading_slash, pathname2, pathname2_len);
+
+	*path_out = full_pathname;
+	return 0;
+}
+
+static int user_mount_pathname_concat(char __user *user_mount_path, char *rel_path, char **path_out){
+	int ret;
+	char *mount_path;
+
+	ret = copy_string_from_user(user_mount_path, &mount_path);
+	if(ret) goto user_mount_pathname_concat_error;
+
+	ret = pathname_concat(mount_path, rel_path, path_out);
+	if(ret) goto user_mount_pathname_concat_error;
+
+	kfree(mount_path);
+	return 0;
+
+user_mount_pathname_concat_error:
+	LOG_ERROR(ret, "error concatenating mount path to relative path");
+	if(mount_path) kfree(mount_path);
+
+	*path_out = NULL;
+	return ret;
+}
+
 static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, unsigned long len){
 	ssize_t ret;
 	mm_segment_t old_fs;
@@ -1240,18 +1454,24 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 
 static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 	int ret = 0;
-	char *page_buf;
+	char *page_buf = NULL;
 	uint64_t i, write_count;
+	char *abs_path = NULL;
+	int abs_path_len;
+
+	file_get_absolute_pathname(f, &abs_path, &abs_path_len);
 
 	//try regular fallocate
 	ret = real_fallocate(f, offset, length);
-	if(ret && ret != -EOPNOTSUPP){
-		LOG_ERROR(ret, "error performing real fallocate");
-		return ret;
-	}else if(!ret) return 0;
+	if(ret && ret != -EOPNOTSUPP) goto file_allocate_error;
+	else if(!ret) goto file_allocate_out;
 
 	//fallocate isn't supported, fall back on writing zeros
-	LOG_WARN("fallocate is not supported for this file system, falling back on writing zeros");
+	if(!abs_path) {
+		LOG_WARN("fallocate is not supported for this file system, falling back on writing zeros");
+	} else {
+		LOG_WARN("fallocate is not supported for '%s', falling back on writing zeros", abs_path);
+	}
 
 	//allocate page of zeros
 	page_buf = (char *)get_zeroed_page(GFP_KERNEL);
@@ -1278,12 +1498,22 @@ static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 		if(ret) goto file_allocate_error;
 	}
 
-	free_page((unsigned long)page_buf);
+file_allocate_out:
+	if(page_buf) free_page((unsigned long)page_buf);
+	if(abs_path) kfree(abs_path);
+
 	return 0;
 
 file_allocate_error:
-	LOG_ERROR(ret, "error performing fallocate");
+	if(!abs_path){
+		LOG_ERROR(ret, "error performing fallocate");
+	}else{
+		LOG_ERROR(ret, "error performing fallocate on file '%s'", abs_path);
+	}
+
 	if(page_buf) free_page((unsigned long)page_buf);
+	if(abs_path) kfree(abs_path);
+
 	return ret;
 }
 
@@ -1332,200 +1562,6 @@ file_unlink_mnt_error:
 #define file_unlink(filp) __file_unlink(filp, 0, 0)
 #define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
 #define file_unlink_and_close_force(filp) __file_unlink(filp, 1, 1)
-
-#if !defined(HAVE___DENTRY_PATH) && !defined(HAVE_DENTRY_PATH_RAW)
-static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *len_res){
-	int len = 0;
-	char *pathname;
-	struct dentry *parent = dentry;
-
-	while(parent->d_parent != parent){
-		len += parent->d_name.len + 1;
-		parent = parent->d_parent;
-	}
-
-	pathname = kmalloc(len + 1, GFP_KERNEL);
-	if(!pathname){
-		LOG_ERROR(-ENOMEM, "error allocating pathname for dentry");
-		return -ENOMEM;
-	}
-	pathname[len] = '\0';
-	if(len_res) *len_res = len;
-	*buf = pathname;
-
-	parent = dentry;
-	while(parent->d_parent != parent){
-		len -= parent->d_name.len + 1;
-		pathname[len] = '/';
-		strncpy(&pathname[len + 1], parent->d_name.name, parent->d_name.len);
-		parent = parent->d_parent;
-	}
-
-	return 0;
-}
-#else
-static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *len_res){
-	int ret, len;
-	char *pathname, *page_buf, *final_buf = NULL;
-
-	page_buf = (char *)__get_free_page(GFP_KERNEL);
-	if(!page_buf){
-		LOG_ERROR(-ENOMEM, "error allocating page for dentry pathname");
-		return -ENOMEM;
-	}
-
-	#ifdef HAVE___DENTRY_PATH
-	spin_lock(&dcache_lock);
-	pathname = __dentry_path(dentry, page_buf, PAGE_SIZE);
-	spin_unlock(&dcache_lock);
-	#else
-	pathname = dentry_path_raw(dentry, page_buf, PAGE_SIZE);
-	#endif
-	if(IS_ERR(pathname)){
-		ret = PTR_ERR(pathname);
-		pathname = NULL;
-		LOG_ERROR(ret, "error fetching dentry pathname");
-		goto dentry_get_relative_pathname_error;
-	}
-
-	len = page_buf + PAGE_SIZE - pathname;
-	final_buf = kmalloc(len, GFP_KERNEL);
-	if(!final_buf){
-		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating pathname for dentry");
-		goto dentry_get_relative_pathname_error;
-	}
-
-	strncpy(final_buf, pathname, len);
-	free_page((unsigned long)page_buf);
-
-	*buf = final_buf;
-	if(len_res) *len_res = len;
-	return 0;
-
-dentry_get_relative_pathname_error:
-	LOG_ERROR(ret, "error converting dentry to relative path name");
-	if(final_buf) kfree(final_buf);
-	if(page_buf) free_page((unsigned long)page_buf);
-
-	*buf = NULL;
-	if(len_res) *len_res = 0;
-	return ret;
-}
-#endif
-
-static int path_get_absolute_pathname(struct path *path, char **buf, int *len_res){
-	int ret, len;
-	char *pathname, *page_buf, *final_buf = NULL;
-
-	page_buf = (char *)__get_free_page(GFP_KERNEL);
-	if(!page_buf){
-		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating page for absolute pathname");
-		goto path_get_absolute_pathname_error;
-	}
-
-	pathname = dattobd_d_path(path, page_buf, PAGE_SIZE);
-	if(IS_ERR(pathname)){
-		ret = PTR_ERR(pathname);
-		pathname = NULL;
-		LOG_ERROR(ret, "error fetching absolute pathname");
-		goto path_get_absolute_pathname_error;
-	}
-
-	len = page_buf + PAGE_SIZE - pathname;
-	final_buf = kmalloc(len, GFP_KERNEL);
-	if(!final_buf){
-		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating buffer for absolute pathname");
-		goto path_get_absolute_pathname_error;
-	}
-
-	strncpy(final_buf, pathname, len);
-	free_page((unsigned long)page_buf);
-
-	*buf = final_buf;
-	if(len_res) *len_res = len;
-	return 0;
-
-path_get_absolute_pathname_error:
-	LOG_ERROR(ret, "error getting absolute pathname from path");
-	if(final_buf) kfree(final_buf);
-	if(page_buf) free_page((unsigned long)page_buf);
-
-	*buf = NULL;
-	if(len_res) *len_res = 0;
-	return ret;
-}
-
-static int pathname_to_absolute(char *pathname, char **buf, int *len_res){
-	int ret;
-	struct path path = {};
-
-	ret = kern_path(pathname, LOOKUP_FOLLOW, &path);
-	if(ret){
-		LOG_ERROR(ret, "error finding path for pathname");
-		return ret;
-	}
-
-	ret = path_get_absolute_pathname(&path, buf, len_res);
-	if(ret) goto pathname_to_absolute_error;
-
-	path_put(&path);
-	return 0;
-
-pathname_to_absolute_error:
-	LOG_ERROR(ret, "error converting pathname to absolute pathname");
-	path_put(&path);
-	return ret;
-}
-
-static int pathname_concat(char *pathname1, char *pathname2, char **path_out){
-	int pathname1_len, pathname2_len, need_leading_slash = 0;
-	char *full_pathname;
-
-	pathname1_len = strlen(pathname1);
-	pathname2_len = strlen(pathname2);
-
-	if(pathname1[pathname1_len - 1] != '/' && pathname2[0] != '/') need_leading_slash = 1;
-	else if(pathname1[pathname1_len - 1] == '/' && pathname2[0] == '/') pathname1_len--;
-
-	full_pathname = kmalloc(pathname1_len + pathname2_len + need_leading_slash + 1, GFP_KERNEL);
-	if(!full_pathname){
-		LOG_ERROR(-ENOMEM, "error allocating buffer for pathname concatenation");
-		*path_out = NULL;
-		return -ENOMEM;
-	}
-	full_pathname[pathname1_len + need_leading_slash + pathname2_len] = '\0';
-
-	strncpy(full_pathname, pathname1, pathname1_len);
-	if(need_leading_slash) full_pathname[pathname1_len] = '/';
-	strncpy(full_pathname + pathname1_len + need_leading_slash, pathname2, pathname2_len);
-
-	*path_out = full_pathname;
-	return 0;
-}
-
-static int user_mount_pathname_concat(char __user *user_mount_path, char *rel_path, char **path_out){
-	int ret;
-	char *mount_path;
-
-	ret = copy_string_from_user(user_mount_path, &mount_path);
-	if(ret) goto user_mount_pathname_concat_error;
-
-	ret = pathname_concat(mount_path, rel_path, path_out);
-	if(ret) goto user_mount_pathname_concat_error;
-
-	kfree(mount_path);
-	return 0;
-
-user_mount_pathname_concat_error:
-	LOG_ERROR(ret, "error concatenating mount path to relative path");
-	if(mount_path) kfree(mount_path);
-
-	*path_out = NULL;
-	return ret;
-}
 
 /***************************COW MANAGER FUNCTIONS**************************/
 
@@ -2008,14 +2044,25 @@ cow_write_mapping_error:
 
 static int __cow_write_data(struct cow_manager *cm, void *buf){
 	int ret;
+	char *abs_path = NULL;
+	int abs_path_len;
+	uint64_t curr_size = cm->curr_pos * COW_BLOCK_SIZE;
 
-	if(cm->curr_pos * COW_BLOCK_SIZE >= cm->file_max){
+	if(curr_size >= cm->file_max){
 		ret = -EFBIG;
-		LOG_ERROR(ret, "cow file max size exceeded");
+
+		file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
+		if(!abs_path){
+			LOG_ERROR(ret, "cow file max size exceeded (%llu/%llu)", curr_size, cm->file_max);
+		}else{
+			LOG_ERROR(ret, "cow file '%s' max size exceeded (%llu/%llu)", abs_path, curr_size, cm->file_max);
+			kfree(abs_path);
+		}
+
 		goto cow_write_data_error;
 	}
 
-	ret = file_write(cm->filp, buf, cm->curr_pos * COW_BLOCK_SIZE, COW_BLOCK_SIZE);
+	ret = file_write(cm->filp, buf, curr_size, COW_BLOCK_SIZE);
 	if(ret) goto cow_write_data_error;
 
 	cm->curr_pos++;
@@ -3393,7 +3440,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_gd = alloc_disk(1);
 	if(!dev->sd_gd){
 		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating  gendisk");
+		LOG_ERROR(ret, "error allocating gendisk");
 		goto tracer_setup_snap_error;
 	}
 
@@ -3638,6 +3685,8 @@ tracer_setup_unverified_error:
 static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	int ret;
 	struct snap_device *dev;
+	char *abs_path = NULL;
+	int abs_path_len;
 
 	//allocate new tracer
 	ret = tracer_alloc(&dev);
@@ -3685,7 +3734,13 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	ret = cow_truncate_to_index(dev->sd_cow);
 	if(ret){
 		//not a critical error, we can just print a warning
-		LOG_WARN("warning: cow file truncation failed, incremental will use more disk space than needed");
+		file_get_absolute_pathname(dev->sd_cow->filp, &abs_path, &abs_path_len);
+		if(!abs_path){
+			LOG_WARN("warning: cow file truncation failed, incremental will use more disk space than needed");
+		}else{
+			LOG_WARN("warning: failed to truncate '%s', incremental will use more disk space than needed", abs_path);
+			kfree(abs_path);
+		}
 	}
 
 	//destroy the unneeded fields of the old_dev and the old_dev itself
