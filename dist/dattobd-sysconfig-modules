@@ -1,0 +1,5 @@
+#!/bin/sh
+
+if [ ! -c /dev/datto-ctl ] ; then
+	exec /sbin/modprobe dattobd >/dev/null 2>&1
+fi

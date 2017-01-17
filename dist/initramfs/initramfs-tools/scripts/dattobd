@@ -1,0 +1,59 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "$PREREQ"
+}
+
+case $1 in
+	prereqs)
+		prereqs
+		exit 0
+		;;
+esac
+
+modprobe dattobd
+
+rbd=""
+
+echo "ROOT = $ROOT" > /dev/kmsg
+
+if test "${ROOT#*/dev/disk/by-uuid/}" != $ROOT; then
+	rbd=${ROOT#/dev/disk/by-uuid/}
+	echo "matched /dev/disk/by-uuid/ rbd1=$rbd " > /dev/kmsg
+	rbd=$(blkid -t UUID=$rbd -o device)
+	echo "matched /dev/disk/by-uuid/ rbd2=$rbd " > /dev/kmsg
+elif test "${ROOT#*/dev/mapper/}" != $ROOT; then
+	rbd=$ROOT
+	echo "matched /dev/mapper/ rbd=$rbd " > /dev/kmsg
+
+# the new ubuntu 16.04 way is ROOT=UUID=xyz
+elif test "${ROOT#*UUID=}" != $ROOT; then
+	rbd=${ROOT#UUID=}
+	echo "matched UUID= rbd1=$rbd " > /dev/kmsg
+	rbd=$(blkid -t UUID=$rbd -o device)
+	echo "matched UUID= rbd2=$rbd " > /dev/kmsg
+else
+	echo "Unable to parse ROOT volume $ROOT, can not persist this volume through reboot." > /dev/kmsg
+fi
+
+echo "RBD = $rbd" > /dev/kmsg
+
+if [ -b "$rbd" ]
+then
+	if [ -z "$ROOTFSTYPE" ]; then
+		ROOTFSTYPE=$(blkid -s TYPE $rbd)
+		ROOTFSTYPE=${ROOTFSTYPE#*TYPE\=\"}
+		ROOTFSTYPE=${ROOTFSTYPE%\"*}
+	fi
+	mount -t $ROOTFSTYPE -o ro $rbd /etc/datto/dla/mnt > /dev/kmsg
+	sleep 1
+	if [ -x /sbin/datto_reload ]; then
+		/sbin/datto_reload > /dev/kmsg
+	fi
+	umount -f /etc/datto/dla/mnt > /dev/kmsg
+fi
+
+exit 0

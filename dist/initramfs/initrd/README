@@ -1,0 +1,7 @@
+For opensuse 13.1...
+
+These two scripts go in /lib/mkinitrd/scripts
+then simply run mkinitrd with no params, and that's all you need to do.
+
+This was tested with the root volume being a regular UUID volume and
+the root volume being on an lvm.
