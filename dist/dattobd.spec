@@ -196,12 +196,12 @@ mkdir -p %{buildroot}%{_sysconfdir}/kernel/postinst.d
 install -m 755 dist/kernel.postinst.d/50-dattobd %{buildroot}%{_sysconfdir}/kernel/postinst.d/50-dattobd
 %endif
 
+# RHEL/CentOS 5 will not have the initramfs scripts because its mkinitrd doesn't support scripts
+%if 0%{?rhel} != 5
+
 # Install initramfs stuff
 mkdir -p %{buildroot}%{_sharedstatedir}/datto/dla
 install -m 755 dist/initramfs/reload %{buildroot}%{_sharedstatedir}/datto/dla/reload
-
-# RHEL/CentOS 5 will not have the initramfs scripts because its mkinitrd doesn't support scripts
-%if 0%{?rhel} != 5
 
 # Debian/Ubuntu use initramfs-tools
 %if 0%{?debian} || 0%{?ubuntu}
