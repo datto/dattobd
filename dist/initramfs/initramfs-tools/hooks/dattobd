@@ -1,0 +1,27 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "${PREREQ}"
+}
+
+case "${1}" in
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+mkdir -p ${DESTDIR}/etc/datto/dla/mnt
+copy_exec /sbin/blkid
+copy_exec /usr/bin/dbdctl
+copy_exec /var/lib/datto/dla/reload /sbin/datto_reload
+
+manual_add_modules dattobd
+
+exit 0
+

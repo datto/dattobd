@@ -1,0 +1,14 @@
+#!/bin/sh
+
+ls -l /etc/datto/dla/mnt/etc/datto/dla/reload_* > /dev/null 2>&1
+
+if [ "$?" = "0" ]; then
+	FILES="/etc/datto/dla/mnt/etc/datto/dla/reload_*"
+else
+	exit
+fi
+
+for f in $FILES
+do
+	$f
+done

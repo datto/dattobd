@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Scriptlet to force dattobd kernel module to be rebuilt
+# on systems that don't automatically do it for kernel updates
+# See http://lists.us.dell.com/pipermail/dkms-devel/2007-May/000562.html
+
+# We're passed the version of the kernel being installed
+inst_kern=$1
+
+if [ -z "$inst_kern" ]; then
+echo "must provide kernel version as first param."
+exit
+fi
+
+# we wouldn't be here if dkms wasn't working, so
+# we can happily just call dkms to fix the mess
+
+echo "Forcing rebuild of dattobd."
+
+
+# but first we need the dattobd version number
+
+dattobd_ver=`modinfo  dattobd |grep "^version:" | awk '{ print $2 }'`
+echo "Found dattobd version $dattobd_ver"
+echo "Building for kernel version $inst_kern"
+
+echo "Removing module..."
+dkms remove -m dattobd -v $dattobd_ver --all
+
+echo "Re-adding module..."
+dkms add -m dattobd -v $dattobd_ver
+
+echo "Building..."
+dkms build -m dattobd -v $dattobd_ver -k $inst_kern
+
+echo "Installing..."
+dkms install -m dattobd -v $dattobd_ver -k $inst_kern
