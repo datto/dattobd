@@ -280,7 +280,7 @@ rm -rf %{buildroot}
 %{_bindir}/dbdctl
 %{_bindir}/update-img
 %{_sysconfdir}/bash_completion.d/dbdctl
-%doc README.md dist/copyright
+%doc README.md
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING
