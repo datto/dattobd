@@ -196,12 +196,6 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #define REQ_FLUSH (1 << BIO_RW_BARRIER)
 #endif
 
-#if !defined REQ_SYNC && !defined BIO_RW_SYNCIO && !defined HAVE_BIO_RW_FLAGS
-#define REQ_SYNC (1 << BIO_RW_SYNC)
-#elif !defined REQ_SYNC
-#define REQ_SYNC ((1 << BIO_RW_SYNCIO) | (1 << BIO_RW_UNPLUG))
-#endif
-
 //if these don't exist they are not supported
 #ifndef REQ_DISCARD
 #define REQ_DISCARD 0
@@ -295,7 +289,9 @@ static void submit_bio_wait_endio(struct bio *bio, int error){
 static int submit_bio_wait(int rw, struct bio *bio){
 	struct submit_bio_ret ret;
 
-	rw |= REQ_SYNC;
+	//kernel implementation has the line below, but all our calls will have this already and it changes across kernel versions
+	//rw |= REQ_SYNC;
+
 	init_completion(&ret.event);
 	bio->bi_private = &ret;
 	bio->bi_end_io = submit_bio_wait_endio;
@@ -2439,7 +2435,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	bio_orig_sect = bio_sector(bio);
 
 	bio->bi_bdev = dev->sd_base_dev;
-	dattobd_set_bio_ops(bio, REQ_OP_READ, REQ_SYNC);
+	dattobd_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
