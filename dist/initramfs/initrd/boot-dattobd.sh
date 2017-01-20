@@ -11,10 +11,17 @@
 #%programs: /sbin/modprobe
 #%programs: /usr/bin/mount
 #%programs: /usr/bin/umount
+#%programs: /sbin/blkid
+#%programs: /bin/mount
+#%programs: /bin/umount
+#%programs: /usr/bin/readlink
+#%programs: /bin/readlink
 
 echo "datto dlad load_modules" > /dev/kmsg
 # this is a function in linuxrc, modprobes dattobd for us.
 load_modules
+
+/sbin/modprobe --allow-unsupported dattobd
 
 echo "datto dlad root = $root" > /dev/kmsg
 
@@ -23,16 +30,26 @@ rbd=""
 if [ -n "$root"  ]; then
 	rbd=""
 	# check for UUID first
+	echo "datto dlad checking UUID" > /dev/kmsg
 	if [[ "$root" == "UUID="* ]]; then
+	  echo "datto dlad UUID match" > /dev/kmsg
 	  rbd=/dev/disk/by-uuid/${root:5}
 	  echo "datto dlad found uuid: $rbd" > /dev/kmsg
         elif test "${root#*/dev/disk/by-uuid/}" != $root; then
+        	echo "datto dlad disk by-uuid match" > /dev/kmsg
 		rbd=${root#block:/dev/disk/by-uuid/}
+        	echo "datto dlad disk by-uuid strip $rbd" > /dev/kmsg
 		rbd=$(blkid -t UUID=$rbd -o device)
-	  	echo "datto dlad found devdiskbyuuid: $rbd" > /dev/kmsg
+	  	echo "datto dlad found disk by-uuid: $rbd" > /dev/kmsg
 	elif test "${root#*/dev/mapper/}" != $root; then
+        	echo "datto dlad dev mapper match" > /dev/kmsg
 		rbd=${root#block:}
-	  	echo "datto dlad found devmapper: $rbd" > /dev/kmsg
+	  	echo "datto dlad found dev mapper: $rbd" > /dev/kmsg
+	elif test "${root#*/dev/disk/by-id/}" != $root; then
+        	echo "datto dlad disk by id match" > /dev/kmsg
+	        echo "rbd= (/usr/bin/readlink -f $root)" > /dev/kmsg
+	        rbd=$(/usr/bin/readlink -f $root)
+	  	echo "datto dlad found disk by id: $rbd" > /dev/kmsg
 	else
 	  	echo "datto dlad found nothing" > /dev/kmsg
 	fi
