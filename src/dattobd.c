@@ -197,10 +197,6 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #endif
 
 //if these don't exist they are not supported
-#ifndef REQ_DISCARD
-#define REQ_DISCARD 0
-#endif
-
 #ifndef REQ_SECURE
 #define REQ_SECURE 0
 #endif
@@ -210,6 +206,11 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #endif
 
 #ifndef HAVE_SUBMIT_BIO_1
+
+#ifndef REQ_DISCARD
+#define REQ_DISCARD 0
+#endif
+
 enum req_op {
 	REQ_OP_READ,
 	REQ_OP_WRITE,
@@ -255,7 +256,11 @@ static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned
 	bio_set_op_attrs(bio, op, op_flags);
 }
 
-	#define bio_is_discard(bio) ((bio)->bi_opf & REQ_DISCARD)
+	#ifdef REQ_DISCARD
+		#define bio_is_discard(bio) ((bio)->bi_opf & REQ_DISCARD)
+	#else
+		#define bio_is_discard(bio) (bio_op(bio) == REQ_OP_DISCARD || bio_op(bio) == REQ_OP_SECURE_ERASE)
+	#endif
 	#define dattobd_submit_bio(bio) submit_bio(bio)
 	#define dattobd_submit_bio_wait(bio) submit_bio_wait(bio)
 #endif
