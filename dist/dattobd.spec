@@ -72,7 +72,7 @@
 
 
 Name:            dattobd
-Version:         0.9.13
+Version:         0.9.14
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -389,6 +389,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jan 24 2017 Tim Crawford <tcrawford@datto.com> - 0.9.14
+- Fixed REQ_DISCARD usage
+- Fixed initramfs rebuild process
+
 * Tue Jan 17 2017 Tim Crawford <tcrawford@datto.com> - 0.9.13
 - Fixed snapshot performance issue introduced in 0.9.11
 - Released packaging and distribution-specific files
