@@ -268,6 +268,45 @@ else
 fi
 
 
+%post utils
+%if 0%{?rhel} != 5
+# Generate initramfs
+if type "dracut" &> /dev/null; then
+	echo "Configuring dracut, please wait..."
+	dracut -f
+elif type "mkinitrd" &> /dev/null; then
+	echo "Configuring initrd, please wait..."
+	mkinitrd
+elif type "update-initramfs" &> /dev/null; then
+	echo "Configuring initramfs, please wait..."
+	update-initramfs -u
+fi
+sleep 1
+%endif
+
+
+%postun utils
+%if 0%{?rhel} != 5
+%if 0%{?debian} || 0%{?ubuntu}
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+%else
+if [ $1 -eq 0 ]; then
+%endif
+
+        if type "dracut" &> /dev/null; then
+                echo "Configuring dracut, please wait..."
+                dracut -f
+        elif type "mkinitrd" &> /dev/null; then
+                echo "Configuring initrd, please wait..."
+                mkinitrd
+        elif type "update-initramfs" &> /dev/null; then
+                echo "Configuring initramfs, please wait..."
+                update-initramfs -u
+        fi
+fi
+%endif
+
+
 %clean
 # EL5 and SLE 11 require this section
 rm -rf %{buildroot}
