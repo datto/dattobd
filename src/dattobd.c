@@ -3717,19 +3717,24 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	//stop the old cow thread. Must be done before starting the new cow thread to prevent concurrent access.
 	__tracer_destroy_cow_thread(old_dev);
 
-	//wake up new cow thread. Must happen regardless of errors syncing the old cow thread in order to ensure no IO's are leaked.
-	wake_up_process(dev->sd_cow_thread);
-
 	//sanity check to ensure no errors have occurred while cleaning up the old cow thread
 	ret = tracer_read_fail_state(old_dev);
 	if(ret){
 		LOG_ERROR(ret, "errors occurred while cleaning up cow thread, putting incremental into error state");
 		tracer_set_fail_state(dev, ret);
+
+		//must make up the new thread regardless of errors so that any queued ssets are cleaned up
+		wake_up_process(dev->sd_cow_thread);
+
+		//clean up the old device no matter what
 		__tracer_destroy_snap(old_dev);
 		kfree(old_dev);
 
 		return ret;
 	}
+
+	//wake up new cow thread. Must happen regardless of errors syncing the old cow thread in order to ensure no IO's are leaked.
+	wake_up_process(dev->sd_cow_thread);
 
 	//truncate the cow file
 	ret = cow_truncate_to_index(dev->sd_cow);
