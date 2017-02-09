@@ -4687,6 +4687,48 @@ static void **find_sys_call_table(void){
 
 #define restore_syscall(sys_nr, orig_call_save) system_call_table[sys_nr] = orig_call_save;
 
+static void restore_system_call_table(void){
+	unsigned long cr0;
+
+	if(system_call_table){
+		LOG_DEBUG("restoring system call table");
+		//break back into the syscall table and replace the hooks we stole
+		preempt_disable();
+		disable_page_protection(&cr0);
+		restore_syscall(__NR_mount, orig_mount);
+		restore_syscall(__NR_umount2, orig_umount);
+#ifdef HAVE_SYS_OLDUMOUNT
+		restore_syscall(__NR_umount, orig_oldumount);
+#endif
+		reenable_page_protection(&cr0);
+		preempt_enable();
+	}
+}
+
+static int hook_system_call_table(void){
+	unsigned long cr0;
+
+	//find sys_call_table
+	LOG_DEBUG("locating system call table");
+	system_call_table = find_sys_call_table();
+	if(!system_call_table){
+		LOG_WARN("failed to locate system call table, persistence disabled");
+		return -ENOENT;
+	}
+
+	//break into the syscall table and steal the hooks we need
+	preempt_disable();
+	disable_page_protection(&cr0);
+	set_syscall(__NR_mount, orig_mount, mount_hook);
+	set_syscall(__NR_umount2, orig_umount, umount_hook);
+#ifdef HAVE_SYS_OLDUMOUNT
+	set_syscall(__NR_umount, orig_oldumount, oldumount_hook);
+#endif
+	reenable_page_protection(&cr0);
+	preempt_enable();
+	return 0;
+}
+
 /***************************BLOCK DEVICE DRIVER***************************/
 
 static int __tracer_add_ref(struct snap_device *dev, int ref_cnt){
@@ -4820,23 +4862,10 @@ static int dattobd_proc_release(struct inode *inode, struct file *file){
 static void agent_exit(void){
 	int i;
 	struct snap_device *dev;
-	unsigned long cr0;
 
 	LOG_DEBUG("module exit");
 
-	if(system_call_table){
-		LOG_DEBUG("restoring system call table");
-		//break back into the syscall table and replace the hooks we stole
-		preempt_disable();
-		disable_page_protection(&cr0);
-		restore_syscall(__NR_mount, orig_mount);
-		restore_syscall(__NR_umount2, orig_umount);
-#ifdef HAVE_SYS_OLDUMOUNT
-		restore_syscall(__NR_umount, orig_oldumount);
-#endif
-		reenable_page_protection(&cr0);
-		preempt_enable();
-	}
+	restore_system_call_table();
 
 	//unregister control device
 	LOG_DEBUG("unregistering control device");
@@ -4867,7 +4896,6 @@ module_exit(agent_exit);
 
 static int __init agent_init(void){
 	int ret;
-	unsigned long cr0;
 
 	LOG_DEBUG("module init");
 
@@ -4913,26 +4941,7 @@ static int __init agent_init(void){
 		goto init_error;
 	}
 
-	if(MAY_HOOK_SYSCALLS){
-		//find sys_call_table
-		LOG_DEBUG("locating system call table");
-		system_call_table = find_sys_call_table();
-		if(!system_call_table){
-			LOG_WARN("failed to locate system call table, persistence disabled");
-			return 0;
-		}
-
-		//break into the syscall table and steal the hooks we need
-		preempt_disable();
-		disable_page_protection(&cr0);
-		set_syscall(__NR_mount, orig_mount, mount_hook);
-		set_syscall(__NR_umount2, orig_umount, umount_hook);
-#ifdef HAVE_SYS_OLDUMOUNT
-		set_syscall(__NR_umount, orig_oldumount, oldumount_hook);
-#endif
-		reenable_page_protection(&cr0);
-		preempt_enable();
-	}
+	if(MAY_HOOK_SYSCALLS) (void)hook_system_call_table();
 
 	return 0;
 
