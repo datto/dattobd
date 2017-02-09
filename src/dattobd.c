@@ -631,7 +631,7 @@ static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
 static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
 static unsigned int MAX_SNAP_DEVICES = 24;
 
-module_param(MAY_HOOK_SYSCALLS, int, 0);
+module_param(MAY_HOOK_SYSCALLS, int, S_IRUGO);
 MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
 module_param(COW_MAX_MEMORY_DEFAULT, ulong, 0);
@@ -640,7 +640,7 @@ MODULE_PARM_DESC(COW_MAX_MEMORY_DEFAULT, "default maximum cache size (in bytes)"
 module_param(COW_FALLOCATE_PERCENTAGE_DEFAULT, uint, 0);
 MODULE_PARM_DESC(COW_FALLOCATE_PERCENTAGE_DEFAULT, "default space allocated to the cow file (as integer percentage)");
 
-module_param(MAX_SNAP_DEVICES, uint, 0);
+module_param(MAX_SNAP_DEVICES, uint, S_IRUGO);
 MODULE_PARM_DESC(MAX_SNAP_DEVICES, "maximum number of tracers available");
 
 /*********************************STRUCT DEFINITIONS*******************************/
