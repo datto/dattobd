@@ -72,7 +72,7 @@
 
 
 Name:            dattobd
-Version:         0.9.14
+Version:         0.9.15
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -390,6 +390,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 14 2017 Tim Crawford <tcrawford@datto.com> - 0.9.15
+- Fixed race condition during transition to incremental
+- Made MAY_HOOK_SYSCALLS and MAX_SNAP_DEVICES parameters readable in sysfs
+- Moved initramfs scripts from the DKMS package to the utils package
+
 * Tue Jan 24 2017 Tim Crawford <tcrawford@datto.com> - 0.9.14
 - Fixed REQ_DISCARD usage
 - Fixed initramfs rebuild process
