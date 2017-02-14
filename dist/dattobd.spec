@@ -319,6 +319,25 @@ rm -rf %{buildroot}
 %{_bindir}/dbdctl
 %{_bindir}/update-img
 %{_sysconfdir}/bash_completion.d/dbdctl
+# Initramfs scripts for all but RHEL 5
+%if 0%{?rhel} != 5
+%dir %{_sharedstatedir}/datto/dla
+%{_sharedstatedir}/datto/dla/reload
+%if 0%{?debian} || 0%{?ubuntu}
+%{_initramfs_tools_root}/hooks/dattobd
+%{_initramfs_tools_root}/scripts/local-premount/dattobd
+%else
+%if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
+%{_mkinitrd_scripts_root}/boot-dattobd.sh
+%{_mkinitrd_scripts_root}/setup-dattobd.sh
+%else
+%dir %{_dracut_modules_root}/90dattobd
+%{_dracut_modules_root}/90dattobd/dattobd.sh
+%{_dracut_modules_root}/90dattobd/module-setup.sh
+%{_dracut_modules_root}/90dattobd/install
+%endif
+%endif
+%endif
 %doc README.md
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
@@ -356,24 +375,6 @@ rm -rf %{buildroot}
 %if 0%{?fedora} || 0%{?rhel} || 0%{?suse_version}
 %dir %{_sysconfdir}/kernel/postinst.d
 %{_sysconfdir}/kernel/postinst.d/50-dattobd
-%endif
-%if 0%{?rhel} != 5
-%dir %{_sharedstatedir}/datto/dla
-%{_sharedstatedir}/datto/dla/reload
-%if 0%{?debian} || 0%{?ubuntu}
-%{_initramfs_tools_root}/hooks/dattobd
-%{_initramfs_tools_root}/scripts/local-premount/dattobd
-%else
-%if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
-%{_mkinitrd_scripts_root}/boot-dattobd.sh
-%{_mkinitrd_scripts_root}/setup-dattobd.sh
-%else
-%dir %{_dracut_modules_root}/90dattobd
-%{_dracut_modules_root}/90dattobd/dattobd.sh
-%{_dracut_modules_root}/90dattobd/module-setup.sh
-%{_dracut_modules_root}/90dattobd/install
-%endif
-%endif
 %endif
 %doc README.md
 %if %{_vendor} == "redhat"
