@@ -511,10 +511,6 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 	#define FMODE_NONOTIFY 0
 #endif
 
-#ifndef HAVE_BLK_QUEUE_MAX_SECTORS
-	#define blk_queue_max_sectors(q, sects) blk_queue_max_hw_sectors(q, sects)
-#endif
-
 #ifndef HAVE_BLK_SET_STACKING_LIMITS
 	#define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
 #endif
