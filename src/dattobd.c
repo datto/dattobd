@@ -188,6 +188,10 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
+#ifndef READ_SYNC
+#define READ_SYNC 0
+#endif
+
 #ifndef REQ_WRITE
 #define REQ_WRITE WRITE
 #endif
@@ -211,16 +215,16 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #define REQ_DISCARD 0
 #endif
 
-enum req_op {
+typedef enum req_op {
 	REQ_OP_READ,
 	REQ_OP_WRITE,
 	REQ_OP_DISCARD,         /* request to discard sectors */
 	REQ_OP_SECURE_ERASE,    /* request to securely erase sectors */
 	REQ_OP_WRITE_SAME,      /* write same block many times */
 	REQ_OP_FLUSH,           /* request for cache flush */
-};
+} req_op_t;
 
-static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned op_flags){
+static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
 	bio->bi_rw = 0;
 
 	switch(op){
@@ -251,7 +255,14 @@ static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned
 	#define dattobd_submit_bio_wait(bio) submit_bio_wait(0, bio)
 #else
 
-static inline void dattobd_set_bio_ops(struct bio *bio, enum req_op op, unsigned op_flags){
+#ifndef HAVE_ENUM_REQ_OPF
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
+typedef enum req_op req_op_t;
+#else
+typedef enum req_opf req_op_t;
+#endif
+
+static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
 	bio->bi_opf = 0;
 	bio_set_op_attrs(bio, op, op_flags);
 }
