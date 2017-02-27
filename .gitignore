@@ -12,3 +12,4 @@ Module.symvers
 
 # Leftover files
 *~
+tests/results
