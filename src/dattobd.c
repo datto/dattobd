@@ -21,15 +21,14 @@ MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incr
 MODULE_VERSION(DATTOBD_VERSION);
 
 //printing macros
-#ifdef DATTO_DEBUG
-	#define LOG_DEBUG(fmt, args...) printk(KERN_DEBUG "datto: " fmt "\n", ## args)
-	#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
-#else
-	#define LOG_DEBUG(fmt, args...)
-	#define PRINT_BIO(text, bio)
-#endif
+#define LOG_DEBUG(fmt, args...) \
+	do{ \
+		if(DATTO_DEBUG) printk(KERN_DEBUG "datto: " fmt "\n", ## args); \
+	}while(0)
+
 #define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
 #define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "datto: " fmt ": %d\n", ## args, error)
+#define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
 
 /*********************************REDEFINED FUNCTIONS*******************************/
 
@@ -637,6 +636,7 @@ static int MAY_HOOK_SYSCALLS = 1;
 static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
 static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
 static unsigned int MAX_SNAP_DEVICES = 24;
+static int DATTO_DEBUG = 0;
 
 module_param(MAY_HOOK_SYSCALLS, int, S_IRUGO);
 MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
@@ -649,6 +649,9 @@ MODULE_PARM_DESC(COW_FALLOCATE_PERCENTAGE_DEFAULT, "default space allocated to t
 
 module_param(MAX_SNAP_DEVICES, uint, S_IRUGO);
 MODULE_PARM_DESC(MAX_SNAP_DEVICES, "maximum number of tracers available");
+
+module_param_named(DEBUG, DATTO_DEBUG, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(DATTO_DEBUG, "enables debug logging");
 
 /*********************************STRUCT DEFINITIONS*******************************/
 
