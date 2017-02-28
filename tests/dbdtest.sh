@@ -79,7 +79,7 @@ setup_default_device || {
     exit 1
 }
 
-insert_module || exit 1
+insert_module DEBUG=1 || exit 1
 
 ts=($(find_tests "${TEST_DIR}/scripts"))
 
