@@ -4869,7 +4869,7 @@ static int dattobd_proc_release(struct inode *inode, struct file *file){
 
 /************************MODULE SETUP AND DESTROY************************/
 
-static void agent_exit(void){
+static void __exit agent_exit(void){
 	int i;
 	struct snap_device *dev;
 
