@@ -72,7 +72,7 @@
 
 
 Name:            dattobd
-Version:         0.9.15
+Version:         0.9.16
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -390,6 +390,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 6 2017 Tim Crawford <tcrawford@datto.com> - 0.9.16
+- Added Linux 4.10 compatibility
+- Removed unused feature tests
+- Added tests for the kernel module
+- Changed debug logging from a compile-time option to a run-time option
+
 * Tue Feb 14 2017 Tim Crawford <tcrawford@datto.com> - 0.9.15
 - Fixed race condition during transition to incremental
 - Made MAY_HOOK_SYSCALLS and MAX_SNAP_DEVICES parameters readable in sysfs
