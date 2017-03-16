@@ -186,7 +186,7 @@ install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_sysconfdir}/modules-lo
 # Legacy automatic module loader for RHEL 5/6
 %if 0%{?rhel} && 0%{?rhel} < 7
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig/modules
-install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/dattobd
+install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/dattobd.modules
 %endif
 
 # We only need the hook with Fedora, RHEL/CentOS, and SUSE systems
@@ -362,7 +362,7 @@ rm -rf %{buildroot}
 %config %{_sysconfdir}/modules-load.d/dattobd.conf
 %endif
 %if 0%{?rhel} && 0%{?rhel} < 7
-%config %{_sysconfdir}/sysconfig/modules/dattobd
+%config %{_sysconfdir}/sysconfig/modules/dattobd.modules
 %endif
 %dir %{_kmod_src_root}
 %{_kmod_src_root}/Makefile
