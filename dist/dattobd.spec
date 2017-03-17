@@ -150,6 +150,29 @@ Requires(post):  dkms
 Requires:        perl
 %endif
 
+%if %{_vendor} != "debbuild"
+%if 0%{?rhel} >= 7 || 0%{?suse_version} >= 1210 || 0%{?fedora}
+# With RPM 4.9.0 and newer, it's possible to give transaction
+# hints to ensure some kind of ordering for transactions using
+# the OrderWithRequires statement.
+# More info: http://rpm.org/wiki/Releases/4.9.0#package-building
+
+# We can use this to ensure that if kernel-devel/kernel-syms is
+# in the same transaction as the DKMS module upgrade, it will be
+# installed first before processing the kernel module, ensuring
+# that DKMS will be able to successfully build against the new
+# kernel being installed.
+%if 0%{?rhel} || 0%{?fedora}
+OrderWithRequires: kernel-devel
+%endif
+
+%If 0%{?suse_version}
+OrderWithRequires: kernel-syms
+%endif
+
+%endif
+%endif
+
 %description -n %{dkmsname}
 Kernel module sources for %{name} for DKMS to
 automatically build and install for each kernel.
