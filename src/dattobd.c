@@ -1095,7 +1095,7 @@ static int file_open(const char *filename, int flags, struct file **filp){
 		goto file_open_error;
 	}else if(!S_ISREG(dattobd_get_dentry(f)->d_inode->i_mode)){
 		ret = -EINVAL;
-		LOG_ERROR(ret, "file specified is not a regular file");
+		LOG_ERROR(ret, "'%s' is not a regular file", filename);
 		goto file_open_error;
 	}
 	f->f_mode |= FMODE_NONOTIFY;
@@ -1104,7 +1104,7 @@ static int file_open(const char *filename, int flags, struct file **filp){
 	return 0;
 
 file_open_error:
-	LOG_ERROR(ret, "error opening specified file");
+	LOG_ERROR(ret, "error opening file");
 	if(f) file_close(f);
 
 	*filp = NULL;
@@ -3086,18 +3086,21 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	int ret;
 	struct super_block *origsb = dattobd_get_super(bdev);
 	struct super_block *sb = NULL;
+	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
+
+	bdevname(bdev, bdev_name);
 
 	if(origsb){
 		//freeze and sync block device
-		LOG_DEBUG("freezing block device");
+		LOG_DEBUG("freezing '%s'", bdev_name);
 		sb = freeze_bdev(bdev);
 		if(!sb){
-			LOG_ERROR(-EFAULT, "error freezing block device: null");
+			LOG_ERROR(-EFAULT, "error freezing '%s': null", bdev_name);
 			dattobd_drop_super(origsb);
 			return -EFAULT;
 		}else if(IS_ERR(sb)){
-			LOG_ERROR((int)PTR_ERR(sb), "error freezing block device: error");
+			LOG_ERROR((int)PTR_ERR(sb), "error freezing '%s': error", bdev_name);
 			dattobd_drop_super(origsb);
 			return (int)PTR_ERR(sb);
 		}
@@ -3119,14 +3122,14 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 
 	if(origsb){
 		//thaw the block device
-		LOG_DEBUG("thawing block device");
+		LOG_DEBUG("thawing '%s'", bdev_name);
 #ifndef HAVE_THAW_BDEV_INT
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 		thaw_bdev(bdev, sb);
 #else
 		ret = thaw_bdev(bdev, sb);
 		if(ret){
-			LOG_ERROR(ret, "error thawing block device");
+			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.
 			//pretend we succeeded so we don't break the block device
 		}
@@ -3289,6 +3292,9 @@ static int file_is_on_bdev(struct file *file, struct block_device *bdev) {
 static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, uint8_t *uuid, uint64_t seqid, int open_method){
 	int ret;
 	uint64_t max_file_size;
+	char bdev_name[BDEVNAME_SIZE];
+
+	bdevname(bdev, bdev_name);
 
 	if(open_method == 3){
 		//reopen the cow manager
@@ -3329,7 +3335,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 	//verify that file is on block device
 	if(!file_is_on_bdev(dev->sd_cow->filp, bdev)){
 		ret = -EINVAL;
-		LOG_ERROR(ret, "file specified is not on block device specified");
+		LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
 		goto tracer_setup_cow_error;
 	}
 
