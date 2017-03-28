@@ -3853,7 +3853,7 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 	strncpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
-		info->falloc_size = dev->sd_falloc_size * 1024 * 1024;
+		info->falloc_size = dev->sd_cow->file_max;
 		info->seqid = dev->sd_cow->seqid;
 		memcpy(info->uuid, dev->sd_cow->uuid, COW_UUID_SIZE);
 	}else{
