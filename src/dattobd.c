@@ -104,11 +104,11 @@ struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;
 };
-#define dattobd_get_dentry(f) (f)->f_dentry
-#define dattobd_get_mnt(f) (f)->f_vfsmnt
+#define dattobd_get_dentry(f) ((f)->f_dentry)
+#define dattobd_get_mnt(f) ((f)->f_vfsmnt)
 #else
-#define dattobd_get_dentry(f) (f)->f_path.dentry
-#define dattobd_get_mnt(f) (f)->f_path.mnt
+#define dattobd_get_dentry(f) ((f)->f_path.dentry)
+#define dattobd_get_mnt(f) ((f)->f_path.mnt)
 #endif
 
 #ifndef HAVE_PATH_PUT
@@ -119,12 +119,12 @@ void path_put(const struct path *path)
 	mntput(path->mnt);
 }
 #define dattobd_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) (nd).dentry
-#define dattobd_get_nd_mnt(nd) (nd).mnt
+#define dattobd_get_nd_dentry(nd) ((nd).dentry)
+#define dattobd_get_nd_mnt(nd) ((nd).mnt)
 #else
 #define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) (nd).path.dentry
-#define dattobd_get_nd_mnt(nd) (nd).path.mnt
+#define dattobd_get_nd_dentry(nd) ((nd).path.dentry)
+#define dattobd_get_nd_mnt(nd) ((nd).path.mnt)
 #endif
 
 #ifndef HAVE_FMODE_T
@@ -132,7 +132,7 @@ typedef mode_t fmode_t;
 #endif
 
 #ifdef HAVE_BD_SUPER
-#define dattobd_get_super(bdev) (bdev)->bd_super
+#define dattobd_get_super(bdev) ((bdev)->bd_super)
 #define dattobd_drop_super(sb)
 #else
 #define dattobd_get_super(bdev) get_super(bdev)
@@ -148,7 +148,8 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode)
 	struct inode *inode;
 	dev_t dev;
 
-	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd)))
+	r = path_lookup(pathname, LOOKUP_FOLLOW, &nd);
+	if (r)
 		goto fail;
 
 	inode = dattobd_get_nd_dentry(nd)->d_inode;
@@ -237,7 +238,7 @@ typedef enum req_op {
 	REQ_OP_FLUSH,           /* request for cache flush */
 } req_op_t;
 
-static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned int op_flags)
 {
 	bio->bi_rw = 0;
 
@@ -276,7 +277,7 @@ typedef enum req_op req_op_t;
 typedef enum req_opf req_op_t;
 #endif
 
-static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned int op_flags)
 {
 	bio->bi_opf = 0;
 	bio_set_op_attrs(bio, op, op_flags);
@@ -366,22 +367,22 @@ static void dattobd_bio_endio(struct bio *bio, int err)
 	#define bio_iter_offset(bio, iter) ((bio)->bi_io_vec[(iter)].bv_offset)
 	#define bio_iter_page(bio, iter) ((bio)->bi_io_vec[(iter)].bv_page)
 	#define bio_iter_idx(iter) (iter)
-	#define bio_sector(bio) (bio)->bi_sector
-	#define bio_size(bio) (bio)->bi_size
-	#define bio_idx(bio) (bio)->bi_idx
+	#define bio_sector(bio) ((bio)->bi_sector)
+	#define bio_size(bio) ((bio)->bi_size)
+	#define bio_idx(bio) ((bio)->bi_idx)
 #else
 	typedef struct bvec_iter bio_iter_t;
 	typedef struct bio_vec bio_iter_bvec_t;
 	#define bio_iter_idx(iter) ((iter).bi_idx)
-	#define bio_sector(bio) (bio)->bi_iter.bi_sector
-	#define bio_size(bio) (bio)->bi_iter.bi_size
-	#define bio_idx(bio) (bio)->bi_iter.bi_idx
+	#define bio_sector(bio) ((bio)->bi_iter.bi_sector)
+	#define bio_size(bio) ((bio)->bi_iter.bi_size)
+	#define bio_idx(bio) ((bio)->bi_iter.bi_idx)
 #endif
 
 
 #ifndef HAVE_MNT_WANT_WRITE
 #define mnt_want_write(x) 0
-#define mnt_drop_write (void)sizeof
+#define mnt_drop_write(x) ((void)sizeof(x))
 #endif
 
 #ifndef UMOUNT_NOFOLLOW
@@ -392,7 +393,7 @@ static void dattobd_bio_endio(struct bio *bio, int err)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 
 #ifndef min_not_zero
-#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
+#define min_not_zero(l, r) (((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r)))
 #endif
 
 int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t offset)
@@ -489,7 +490,7 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 	 * sgid without any exec bits is just a mandatory locking mark; leave
 	 * it alone.  If some exec bits are set, it's a real sgid; kill it.
 	 */
-	if (unlikely((mode & S_ISGID) && (mode & S_IXGRP)))
+	if (unlikely((mode & S_ISGID) && (mode & 0010)))
 		kill |= ATTR_KILL_SGID;
 
 	if (unlikely(kill && !capable(CAP_FSETID) && S_ISREG(mode)))
@@ -501,9 +502,9 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	#define dattobd_blkdev_put(bdev) blkdev_put(bdev);
+	#define dattobd_blkdev_put(bdev) blkdev_put(bdev)
 #else
-	#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
+	#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ)
 #endif
 
 #ifndef HAVE_PART_NR_SECTS_READ
@@ -610,7 +611,7 @@ error:
 
 //bitmap macros
 #define bitmap_is_marked(bitmap, pos) (((bitmap)[(pos) / 8] & (1 << ((pos) % 8))) != 0)
-#define bitmap_mark(bitmap, pos) (bitmap)[(pos) / 8] |= (1 << ((pos) % 8))
+#define bitmap_mark(bitmap, pos) ((bitmap)[(pos) / 8] |= (1 << ((pos) % 8)))
 
 //name macros
 #define INFO_PROC_FILE "datto-info"
@@ -677,9 +678,9 @@ static int MAY_HOOK_SYSCALLS = 1;
 static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
 static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
 static unsigned int MAX_SNAP_DEVICES = 24;
-static int DATTO_DEBUG = 0;
+static int DATTO_DEBUG;
 
-module_param(MAY_HOOK_SYSCALLS, int, S_IRUGO);
+module_param(MAY_HOOK_SYSCALLS, int, 0444);
 MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
 module_param(COW_MAX_MEMORY_DEFAULT, ulong, 0);
@@ -688,10 +689,10 @@ MODULE_PARM_DESC(COW_MAX_MEMORY_DEFAULT, "default maximum cache size (in bytes)"
 module_param(COW_FALLOCATE_PERCENTAGE_DEFAULT, uint, 0);
 MODULE_PARM_DESC(COW_FALLOCATE_PERCENTAGE_DEFAULT, "default space allocated to the cow file (as integer percentage)");
 
-module_param(MAX_SNAP_DEVICES, uint, S_IRUGO);
+module_param(MAX_SNAP_DEVICES, uint, 0444);
 MODULE_PARM_DESC(MAX_SNAP_DEVICES, "maximum number of tracers available");
 
-module_param_named(DEBUG, DATTO_DEBUG, int, S_IRUGO | S_IWUSR);
+module_param_named(DEBUG, DATTO_DEBUG, int, 0644);
 MODULE_PARM_DESC(DATTO_DEBUG, "enables debug logging");
 
 /*********************************STRUCT DEFINITIONS*******************************/
@@ -812,13 +813,13 @@ static void dattobd_proc_stop(struct seq_file *m, void *v);
 static int dattobd_proc_open(struct inode *inode, struct file *filp);
 static int dattobd_proc_release(struct inode *inode, struct file *file);
 
-static struct block_device_operations snap_ops = {
+static const struct block_device_operations snap_ops = {
 	.owner = THIS_MODULE,
 	.open = snap_open,
 	.release = snap_release,
 };
 
-static struct file_operations snap_control_fops = {
+static const struct file_operations snap_control_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = ctrl_ioctl,
 	.compat_ioctl = ctrl_ioctl,
@@ -832,14 +833,14 @@ static struct miscdevice snap_control_device = {
 	.fops = &snap_control_fops,
 };
 
-static struct seq_operations dattobd_seq_proc_ops = {
+static const struct seq_operations dattobd_seq_proc_ops = {
 	.start = dattobd_proc_start,
 	.next = dattobd_proc_next,
 	.stop = dattobd_proc_stop,
 	.show = dattobd_proc_show,
 };
 
-static struct file_operations dattobd_proc_fops = {
+static const struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = dattobd_proc_open,
 	.read = seq_read,
@@ -852,7 +853,7 @@ static struct mutex ioctl_mutex;
 static unsigned int highest_minor, lowest_minor;
 static struct snap_device **snap_devices;
 static struct proc_dir_entry *info_proc;
-static void **system_call_table = NULL;
+static void **system_call_table;
 
 static asmlinkage long (*orig_mount)(char __user *, char __user *, char __user *, unsigned long, void __user *);
 static asmlinkage long (*orig_umount)(char __user *, int);
@@ -2178,11 +2179,11 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 		if (!cm->sects[sect_idx].has_data) {
 			*out = 0;
 			return 0;
-		} else {
-			ret = __cow_load_section(cm, sect_idx);
-			if (ret)
-				goto cow_read_mapping_error;
 		}
+
+		ret = __cow_load_section(cm, sect_idx);
+		if (ret)
+			goto cow_read_mapping_error;
 	}
 
 	*out = cm->sects[sect_idx].mappings[sect_pos];
@@ -4080,7 +4081,7 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev)
 	if (ret)
 		goto tracer_transition_inc_error;
 
-	//Below this point, we are commited to the new device, so we must make sure it is in a good state.
+	//Below this point, we are committed to the new device, so we must make sure it is in a good state.
 
 	//stop the old cow thread. Must be done before starting the new cow thread to prevent concurrent access.
 	__tracer_destroy_cow_thread(old_dev);
@@ -5156,11 +5157,13 @@ static void **find_sys_call_table(void)
 	return sct;
 }
 
-#define set_syscall(sys_nr, orig_call_save, new_call)		\
-	orig_call_save = system_call_table[sys_nr];				\
-	system_call_table[sys_nr] = new_call;
+#define set_syscall(sys_nr, orig_call_save, new_call) \
+	do { \
+		orig_call_save = system_call_table[sys_nr]; \
+		system_call_table[sys_nr] = new_call; \
+	} while (0)
 
-#define restore_syscall(sys_nr, orig_call_save) system_call_table[sys_nr] = orig_call_save;
+#define restore_syscall(sys_nr, orig_call_save) (system_call_table[sys_nr] = orig_call_save)
 
 static void restore_system_call_table(void)
 {
@@ -5270,9 +5273,9 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 
 	//print the header if the "pointer" really an indication to do so
 	if (dev_ptr == DATTOBD_PROC_PRINT_HEADER) {
-		seq_printf(m, "{\n");
+		seq_puts(m, "{\n");
 		seq_printf(m, "\t\"version\": \"%s\",\n", DATTOBD_VERSION);
-		seq_printf(m, "\t\"devices\": [\n");
+		seq_puts(m, "\t\"devices\": [\n");
 	}
 
 	//if the pointer is actually a device print it
@@ -5280,8 +5283,8 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 		dev = *dev_ptr;
 
 		if (dev->sd_minor != lowest_minor)
-			seq_printf(m, ",\n");
-		seq_printf(m, "\t\t{\n");
+			seq_puts(m, ",\n");
+		seq_puts(m, "\t\t{\n");
 		seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
@@ -5293,10 +5296,10 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 			if (dev->sd_cow) {
 				seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
 
-				seq_printf(m, "\t\t\t\"uuid\": \"");
+				seq_puts(m, "\t\t\t\"uuid\": \"");
 				for (i = 0; i < COW_UUID_SIZE; i++)
 					seq_printf(m, "%02x", dev->sd_cow->uuid[i]);
-				seq_printf(m, "\",\n");
+				seq_puts(m, "\",\n");
 			}
 		}
 
@@ -5305,13 +5308,13 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "\t\t\t\"error\": %d,\n", error);
 
 		seq_printf(m, "\t\t\t\"state\": %lu\n", dev->sd_state);
-		seq_printf(m, "\t\t}");
+		seq_puts(m, "\t\t}");
 	}
 
 	//print the footer if there are no devices to print or if this device has the highest minor
 	if ((dev_ptr == DATTOBD_PROC_PRINT_HEADER && lowest_minor > highest_minor) || (dev && dev->sd_minor == highest_minor)) {
-		seq_printf(m, "\n\t]\n");
-		seq_printf(m, "}\n");
+		seq_puts(m, "\n\t]\n");
+		seq_puts(m, "}\n");
 	}
 
 	return 0;
