@@ -1,12 +1,12 @@
 /*
-    Copyright (C) 2015 Datto Inc.
-
-    This file is part of dattobd.
-
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License version 2 as published
-    by the Free Software Foundation.
-*/
+ * Copyright (C) 2015 Datto Inc.
+ *
+ * This file is part of dattobd.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #define _FILE_OFFSET_BITS 64
 #define __USE_LARGEFILE64
@@ -25,18 +25,20 @@
 
 typedef unsigned long long sector_t;
 
-static void print_help(char* progname, int status){
+static void print_help(char *progname, int status)
+{
 	fprintf(stderr, "Usage: %s <snapshot device> <cow file> <image file>\n", progname);
 	exit(status);
 }
 
-static int copy_block(FILE *snap, FILE *img, sector_t block){
+static int copy_block(FILE *snap, FILE *img, sector_t block)
+{
 	char buf[COW_BLOCK_SIZE];
 	int ret;
 	size_t bytes;
 
 	bytes = pread(fileno(snap), buf, COW_BLOCK_SIZE, block * COW_BLOCK_SIZE);
-	if(bytes != COW_BLOCK_SIZE){
+	if (bytes != COW_BLOCK_SIZE) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error reading data block from snapshot\n");
@@ -44,7 +46,7 @@ static int copy_block(FILE *snap, FILE *img, sector_t block){
 	}
 
 	bytes = pwrite(fileno(img), buf, COW_BLOCK_SIZE, block * COW_BLOCK_SIZE);
-	if(bytes != COW_BLOCK_SIZE){
+	if (bytes != COW_BLOCK_SIZE) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error writing data block to output image\n");
@@ -58,7 +60,8 @@ error:
 	return ret;
 }
 
-static int verify_files(FILE *cow, unsigned minor){
+static int verify_files(FILE *cow, unsigned minor)
+{
 	int ret;
 	size_t bytes;
 	struct cow_header ch;
@@ -66,7 +69,7 @@ static int verify_files(FILE *cow, unsigned minor){
 
 	//allocate a buffer for the proc data
 	info = malloc(sizeof(struct dattobd_info));
-	if(!info){
+	if (!info) {
 		ret = ENOMEM;
 		errno = 0;
 		fprintf(stderr, "error allocating mmeory for dattobd info\n");
@@ -75,7 +78,7 @@ static int verify_files(FILE *cow, unsigned minor){
 
 	//read info from the dattobd driver
 	ret = dattobd_info(minor, info);
-	if(ret){
+	if (ret) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error reading dattobd info from driver\n");
@@ -84,7 +87,7 @@ static int verify_files(FILE *cow, unsigned minor){
 
 	//read cow header from cow file
 	bytes = pread(fileno(cow), &ch, sizeof(struct cow_header), 0);
-	if(bytes != sizeof(struct cow_header)){
+	if (bytes != sizeof(struct cow_header)) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error reading cow header\n");
@@ -92,21 +95,21 @@ static int verify_files(FILE *cow, unsigned minor){
 	}
 
 	//check the cow file's magic number
-	if(ch.magic != COW_MAGIC){
+	if (ch.magic != COW_MAGIC) {
 		ret = EINVAL;
 		fprintf(stderr, "invalid magic number from cow file\n");
 		goto error;
 	}
 
 	//check the uuid
-	if(memcmp(ch.uuid, info->uuid, COW_UUID_SIZE) != 0){
+	if (memcmp(ch.uuid, info->uuid, COW_UUID_SIZE) != 0) {
 		ret = EINVAL;
 		fprintf(stderr, "cow file uuid does not match snapshot\n");
 		goto error;
 	}
 
 	//check the sequence id
-	if(ch.seqid != info->seqid - 1){
+	if (ch.seqid != info->seqid - 1) {
 		ret = EINVAL;
 		fprintf(stderr, "snapshot provided does not immediately follow the snapshot that created the cow file\n");
 		goto error;
@@ -117,11 +120,13 @@ static int verify_files(FILE *cow, unsigned minor){
 	return 0;
 
 error:
-	if(info) free(info);
+	if (info)
+		free(info);
 	return ret;
 }
 
-int main(int argc, char **argv){
+int main(int argc, char **argv)
+{
 	int ret;
 	unsigned minor;
 	size_t snap_size, bytes, blocks_to_read;
@@ -131,11 +136,12 @@ int main(int argc, char **argv){
 	char *snap_path;
 	char snap_path_buf[PATH_MAX];
 
-	if(argc != 4) print_help(argv[0], EINVAL);
+	if (argc != 4)
+		print_help(argv[0], EINVAL);
 
 	//open snapshot
 	snap = fopen(argv[1], "r");
-	if(!snap){
+	if (!snap) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error opening snapshot\n");
@@ -144,7 +150,7 @@ int main(int argc, char **argv){
 
 	//open cow file
 	cow = fopen(argv[2], "r");
-	if(!cow){
+	if (!cow) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error opening cow file\n");
@@ -153,7 +159,7 @@ int main(int argc, char **argv){
 
 	//open original image
 	img = fopen(argv[3], "r+");
-	if(!img){
+	if (!img) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error opening image\n");
@@ -162,7 +168,7 @@ int main(int argc, char **argv){
 
 	//get the full path of the cow file
 	snap_path = realpath(argv[1], snap_path_buf);
-	if(!snap_path){
+	if (!snap_path) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "error determining full path of snapshot\n");
@@ -171,7 +177,7 @@ int main(int argc, char **argv){
 
 	//get the minor number of the snapshot
 	ret = sscanf(snap_path, "/dev/datto%u", &minor);
-	if(ret != 1){
+	if (ret != 1) {
 		ret = errno;
 		errno = 0;
 		fprintf(stderr, "snapshot does not appear to be a dattobd snapshot device\n");
@@ -180,7 +186,8 @@ int main(int argc, char **argv){
 
 	//verify all of the inputs before attempting to merge
 	ret = verify_files(cow, minor);
-	if(ret) goto error;
+	if (ret)
+		goto error;
 
 	//get size of snapshot, calculate other needed sizes
 	fseeko(snap, 0, SEEK_END);
@@ -193,7 +200,7 @@ int main(int argc, char **argv){
 
 	//allocate mappings array
 	mappings = malloc(INDEX_BUFFER_SIZE * sizeof(uint64_t));
-	if(!mappings){
+	if (!mappings) {
 		ret = ENOMEM;
 		fprintf(stderr, "error allocating mappings\n");
 		goto error;
@@ -201,12 +208,12 @@ int main(int argc, char **argv){
 
 	//count number of blocks changed while performing merge
 	printf("copying blocks\n");
-	for(i = 0; i < total_chunks; i++){
+	for (i = 0; i < total_chunks; i++) {
 		//read a chunk of mappings from the cow file
 		blocks_to_read = MIN(INDEX_BUFFER_SIZE, total_blocks - blocks_done);
 
 		bytes = pread(fileno(cow), mappings, blocks_to_read * sizeof(uint64_t), COW_HEADER_SIZE + (INDEX_BUFFER_SIZE * sizeof(uint64_t) * i));
-		if(bytes != blocks_to_read * sizeof(uint64_t)){
+		if (bytes != blocks_to_read * sizeof(uint64_t)) {
 			ret = errno;
 			errno = 0;
 			fprintf(stderr, "error reading mappings into memory\n");
@@ -214,11 +221,13 @@ int main(int argc, char **argv){
 		}
 
 		//copy blocks where the mapping is set
-		for(j = 0; j < blocks_to_read; j++){
-			if(!mappings[j]) continue;
+		for (j = 0; j < blocks_to_read; j++) {
+			if (!mappings[j])
+				continue;
 
 			ret = copy_block(snap, img, (INDEX_BUFFER_SIZE * i) + j);
-			if(ret) err_count++;
+			if (ret)
+				err_count++;
 
 			count++;
 		}
@@ -237,10 +246,14 @@ int main(int argc, char **argv){
 	return 0;
 
 error:
-	if(mappings) free(mappings);
-	if(cow) fclose(cow);
-	if(snap) fclose(snap);
-	if(img) fclose(img);
+	if (mappings)
+		free(mappings);
+	if (cow)
+		fclose(cow);
+	if (snap)
+		fclose(snap);
+	if (img)
+		fclose(img);
 
 	return ret;
 }
