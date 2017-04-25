@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.11)
 
 project(dattobd C)
 
-set(CMAKE_C_FLAGS "-std=gnu99 -Wall")
+set(CMAKE_C_FLAGS "-std=gnu99 -Wall -fPIC")
 
 set(src libdattobd.c)
 
