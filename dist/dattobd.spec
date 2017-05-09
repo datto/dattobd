@@ -166,7 +166,7 @@ Requires:        perl
 OrderWithRequires: kernel-devel
 %endif
 
-%If 0%{?suse_version}
+%if 0%{?suse_version}
 OrderWithRequires: kernel-syms
 %endif
 
@@ -191,8 +191,11 @@ make utils
 mkdir -p %{buildroot}%{_bindir}
 install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
-mv app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+install -p -m 0755 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+mkdir -p %{buildroot}%{_mandir}/man8
+install -p -m 0644 doc/dbdctl.8 %{buildroot}%{_mandir}/man8/dbdctl.8
 install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
+install -p -m 0644 doc/update-img.8 %{buildroot}%{_mandir}/man8/update-img.8
 
 # Install kmod sources
 mkdir -p %{buildroot}%{_kmod_src_root}
@@ -342,6 +345,8 @@ rm -rf %{buildroot}
 %{_bindir}/dbdctl
 %{_bindir}/update-img
 %{_sysconfdir}/bash_completion.d/dbdctl
+%{_mandir}/man8/dbdctl.8*
+%{_mandir}/man8/update-img.8*
 # Initramfs scripts for all but RHEL 5
 %if 0%{?rhel} != 5
 %dir %{_sharedstatedir}/datto/dla
@@ -361,13 +366,13 @@ rm -rf %{buildroot}
 %endif
 %endif
 %endif
-%doc README.md
+%doc README.md doc/STRUCTURE.md
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING
 %else
 %if %{_vendor} == "debbuild"
-%doc dist/copyright
+%license dist/copyright
 %else
 %doc COPYING
 %endif
@@ -405,7 +410,7 @@ rm -rf %{buildroot}
 %license COPYING
 %else
 %if %{_vendor} == "debbuild"
-%doc dist/copyright
+%license dist/copyright
 %else
 %doc COPYING
 %endif
