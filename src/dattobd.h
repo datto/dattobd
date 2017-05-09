@@ -1,12 +1,12 @@
 /*
-    Copyright (C) 2015 Datto Inc.
-
-    This file is part of dattobd.
-
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License version 2 as published
-    by the Free Software Foundation.
-*/
+ * Copyright (C) 2015 Datto Inc.
+ *
+ * This file is part of dattobd.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifndef DATTOBD_H_
 #define DATTOBD_H_
@@ -21,7 +21,7 @@
 #define DATTOBD_VERSION "0.9.16"
 #define DATTO_IOCTL_MAGIC 0x91
 
-struct setup_params{
+struct setup_params {
 	char *bdev; //name of block device to snapshot
 	char *cow; //name of cow file for snapshot
 	unsigned long fallocated_space; //space allocated to the cow file (in megabytes)
@@ -29,20 +29,20 @@ struct setup_params{
 	unsigned int minor; //requested minor number of the device
 };
 
-struct reload_params{
+struct reload_params {
 	char *bdev; //name of block device to snapshot
 	char *cow; //name of cow file for snapshot
 	unsigned long cache_size; //maximum cache size (in bytes)
 	unsigned int minor; //requested minor number of the device
 };
 
-struct transition_snap_params{
+struct transition_snap_params {
 	char *cow; //name of cow file for snapshot
 	unsigned long fallocated_space; //space allocated to the cow file (in bytes)
 	unsigned int minor; //requested minor
 };
 
-struct reconfigure_params{
+struct reconfigure_params {
 	unsigned long cache_size; //maximum cache size (in bytes)
 	unsigned int minor; //requested minor number of the device
 };
@@ -56,7 +56,7 @@ struct reconfigure_params{
 #define COW_INDEX_ONLY 1
 #define COW_VMALLOC_UPPER 2
 
-struct cow_header{
+struct cow_header {
 	uint32_t magic; //COW header magic
 	uint32_t flags; //COW file flags
 	uint64_t fpos; //current file offset
@@ -65,7 +65,7 @@ struct cow_header{
 	uint8_t uuid[COW_UUID_SIZE]; //uuid for this series of snapshots
 };
 
-struct dattobd_info{
+struct dattobd_info {
 	unsigned int minor;
 	unsigned long state;
 	int error;
