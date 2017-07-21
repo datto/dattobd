@@ -17,19 +17,19 @@
 extern "C" {
 #endif
 
-int setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
 
-int reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
+int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
 
-int reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
+int dattobd_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
 
-int destroy(unsigned int minor);
+int dattobd_destroy(unsigned int minor);
 
-int transition_incremental(unsigned int minor);
+int dattobd_transition_incremental(unsigned int minor);
 
-int transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
 
-int reconfigure(unsigned int minor, unsigned long cache_size);
+int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
