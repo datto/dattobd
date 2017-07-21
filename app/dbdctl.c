@@ -123,7 +123,7 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_setup_snap_error;
 
-	return setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
+	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
 
 handle_setup_snap_error:
 	perror("error interpreting setup snapshot parameters");
@@ -161,7 +161,7 @@ static int handle_reload_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_reload_snap_error;
 
-	return reload_snapshot(minor, bdev, cow, cache_size);
+	return dattobd_reload_snapshot(minor, bdev, cow, cache_size);
 
 handle_reload_snap_error:
 	perror("error interpreting reload snapshot parameters");
@@ -199,7 +199,7 @@ static int handle_reload_inc(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto handle_reload_inc_error;
 
-	return reload_incremental(minor, bdev, cow, cache_size);
+	return dattobd_reload_incremental(minor, bdev, cow, cache_size);
 
 handle_reload_inc_error:
 	perror("error interpreting reload incremental parameters");
@@ -219,7 +219,7 @@ static int handle_destroy(int argc, char **argv){
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto handle_destroy_error;
 
-	return destroy(minor);
+	return dattobd_destroy(minor);
 
 handle_destroy_error:
 	perror("error interpreting destroy parameters");
@@ -239,7 +239,7 @@ static int handle_transition_inc(int argc, char **argv){
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto handle_transition_inc_error;
 
-	return transition_incremental(minor);
+	return dattobd_transition_incremental(minor);
 
 handle_transition_inc_error:
 	perror("error interpreting transition to incremental parameters");
@@ -276,7 +276,7 @@ static int handle_transition_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto handle_transition_snap_error;
 
-	return transition_snapshot(minor, cow, fallocated_space);
+	return dattobd_transition_snapshot(minor, cow, fallocated_space);
 
 handle_transition_snap_error:
 	perror("error interpreting transition to snapshot parameters");
@@ -310,7 +310,7 @@ static int handle_reconfigure(int argc, char **argv){
 	ret = parse_ui(argv[optind], &minor);
 	if(ret) goto handle_reconfigure_error;
 
-	return reconfigure(minor, cache_size);
+	return dattobd_reconfigure(minor, cache_size);
 
 handle_reconfigure_error:
 	perror("error interpreting reconfigure parameters");

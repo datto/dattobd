@@ -14,11 +14,7 @@
 #include <sys/ioctl.h>
 #include "libdattobd.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
 	int fd, ret;
 	struct setup_params sp;
 
@@ -37,7 +33,7 @@ int setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fall
 	return ret;
 }
 
-int reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
 	int fd, ret;
 	struct reload_params rp;
 
@@ -55,7 +51,7 @@ int reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cac
 	return ret;
 }
 
-int reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int dattobd_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
 	int fd, ret;
 	struct reload_params rp;
 
@@ -73,7 +69,7 @@ int reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long 
 	return ret;
 }
 
-int destroy(unsigned int minor){
+int dattobd_destroy(unsigned int minor){
 	int fd, ret;
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
@@ -85,7 +81,7 @@ int destroy(unsigned int minor){
 	return ret;
 }
 
-int transition_incremental(unsigned int minor){
+int dattobd_transition_incremental(unsigned int minor){
 	int fd, ret;
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
@@ -97,7 +93,7 @@ int transition_incremental(unsigned int minor){
 	return ret;
 }
 
-int transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
 	int fd, ret;
 	struct transition_snap_params tp;
 
@@ -114,7 +110,7 @@ int transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_
 	return ret;
 }
 
-int reconfigure(unsigned int minor, unsigned long cache_size){
+int dattobd_reconfigure(unsigned int minor, unsigned long cache_size){
 	int fd, ret;
 	struct reconfigure_params rp;
 
@@ -148,7 +144,3 @@ int dattobd_info(unsigned int minor, struct dattobd_info *info){
 	close(fd);
 	return ret;
 }
-
-#ifdef __cplusplus
-}
-#endif
