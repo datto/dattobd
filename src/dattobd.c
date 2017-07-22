@@ -23,7 +23,7 @@ MODULE_VERSION(DATTOBD_VERSION);
 //printing macros
 #define LOG_DEBUG(fmt, args...) \
 	do{ \
-		if(DATTO_DEBUG) printk(KERN_DEBUG "datto: " fmt "\n", ## args); \
+		if(dattobd_debug) printk(KERN_DEBUG "datto: " fmt "\n", ## args); \
 	}while(0)
 
 #define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ## args)
@@ -582,7 +582,7 @@ error:
 
 //macro for iterating over snap_devices (requires a null check on dev)
 #define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
-#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < MAX_SNAP_DEVICES; i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
 #define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == bdev_get_queue((bio)->bi_bdev))
@@ -632,26 +632,26 @@ error:
 #define CR0_WP 0x00010000
 
 //global module parameters
-static int MAY_HOOK_SYSCALLS = 1;
-static unsigned long COW_MAX_MEMORY_DEFAULT = (300*1024*1024);
-static unsigned int COW_FALLOCATE_PERCENTAGE_DEFAULT = 10;
-static unsigned int MAX_SNAP_DEVICES = 24;
-static int DATTO_DEBUG = 0;
+static int dattobd_may_hook_syscalls = 1;
+static unsigned long dattobd_cow_max_memory_default = (300 * 1024 * 1024);
+static unsigned int dattobd_cow_fallocate_percentage_default = 10;
+static unsigned int dattobd_max_snap_devices = 24;
+static int dattobd_debug = 0;
 
-module_param(MAY_HOOK_SYSCALLS, int, S_IRUGO);
-MODULE_PARM_DESC(MAY_HOOK_SYSCALLS, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
+module_param_named(may_hook_syscalls, dattobd_may_hook_syscalls, int, S_IRUGO);
+MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
-module_param(COW_MAX_MEMORY_DEFAULT, ulong, 0);
-MODULE_PARM_DESC(COW_MAX_MEMORY_DEFAULT, "default maximum cache size (in bytes)");
+module_param_named(cow_max_memory_default, dattobd_cow_max_memory_default, ulong, 0);
+MODULE_PARM_DESC(cow_max_memory_default, "default maximum cache size (in bytes)");
 
-module_param(COW_FALLOCATE_PERCENTAGE_DEFAULT, uint, 0);
-MODULE_PARM_DESC(COW_FALLOCATE_PERCENTAGE_DEFAULT, "default space allocated to the cow file (as integer percentage)");
+module_param_named(cow_fallocate_percentage_default, dattobd_cow_fallocate_percentage_default, uint, 0);
+MODULE_PARM_DESC(cow_fallocate_percentage_default, "default space allocated to the cow file (as integer percentage)");
 
-module_param(MAX_SNAP_DEVICES, uint, S_IRUGO);
-MODULE_PARM_DESC(MAX_SNAP_DEVICES, "maximum number of tracers available");
+module_param_named(max_snap_devices, dattobd_max_snap_devices, uint, S_IRUGO);
+MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 
-module_param_named(DEBUG, DATTO_DEBUG, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(DATTO_DEBUG, "enables debug logging");
+module_param_named(debug, dattobd_debug, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(debug, "enables debug logging");
 
 /*********************************STRUCT DEFINITIONS*******************************/
 
@@ -3302,13 +3302,13 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 		ret = cow_reopen(dev->sd_cow, cow_path);
 		if(ret) goto tracer_setup_cow_error;
 	}else{
-		if(!cache_size) dev->sd_cache_size = COW_MAX_MEMORY_DEFAULT;
+		if(!cache_size) dev->sd_cache_size = dattobd_cow_max_memory_default;
 		else dev->sd_cache_size = cache_size;
 
 		if(open_method == 0){
 			//calculate how much space should be allocated to the cow file
 			if(!fallocated_space){
-				max_file_size = size * KERNEL_SECTOR_SIZE * COW_FALLOCATE_PERCENTAGE_DEFAULT;
+				max_file_size = size * KERNEL_SECTOR_SIZE * dattobd_cow_fallocate_percentage_default;
 				do_div(max_file_size, 100);
 				dev->sd_falloc_size = max_file_size;
 				do_div(dev->sd_falloc_size, (1024 * 1024));
@@ -3544,7 +3544,7 @@ tracer_start_cow_thread_error:
 #define __tracer_setup_snap_cow_thread(dev, minor)  __tracer_setup_cow_thread(dev, minor, 1)
 
 static void minor_range_recalculate(void){
-	unsigned int i, highest = 0, lowest = MAX_SNAP_DEVICES - 1;
+	unsigned int i, highest = 0, lowest = dattobd_max_snap_devices - 1;
 	struct snap_device *dev;
 
 	tracer_for_each_full(dev, i){
@@ -3840,7 +3840,7 @@ tracer_active_inc_to_snap_error:
 
 static void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size){
 	dev->sd_cache_size = cache_size;
-	if(!cache_size) cache_size = COW_MAX_MEMORY_DEFAULT;
+	if(!cache_size) cache_size = dattobd_cow_max_memory_default;
 	if(test_bit(ACTIVE, &dev->sd_state)) cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
@@ -3848,7 +3848,7 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 	info->minor = dev->sd_minor;
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
-	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT;
+	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : dattobd_cow_max_memory_default;
 	strncpy(info->cow, dev->sd_cow_path, PATH_MAX);
 	strncpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
@@ -3867,7 +3867,7 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 
 static int __verify_minor(unsigned int minor, int mode){
 	//check minor number is within range
-	if(minor >= MAX_SNAP_DEVICES){
+	if(minor >= dattobd_max_snap_devices){
 		LOG_ERROR(-EINVAL, "minor number specified is out of range");
 		return -EINVAL;
 	}
@@ -4815,7 +4815,7 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
-		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : COW_MAX_MEMORY_DEFAULT);
+		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : dattobd_cow_max_memory_default);
 
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
 			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
@@ -4920,7 +4920,7 @@ static int __init agent_init(void){
 
 	//init minor range
 	highest_minor = 0;
-	lowest_minor = MAX_SNAP_DEVICES - 1;
+	lowest_minor = dattobd_max_snap_devices - 1;
 
 	//get a major number for the driver
 	LOG_DEBUG("get major number");
@@ -4933,7 +4933,7 @@ static int __init agent_init(void){
 
 	//allocate global device array
 	LOG_DEBUG("allocate global device array");
-	snap_devices = kzalloc(MAX_SNAP_DEVICES * sizeof(struct snap_device*), GFP_KERNEL);
+	snap_devices = kzalloc(dattobd_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
 	if(!snap_devices){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating global device array");
@@ -4957,7 +4957,7 @@ static int __init agent_init(void){
 		goto init_error;
 	}
 
-	if(MAY_HOOK_SYSCALLS) (void)hook_system_call_table();
+	if(dattobd_may_hook_syscalls) (void)hook_system_call_table();
 
 	return 0;
 
