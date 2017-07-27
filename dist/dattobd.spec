@@ -151,11 +151,14 @@ Requires:        perl
 %endif
 
 %if %{_vendor} != "debbuild"
-%if 0%{?rhel} >= 7 || 0%{?suse_version} >= 1210 || 0%{?fedora}
+%if 0%{?rhel} >= 6 || 0%{?suse_version} >= 1210 || 0%{?fedora}
 # With RPM 4.9.0 and newer, it's possible to give transaction
 # hints to ensure some kind of ordering for transactions using
 # the OrderWithRequires statement.
 # More info: http://rpm.org/wiki/Releases/4.9.0#package-building
+
+# This was also backported to RHEL/CentOS 6' RPM, see RH#760793.
+# Link: https://bugzilla.redhat.com/760793
 
 # We can use this to ensure that if kernel-devel/kernel-syms is
 # in the same transaction as the DKMS module upgrade, it will be
