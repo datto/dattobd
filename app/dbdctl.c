@@ -39,24 +39,24 @@ static int parse_ul(const char *str, unsigned long *out){
 
 	//check that string is an integer number and has a length
 	do{
-		if(!isdigit(*c)) goto parse_ul_error;
+		if(!isdigit(*c)) goto error;
 		c++;
 	}while(*c);
 
 	//convert to long long
 	tmp = strtoll(str, NULL, 0);
-	if(errno) goto parse_ul_error;
+	if(errno) goto error;
 
 	//check boundaries
 	if(tmp < 0 || tmp == LLONG_MAX){
 		errno = ERANGE;
-		goto parse_ul_error;
+		goto error;
 	}
 
 	*out = (unsigned long)tmp;
 	return 0;
 
-parse_ul_error:
+error:
 	*out = 0;
 	return -1;
 }
@@ -67,24 +67,24 @@ static int parse_ui(const char *str, unsigned int *out){
 
 	//check that string is an integer number and has a length
 	do{
-		if(!isdigit(*c)) goto parse_ui_error;
+		if(!isdigit(*c)) goto error;
 		c++;
 	}while(*c);
 
 	//convert to long
 	tmp = strtol(str, NULL, 0);
-	if(errno) goto parse_ui_error;
+	if(errno) goto error;
 
 	//check boundaries
 	if(tmp < 0 || tmp == LONG_MAX){
 		errno = ERANGE;
-		goto parse_ui_error;
+		goto error;
 	}
 
 	*out = (unsigned int)tmp;
 	return 0;
 
-parse_ui_error:
+error:
 	*out = 0;
 	return -1;
 }
@@ -100,32 +100,32 @@ static int handle_setup_snap(int argc, char **argv){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
-			if(ret) goto handle_setup_snap_error;
+			if(ret) goto error;
 			break;
 		case 'f':
 			ret = parse_ul(optarg, &fallocated_space);
-			if(ret) goto handle_setup_snap_error;
+			if(ret) goto error;
 			break;
 		default:
 			errno = EINVAL;
-			goto handle_setup_snap_error;
+			goto error;
 		}
 	}
 
 	if(argc - optind != 3){
 		errno = EINVAL;
-		goto handle_setup_snap_error;
+		goto error;
 	}
 
 	bdev = argv[optind];
 	cow = argv[optind + 1];
 
 	ret = parse_ui(argv[optind + 2], &minor);
-	if(ret) goto handle_setup_snap_error;
+	if(ret) goto error;
 
 	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
 
-handle_setup_snap_error:
+error:
 	perror("error interpreting setup snapshot parameters");
 	print_help(-1);
 	return 0;
@@ -142,28 +142,28 @@ static int handle_reload_snap(int argc, char **argv){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
-			if(ret) goto handle_reload_snap_error;
+			if(ret) goto error;
 			break;
 		default:
 			errno = EINVAL;
-			goto handle_reload_snap_error;
+			goto error;
 		}
 	}
 
 	if(argc - optind != 3){
 		errno = EINVAL;
-		goto handle_reload_snap_error;
+		goto error;
 	}
 
 	bdev = argv[optind];
 	cow = argv[optind + 1];
 
 	ret = parse_ui(argv[optind + 2], &minor);
-	if(ret) goto handle_reload_snap_error;
+	if(ret) goto error;
 
 	return dattobd_reload_snapshot(minor, bdev, cow, cache_size);
 
-handle_reload_snap_error:
+error:
 	perror("error interpreting reload snapshot parameters");
 	print_help(-1);
 	return 0;
@@ -180,28 +180,28 @@ static int handle_reload_inc(int argc, char **argv){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
-			if(ret) goto handle_reload_inc_error;
+			if(ret) goto error;
 			break;
 		default:
 			errno = EINVAL;
-			goto handle_reload_inc_error;
+			goto error;
 		}
 	}
 
 	if(argc - optind != 3){
 		errno = EINVAL;
-		goto handle_reload_inc_error;
+		goto error;
 	}
 
 	bdev = argv[optind];
 	cow = argv[optind + 1];
 
 	ret = parse_ui(argv[optind + 2], &minor);
-	if(ret) goto handle_reload_inc_error;
+	if(ret) goto error;
 
 	return dattobd_reload_incremental(minor, bdev, cow, cache_size);
 
-handle_reload_inc_error:
+error:
 	perror("error interpreting reload incremental parameters");
 	print_help(-1);
 	return 0;
@@ -213,15 +213,15 @@ static int handle_destroy(int argc, char **argv){
 
 	if(argc != 2){
 		errno = EINVAL;
-		goto handle_destroy_error;
+		goto error;
 	}
 
 	ret = parse_ui(argv[1], &minor);
-	if(ret) goto handle_destroy_error;
+	if(ret) goto error;
 
 	return dattobd_destroy(minor);
 
-handle_destroy_error:
+error:
 	perror("error interpreting destroy parameters");
 	print_help(-1);
 	return 0;
@@ -233,15 +233,15 @@ static int handle_transition_inc(int argc, char **argv){
 
 	if(argc != 2){
 		errno = EINVAL;
-		goto handle_transition_inc_error;
+		goto error;
 	}
 
 	ret = parse_ui(argv[1], &minor);
-	if(ret) goto handle_transition_inc_error;
+	if(ret) goto error;
 
 	return dattobd_transition_incremental(minor);
 
-handle_transition_inc_error:
+error:
 	perror("error interpreting transition to incremental parameters");
 	print_help(-1);
 	return 0;
@@ -258,27 +258,27 @@ static int handle_transition_snap(int argc, char **argv){
 		switch(c){
 		case 'f':
 			ret = parse_ul(optarg, &fallocated_space);
-			if(ret) goto handle_transition_snap_error;
+			if(ret) goto error;
 			break;
 		default:
 			errno = EINVAL;
-			goto handle_transition_snap_error;
+			goto error;
 		}
 	}
 
 	if(argc - optind != 2){
 		errno = EINVAL;
-		goto handle_transition_snap_error;
+		goto error;
 	}
 
 	cow = argv[optind];
 
 	ret = parse_ui(argv[optind + 1], &minor);
-	if(ret) goto handle_transition_snap_error;
+	if(ret) goto error;
 
 	return dattobd_transition_snapshot(minor, cow, fallocated_space);
 
-handle_transition_snap_error:
+error:
 	perror("error interpreting transition to snapshot parameters");
 	print_help(-1);
 	return 0;
@@ -294,25 +294,25 @@ static int handle_reconfigure(int argc, char **argv){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
-			if(ret) goto handle_reconfigure_error;
+			if(ret) goto error;
 			break;
 		default:
 			errno = EINVAL;
-			goto handle_reconfigure_error;
+			goto error;
 		}
 	}
 
 	if(argc - optind != 1){
 		errno = EINVAL;
-		goto handle_reconfigure_error;
+		goto error;
 	}
 
 	ret = parse_ui(argv[optind], &minor);
-	if(ret) goto handle_reconfigure_error;
+	if(ret) goto error;
 
 	return dattobd_reconfigure(minor, cache_size);
 
-handle_reconfigure_error:
+error:
 	perror("error interpreting reconfigure parameters");
 	print_help(-1);
 	return 0;
