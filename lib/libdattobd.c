@@ -144,3 +144,24 @@ int dattobd_info(unsigned int minor, struct dattobd_info *info){
 	close(fd);
 	return ret;
 }
+
+int dattobd_version(struct dattobd_version *ver) {
+    int fd, ret;
+
+    if(!ver){
+        errno = EINVAL;
+        return -1;
+    }
+
+    fd = open("/dev/datto-ctl", O_RDONLY);
+    if(fd < 0) return -1;
+
+    ret = ioctl(fd, IOCTL_DATTOBD_VERSION, ver);
+
+    close(fd);
+    return ret;
+}
+
+
+
+

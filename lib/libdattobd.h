@@ -33,6 +33,8 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
+int dattobd_version(struct dattobd_version *ver);
+
 #ifdef __cplusplus
 }
 #endif
