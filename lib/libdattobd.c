@@ -15,7 +15,6 @@
 #include "libdattobd.h"
 
 int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
-	int fd, ret;
 	struct setup_params sp;
 
 	sp.minor = minor;
