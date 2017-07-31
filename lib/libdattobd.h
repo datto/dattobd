@@ -35,6 +35,11 @@ int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
 int dattobd_version(struct dattobd_version *ver);
 
+int dattobd_all_device_info(struct dattobd_all_device_info *info);
+
+int dattobd_generic(unsigned long iocid, void *data);
+
+
 #ifdef __cplusplus
 }
 #endif
