@@ -4130,7 +4130,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	unsigned long fallocated_space = 0, cache_size = 0;
 	char *src;
     char *dest;
-    int len;
+    int len, vslen;
 
 	LOG_DEBUG("ioctl command received: %d", cmd);
 	mutex_lock(&ioctl_mutex);
@@ -4236,12 +4236,13 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
         src = DATTOBD_VERSION;
         dest = ((struct dattobd_version __user *)arg)->version_string;
         len = strlen(src) + 1;
+        vslen = sizeof((struct dattobd_version *)0)->version_string;
         // make sure we don't copy more than the user should have allocated.
-        if (len > (sizeof((struct dattobd_version *)0)->version_string))
-            len = (sizeof((struct dattobd_version *)0)->version_string);
+        if (len > vslen)
+            len = vslen;
         ret = copy_to_user(dest, src, len);
         // if the string is too long, make sure to nt the last position of the user's buffer.
-        if ((ret == 0) && (len == (sizeof((struct dattobd_version *)0)->version_string)))
+        if ((ret == 0) && (len == vslen))
             ret = copy_to_user(dest+len-1, "", 1);
         if(ret){
             ret = -EFAULT;
