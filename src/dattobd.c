@@ -895,8 +895,8 @@ static int get_setup_params(struct setup_params __user *in, unsigned int *minor,
 
 get_setup_params_error:
 	LOG_ERROR(ret, "error copying setup_params from user space");
-	if(*bdev_name) kfree(*bdev_name);
-	if(*cow_path) kfree(*cow_path);
+	kfree(*bdev_name);
+	kfree(*cow_path);
 
 	*bdev_name = NULL;
 	*cow_path = NULL;
@@ -942,8 +942,8 @@ static int get_reload_params(struct reload_params __user *in, unsigned int *mino
 
 get_reload_params_error:
 	LOG_ERROR(ret, "error copying reload_params from user space");
-	if(*bdev_name) kfree(*bdev_name);
-	if(*cow_path) kfree(*cow_path);
+	kfree(*bdev_name);
+	kfree(*cow_path);
 
 	*bdev_name = NULL;
 	*cow_path = NULL;
@@ -979,7 +979,7 @@ static int get_transition_snap_params(struct transition_snap_params __user *in, 
 
 get_transition_snap_params_error:
 	LOG_ERROR(ret, "error copying transition_snap_params from user space");
-	if(*cow_path) kfree(*cow_path);
+	kfree(*cow_path);
 
 	*cow_path = NULL;
 	*minor = 0;
@@ -1183,8 +1183,8 @@ static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *
 
 dentry_get_relative_pathname_error:
 	LOG_ERROR(ret, "error converting dentry to relative path name");
-	if(final_buf) kfree(final_buf);
-	if(page_buf) free_page((unsigned long)page_buf);
+	kfree(final_buf);
+	free_page((unsigned long)page_buf);
 
 	*buf = NULL;
 	if(len_res) *len_res = 0;
@@ -1228,8 +1228,8 @@ static int path_get_absolute_pathname(struct path *path, char **buf, int *len_re
 
 path_get_absolute_pathname_error:
 	LOG_ERROR(ret, "error getting absolute pathname from path");
-	if(final_buf) kfree(final_buf);
-	if(page_buf) free_page((unsigned long)page_buf);
+	kfree(final_buf);
+	free_page((unsigned long)page_buf);
 
 	*buf = NULL;
 	if(len_res) *len_res = 0;
@@ -1319,7 +1319,7 @@ static int user_mount_pathname_concat(char __user *user_mount_path, char *rel_pa
 
 user_mount_pathname_concat_error:
 	LOG_ERROR(ret, "error concatenating mount path to relative path");
-	if(mount_path) kfree(mount_path);
+	kfree(mount_path);
 
 	*path_out = NULL;
 	return ret;
@@ -1510,8 +1510,8 @@ static int file_allocate(struct file *f, uint64_t offset, uint64_t length){
 	}
 
 file_allocate_out:
-	if(page_buf) free_page((unsigned long)page_buf);
-	if(abs_path) kfree(abs_path);
+	free_page((unsigned long)page_buf);
+	kfree(abs_path);
 
 	return 0;
 
@@ -1522,8 +1522,8 @@ file_allocate_error:
 		LOG_ERROR(ret, "error performing fallocate on file '%s'", abs_path);
 	}
 
-	if(page_buf) free_page((unsigned long)page_buf);
-	if(abs_path) kfree(abs_path);
+	free_page((unsigned long)page_buf);
+	kfree(abs_path);
 
 	return ret;
 }
@@ -1757,7 +1757,7 @@ static void cow_free_members(struct cow_manager *cm){
 
 	if(cm->sects){
 		for(i = 0; i < cm->total_sects; i++){
-			if(cm->sects[i].mappings) free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
+			free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
 		}
 
 		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
@@ -1788,10 +1788,8 @@ static int cow_sync_and_free(struct cow_manager *cm){
 
 	if(cm->filp) file_close(cm->filp);
 
-	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
-	}
+	if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
+	else kfree(cm->sects);
 
 	kfree(cm);
 
@@ -1900,12 +1898,10 @@ cow_reload_error:
 	LOG_ERROR(ret, "error during cow manager initialization");
 	if(cm->filp) file_close(cm->filp);
 
-	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
-	}
+	if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
+	else kfree(cm->sects);
 
-	if(cm) kfree(cm);
+	kfree(cm);
 
 	*cm_out = NULL;
 	return ret;
@@ -1968,12 +1964,10 @@ cow_init_error:
 	LOG_ERROR(ret, "error during cow manager initialization");
 	if(cm->filp) file_unlink_and_close(cm->filp);
 
-	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
-	}
+	if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
+	else kfree(cm->sects);
 
-	if(cm) kfree(cm);
+	kfree(cm);
 
 	*cm_out = NULL;
 	return ret;
@@ -3023,7 +3017,7 @@ static int string_copy(char *str, char **dest){
 
 string_copy_error:
 	LOG_ERROR(ret, "error copying string");
-	if(out) kfree(out);
+	kfree(out);
 
 	*dest = NULL;
 	return ret;
@@ -3170,7 +3164,7 @@ static int tracer_alloc(struct snap_device **dev_ptr){
 
 tracer_alloc_error:
 	LOG_ERROR(ret, "error allocating device struct");
-	if(dev) kfree(dev);
+	kfree(dev);
 
 	*dev_ptr = NULL;
 	return ret;
@@ -3973,7 +3967,7 @@ static int __ioctl_setup(unsigned int minor, char *bdev_path, char *cow_path, un
 
 ioctl_setup_error:
 	LOG_ERROR(ret, "error during setup ioctl handler");
-	if(dev) kfree(dev);
+	kfree(dev);
 	return ret;
 }
 #define ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size) __ioctl_setup(minor, bdev_path, cow_path, fallocated_space, cache_size, 1, 0)
@@ -4238,9 +4232,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	LOG_DEBUG("minor range = %u - %u", lowest_minor, highest_minor);
 	mutex_unlock(&ioctl_mutex);
 
-	if(bdev_path) kfree(bdev_path);
-	if(cow_path) kfree(cow_path);
-	if(info) kfree(info);
+	kfree(bdev_path);
+	kfree(cow_path);
+	kfree(info);
 
 	return ret;
 }
@@ -4327,7 +4321,7 @@ tracer_unverified_snap_to_active_error:
 	tracer_set_fail_state(dev, ret);
 	kfree(bdev_path);
 	kfree(rel_path);
-	if(cow_path) kfree(cow_path);
+	kfree(cow_path);
 }
 
 static void __tracer_unverified_inc_to_active(struct snap_device *dev, char __user *user_mount_path){
@@ -4385,7 +4379,7 @@ tracer_unverified_inc_to_active_error:
 	tracer_set_fail_state(dev, ret);
 	kfree(bdev_path);
 	kfree(rel_path);
-	if(cow_path) kfree(cow_path);
+	kfree(cow_path);
 }
 
 static void __tracer_dormant_to_active(struct snap_device *dev, char __user *user_mount_path){
@@ -4419,7 +4413,7 @@ static void __tracer_dormant_to_active(struct snap_device *dev, char __user *use
 
 tracer_dormant_to_active_error:
 	LOG_ERROR(ret, "error transitioning tracer to active state");
-	if(cow_path) kfree(cow_path);
+	kfree(cow_path);
 	tracer_set_fail_state(dev, ret);
 }
 
@@ -4554,7 +4548,7 @@ static int handle_bdev_mount_event(char __user *dir_name, int follow_flags, unsi
 	return 0;
 
 handle_bdev_mount_event_out:
-	if(pathname) kfree(pathname);
+	kfree(pathname);
 	path_put(&path);
 
 	*idx_out = 0;
