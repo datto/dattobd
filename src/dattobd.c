@@ -4127,16 +4127,16 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
      * reallocate *info to that size, then copy the structs in, set the count for what we're returning
      * and we're done. */
 	int ret;
-	struct snap_device *dev;
-	
+	int active;	
 	int user_max; // the count of how many structs the caller has reserved space for
+	int lp;
+	int pos;
 	
 	user_max = (*info)->count;
-	LOG_DEBUG("received dattobd all device info ioctl - max return count %lu", user_max);
+	LOG_DEBUG("received dattobd all device info ioctl - max return count %d", user_max);
 	
 	// count how many devices there are to return
-	int active = 0;
-	int lp;
+	active = 0;
 	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
 	{
 		ret = verify_minor_in_use(lp);
@@ -4168,7 +4168,7 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
 	(*info)->count = active; // how many we're going to return
 
 	// now go through again copying the info structs over
-	int pos = 0;
+	pos = 0;
 	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
 	{
 		ret = verify_minor_in_use(lp);
