@@ -4121,6 +4121,16 @@ ioctl_reconfigure_error:
 	return ret;
 }
 
+static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, unsigned int *copyback)
+{
+    /* get the count from *info, free the memory, figure out how much we're actually going to return
+     * reallocate *info to that size, then copy the structs in, set the count for what we're returning
+     * and we're done. */
+    int ret;
+    //xxxzret = ioctl_dattobd_all_device_info(&info, &copyback);
+}
+
+
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	int ret;
 	char *bdev_path = NULL;
@@ -4251,7 +4261,34 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
         }
 
         break;
+    case IOCTL_DATTOBD_ALL_DEVICE_INFO:
+        //get the struct from user space to get the count of memory they're providing
+        info = kmalloc(sizeof(struct dattobd_all_device_info), GFP_KERNEL);
+        if(!info){
+            ret = -ENOMEM;
+            LOG_ERROR(ret, "error allocating memory for dattobd all device info");
+            break;
+        }
 
+        ret = copy_from_user(info, (struct dattobd_all_device_info __user *)arg, sizeof(struct dattobd_all_device_info));
+        if(ret){
+            ret = -EFAULT;
+            LOG_ERROR(ret, "error copying dattobd all device info struct from user space");
+            break;
+        }
+
+        unsigned int copyback = 0;
+        ret = ioctl_dattobd_all_device_info(&info, &copyback);
+        if(ret) break;
+
+        ret = copy_to_user((struct dattobd_info __user *)arg, info, copyback);
+        if(ret){
+            ret = -EFAULT;
+            LOG_ERROR(ret, "error copying dattobd all device info struct to user space, couldn't copy %d", ret);
+            break;
+        }
+
+        break;
 	default:
 		ret = -EINVAL;
 		LOG_ERROR(ret, "invalid ioctl called");
