@@ -4140,7 +4140,7 @@ static int ioctl_dattobd_active_device_info(struct dattobd_active_device_info **
 
 	// count how many devices there are to return
 	active = 0;
-	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
+	for (lp = 0; lp < dattobd_max_snap_devices; lp++)
 	{
 		ret = verify_minor_in_use(lp);
 		if (ret)
@@ -4172,7 +4172,7 @@ static int ioctl_dattobd_active_device_info(struct dattobd_active_device_info **
 
 	// now go through again copying the info info structs over
 	pos = 0;
-	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
+	for (lp = 0; lp < dattobd_max_snap_devices; lp++)
 	{
 		ret = verify_minor_in_use(lp);
 		if (ret)
