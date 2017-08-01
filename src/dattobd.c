@@ -4126,8 +4126,63 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
     /* get the count from *info, free the memory, figure out how much we're actually going to return
      * reallocate *info to that size, then copy the structs in, set the count for what we're returning
      * and we're done. */
-    int ret;
-    //xxxzret = ioctl_dattobd_all_device_info(&info, &copyback);
+	int ret;
+	struct snap_device *dev;
+	
+	int user_max; // the count of how many structs the caller has reserved space for
+	
+	user_max = (*info)->count;
+	LOG_DEBUG("received dattobd all device info ioctl - max return count %lu", user_max);
+	
+	// count how many devices there are to return
+	int active = 0;
+	int lp;
+	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
+	{
+		ret = verify_minor_in_use(lp);
+		if (ret)
+			continue;
+	  	active++;
+	}
+	if (active == 0)
+	{
+		// use existing buffer to send back a zero
+		(*info)->count = 0;
+		return 0;
+	}
+	
+	kfree(*info); // free up the buffer allocated in giant switch
+	*info = NULL;
+	// allocate the buffer we're going to fill
+	// there is already one info in all_device_info so add as many as we need minus that one.
+	unsigned long bufsz = sizeof(struct dattobd_all_device_info) + ((active - 1) * sizeof(struct dattobd_info));
+	
+	*info = kmalloc(bufsz, GFP_KERNEL);
+	if (*info == NULL)
+	{
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating memory for dattobd all device info, alloc = %lu", bufsz);
+		return -1;
+	}
+
+	(*info)->count = active; // how many we're going to return
+
+	// now go through again copying the info structs over
+	int pos = 0;
+	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
+	{
+		ret = verify_minor_in_use(lp);
+		if (ret)
+			continue;
+		(*info)->data[pos++] = snap_devices[lp];
+	}
+
+	*copyback = bufsz; // tell caller how much memory to return to user.
+
+// xxxz what does this do?	tracer_dattobd_info(dev, info);
+
+	return 0;
+
 }
 
 
