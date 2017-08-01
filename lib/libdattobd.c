@@ -99,17 +99,17 @@ int dattobd_version(struct dattobd_version *ver) {
     return dattobd_generic(IOCTL_DATTOBD_VERSION, ver);
 }
 
-int dattobd_all_device_info(struct dattobd_all_device_info *info)
+int dattobd_active_device_info(struct dattobd_active_device_info *info)
 {
     // on entry info->count has the number of info structs allocated that it is safe for us to return
     // the actually memory allocated by the caller must be at least
-    // sizeof(dattobd_all_device_info) + ((info->count - 1) * sizeof(dattobd_info))
+    // sizeof(dattobd_active_device_info) + ((info->count - 1) * sizeof(dattobd_info))
     if(!info){
         errno = EINVAL;
         return -1;
     }
 
-    return dattobd_generic(IOCTL_DATTOBD_ALL_DEVICE_INFO, info);
+    return dattobd_generic(IOCTL_DATTOBD_ACTIVE_DEVICE_INFO, info);
 }
 
 int dattobd_generic(unsigned long iocid, void *data)
