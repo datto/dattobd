@@ -4127,14 +4127,17 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
      * reallocate *info to that size, then copy the structs in, set the count for what we're returning
      * and we're done. */
 	int ret;
-	int active;	
+	int active;
 	int user_max; // the count of how many structs the caller has reserved space for
 	int lp;
 	int pos;
-	
+    unsigned long bufsz;
+    struct snap_device *dev;
+    struct dattobd_info *infoitem;
+
 	user_max = (*info)->count;
 	LOG_DEBUG("received dattobd all device info ioctl - max return count %d", user_max);
-	
+
 	// count how many devices there are to return
 	active = 0;
 	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
@@ -4150,13 +4153,13 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
 		(*info)->count = 0;
 		return 0;
 	}
-	
+
 	kfree(*info); // free up the buffer allocated in giant switch
 	*info = NULL;
 	// allocate the buffer we're going to fill
 	// there is already one info in all_device_info so add as many as we need minus that one.
-	unsigned long bufsz = sizeof(struct dattobd_all_device_info) + ((active - 1) * sizeof(struct dattobd_info));
-	
+	bufsz = sizeof(struct dattobd_all_device_info) + ((active - 1) * sizeof(struct dattobd_info));
+
 	*info = kmalloc(bufsz, GFP_KERNEL);
 	if (*info == NULL)
 	{
@@ -4167,14 +4170,17 @@ static int ioctl_dattobd_all_device_info(struct dattobd_all_device_info **info, 
 
 	(*info)->count = active; // how many we're going to return
 
-	// now go through again copying the info structs over
+	// now go through again copying the info info structs over
 	pos = 0;
 	for (lp = 0; lp < MAX_SNAP_DEVICES; lp++)
 	{
 		ret = verify_minor_in_use(lp);
 		if (ret)
 			continue;
-		(*info)->data[pos++] = snap_devices[lp];
+	    dev = snap_devices[lp];
+	    infoitem = &(&((*info)->first))[pos];
+	    tracer_dattobd_info(dev, infoitem);
+		pos++;
 	}
 
 	*copyback = bufsz; // tell caller how much memory to return to user.
@@ -4196,6 +4202,8 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	char *src;
     char *dest;
     int len, vslen;
+    unsigned int copyback;
+    struct dattobd_all_device_info *adinfo;
 
 	LOG_DEBUG("ioctl command received: %d", cmd);
 	mutex_lock(&ioctl_mutex);
@@ -4318,7 +4326,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
         break;
     case IOCTL_DATTOBD_ALL_DEVICE_INFO:
         //get the struct from user space to get the count of memory they're providing
-        info = kmalloc(sizeof(struct dattobd_all_device_info), GFP_KERNEL);
+        adinfo = kmalloc(sizeof(struct dattobd_all_device_info), GFP_KERNEL);
         if(!info){
             ret = -ENOMEM;
             LOG_ERROR(ret, "error allocating memory for dattobd all device info");
@@ -4332,8 +4340,8 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
             break;
         }
 
-        unsigned int copyback = 0;
-        ret = ioctl_dattobd_all_device_info(&info, &copyback);
+        copyback = 0;
+        ret = ioctl_dattobd_all_device_info(&adinfo, &copyback);
         if(ret) break;
 
         ret = copy_to_user((struct dattobd_info __user *)arg, info, copyback);
