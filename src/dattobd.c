@@ -4142,7 +4142,7 @@ static int ioctl_dattobd_active_device_info(struct dattobd_active_device_info **
 	active = 0;
 	for (lp = 0; lp < dattobd_max_snap_devices; lp++)
 	{
-		ret = verify_minor_in_use(lp);
+		ret = !snap_devices[lp]; // if I call verify_minor, it logs an error if not in use.
 		if (ret)
 			continue;
 	  	active++;
@@ -4151,11 +4151,17 @@ static int ioctl_dattobd_active_device_info(struct dattobd_active_device_info **
 	{
 		// use existing buffer to send back a zero
 		(*adinfo)->count = 0;
+		*copyback = sizeof(struct dattobd_active_device_info); // tell caller to copy the count back
+	    LOG_DEBUG("No devices active.");
 		return 0;
 	}
 
 	kfree(*adinfo); // free up the buffer allocated in giant switch
 	*adinfo = NULL;
+
+	if (active > user_max)
+	    active = user_max; // don't return more than user allocated space for
+
 	// allocate the buffer we're going to fill
 	// there is already one info in active_device_info so add as many as we need minus that one.
 	bufsz = sizeof(struct dattobd_active_device_info) + ((active - 1) * sizeof(struct dattobd_info));
@@ -4174,13 +4180,16 @@ static int ioctl_dattobd_active_device_info(struct dattobd_active_device_info **
 	pos = 0;
 	for (lp = 0; lp < dattobd_max_snap_devices; lp++)
 	{
-		ret = verify_minor_in_use(lp);
+        ret = !snap_devices[lp];
 		if (ret)
 			continue;
+        LOG_DEBUG("Returning info for minor %d", lp);
 	    dev = snap_devices[lp];
 	    infoitem = &(&((*adinfo)->first))[pos];
 	    tracer_dattobd_info(dev, infoitem);
 		pos++;
+		if (pos >= active)
+		    break; // stop if we've filled the user's buffer
 	}
 
 	*copyback = bufsz; // tell caller how much memory to copy to user.
