@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import hashlib
+import subprocess
+
+
+def mount(device, path, opts=None):
+    cmd = ["mount", device, path]
+    if opts:
+        cmd += ["-o", opts]
+
+    subprocess.check_call(cmd, timeout=10)
+
+
+def unmount(path):
+    cmd = ["umount", path]
+    subprocess.check_call(cmd, timeout=10)
+
+
+def dd(ifile, ofile, count, **kwargs):
+    cmd = ["dd", "status=none", "if={}".format(ifile), "of={}".format(ofile), "count={}".format(count)]
+    for k, v in kwargs.items():
+        cmd.append("{}={}".format(k, v))
+
+    subprocess.check_call(cmd, timeout=20)
+
+
+def md5sum(path):
+    md5 = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            md5.update(chunk)
+
+    return md5.hexdigest()
+
+
+def settle(timeout=20):
+    cmd = ["udevadm", "settle", "-t", "{}".format(timeout)]
+    subprocess.check_call(cmd, timeout=(timeout + 10))
+
+
+def loop_create(loop, path):
+    cmd = ["losetup", loop, path]
+    subprocess.check_call(cmd, timeout=10)
+
+
+def loop_destroy(loop):
+    cmd = ["losetup", "-d", loop]
+    subprocess.check_call(cmd, timeout=10)
+
+
+def mkfs(device):
+    cmd = ["mkfs.ext4", "-F", device]
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
