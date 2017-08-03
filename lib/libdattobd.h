@@ -33,11 +33,7 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
-int dattobd_version(struct dattobd_version *ver);
-
 int dattobd_active_device_info(struct dattobd_active_device_info *info);
-
-int dattobd_generic(unsigned long iocid, void *data);
 
 
 #ifdef __cplusplus

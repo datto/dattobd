@@ -1,11 +1,11 @@
 /*
-    Copyright (C) 2015 Datto Inc.
+	Copyright (C) 2015 Datto Inc.
 
-    This file is part of dattobd.
+	This file is part of dattobd.
 
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License version 2 as published
-    by the Free Software Foundation.
+	This program is free software; you can redistribute it and/or modify it
+	under the terms of the GNU General Public License version 2 as published
+	by the Free Software Foundation.
 */
 
 #include <unistd.h>
@@ -13,6 +13,20 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include "libdattobd.h"
+
+
+static int dattobd_ioctl(unsigned long iocid, void *data)
+{
+	int fd, ret;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, iocid, data);
+
+	close(fd);
+	return ret;
+}
 
 int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
 	struct setup_params sp;
@@ -23,7 +37,7 @@ int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned l
 	sp.fallocated_space = fallocated_space;
 	sp.cache_size = cache_size;
 
-	return dattobd_generic(IOCTL_SETUP_SNAP, &sp);
+	return dattobd_ioctl(IOCTL_SETUP_SNAP, &sp);
 }
 
 int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
@@ -34,7 +48,7 @@ int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned 
 	rp.cow = cow;
 	rp.cache_size = cache_size;
 
-	return dattobd_generic(IOCTL_RELOAD_SNAP, &rp);
+	return dattobd_ioctl(IOCTL_RELOAD_SNAP, &rp);
 }
 
 int dattobd_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
@@ -45,17 +59,17 @@ int dattobd_reload_incremental(unsigned int minor, char *bdev, char *cow, unsign
 	rp.cow = cow;
 	rp.cache_size = cache_size;
 
-	return dattobd_generic(IOCTL_RELOAD_INC, &rp);
+	return dattobd_ioctl(IOCTL_RELOAD_INC, &rp);
 }
 
 int dattobd_destroy(unsigned int minor){
 
-	return dattobd_generic(IOCTL_DESTROY, &minor);
+	return dattobd_ioctl(IOCTL_DESTROY, &minor);
 }
 
 int dattobd_transition_incremental(unsigned int minor){
 
-	return dattobd_generic(IOCTL_TRANSITION_INC, &minor);
+	return dattobd_ioctl(IOCTL_TRANSITION_INC, &minor);
 }
 
 int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
@@ -65,7 +79,7 @@ int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fal
 	tp.cow = cow;
 	tp.fallocated_space = fallocated_space;
 
-	return dattobd_generic(IOCTL_TRANSITION_SNAP, &tp);
+	return dattobd_ioctl(IOCTL_TRANSITION_SNAP, &tp);
 }
 
 int dattobd_reconfigure(unsigned int minor, unsigned long cache_size){
@@ -74,7 +88,7 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size){
 	rp.minor = minor;
 	rp.cache_size = cache_size;
 
-	return dattobd_generic(IOCTL_RECONFIGURE, &rp);
+	return dattobd_ioctl(IOCTL_RECONFIGURE, &rp);
 }
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info){
@@ -86,44 +100,21 @@ int dattobd_info(unsigned int minor, struct dattobd_info *info){
 
 	info->minor = minor;
 
-	return dattobd_generic(IOCTL_DATTOBD_INFO, info);
-}
-
-int dattobd_version(struct dattobd_version *ver) {
-
-    if(!ver){
-        errno = EINVAL;
-        return -1;
-    }
-
-    return dattobd_generic(IOCTL_DATTOBD_VERSION, ver);
+	return dattobd_ioctl(IOCTL_DATTOBD_INFO, info);
 }
 
 int dattobd_active_device_info(struct dattobd_active_device_info *info)
 {
-    // on entry info->count has the number of info structs allocated that it is safe for us to return
-    // the actually memory allocated by the caller must be at least
-    // sizeof(dattobd_active_device_info) + ((info->count - 1) * sizeof(dattobd_info))
-    if(!info){
-        errno = EINVAL;
-        return -1;
-    }
+	/* on entry info->count has the number of info structs allocated that it is safe for us to return
+	 * the actually memory allocated by the caller must be at least
+	 * sizeof(struct dattobd_active_device_info) + ((info->count - 1) * sizeof(struct dattobd_info)) */
+	if(!info){
+		errno = EINVAL;
+		return -1;
+	}
 
-    return dattobd_generic(IOCTL_DATTOBD_ACTIVE_DEVICE_INFO, info);
+	return dattobd_ioctl(IOCTL_DATTOBD_ACTIVE_DEVICE_INFO, info);
 }
 
-int dattobd_generic(unsigned long iocid, void *data)
-{
-    int fd, ret;
-
-    fd = open("/dev/datto-ctl", O_RDONLY);
-    if(fd < 0) return -1;
-
-    ret = ioctl(fd, iocid, data);
-
-    close(fd);
-    return ret;
-
-}
 
 

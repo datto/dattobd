@@ -1,11 +1,11 @@
 /*
-    Copyright (C) 2015 Datto Inc.
+	Copyright (C) 2015 Datto Inc.
 
-    This file is part of dattobd.
+	This file is part of dattobd.
 
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License version 2 as published
-    by the Free Software Foundation.
+	This program is free software; you can redistribute it and/or modify it
+	under the terms of the GNU General Public License version 2 as published
+	by the Free Software Foundation.
 */
 
 #ifndef DATTOBD_H_
@@ -77,13 +77,10 @@ struct dattobd_info{
 	char bdev[PATH_MAX];
 };
 
-struct dattobd_version {
-    char version_string[20]; // null terminated string for returning version number, allow for a date.
-};
-
 struct dattobd_active_device_info {
-    int count; // in/out  in = max to supply, out = number of info structs returned
-    struct dattobd_info first; // we return an array of these back to back
+	char version_string[20]; // null terminated string for returning version number, allow for a date.
+	int count; // in/out  in = max to supply, out = number of info structs returned
+	struct dattobd_info first[0]; // we return an array of these back to back
 };
 
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
@@ -94,7 +91,6 @@ struct dattobd_active_device_info {
 #define IOCTL_TRANSITION_SNAP _IOW(DATTO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
 #define IOCTL_RECONFIGURE _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
 #define IOCTL_DATTOBD_INFO _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) //in: see above
-#define IOCTL_DATTOBD_VERSION _IOR(DATTO_IOCTL_MAGIC, 9, struct dattobd_version) //in: see above
-#define IOCTL_DATTOBD_ACTIVE_DEVICE_INFO _IOR(DATTO_IOCTL_MAGIC, 10, struct dattobd_active_device_info) //in: see above
+#define IOCTL_DATTOBD_ACTIVE_DEVICE_INFO _IOR(DATTO_IOCTL_MAGIC, 9, struct dattobd_active_device_info) //in: see above
 
 #endif /* DATTOBD_H_ */
