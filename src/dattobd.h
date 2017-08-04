@@ -80,7 +80,7 @@ struct dattobd_info{
 struct dattobd_active_device_info {
 	char version_string[20]; // null terminated string for returning version number, allow for a date.
 	int count; // in/out  in = max to supply, out = number of info structs returned
-	struct dattobd_info first[0]; // we return an array of these back to back
+	struct dattobd_info info[0]; // we return an array of these back to back
 };
 
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above

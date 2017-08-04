@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include "../lib/libdattobd.h"
+#include "../src/dattobd.h"
 
 static void print_help(int status){
 	printf("Usage:\n");
@@ -25,7 +26,8 @@ static void print_help(int status){
 	printf("\tdbdctl destroy <minor>\n");
 	printf("\tdbdctl transition-to-incremental <minor>\n");
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
-	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
+    printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
+    printf("\tdbdctl info [minor]\n");
 	printf("\tdbdctl help\n\n");
 	printf("for the reload commands, <cow file> should be specified relative to the root of <block device>\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes\n");
@@ -318,6 +320,86 @@ error:
 	return 0;
 }
 
+static void print_info(struct dattobd_info *infoitem)
+{
+    int i;
+    printf("minor: %d\n", infoitem->minor);
+    printf("state: %lu\n", infoitem->state);
+    printf("error: %d\n", infoitem->error);
+    printf("cache_size: %lu\n", infoitem->cache_size);
+    printf("falloc_size: %llu\n", infoitem->falloc_size);
+    printf("seqid: %llu\n", infoitem->seqid);
+    printf("uuid: ");
+    for(i = 0; i < COW_UUID_SIZE; i++)
+        printf("%02x", (unsigned int)(infoitem->uuid[i] & 0xff));
+    printf("\n");
+
+    printf("cow: %s\n", infoitem->cow);
+    printf("bdev: %s\n", infoitem->bdev);
+    printf("\n");
+}
+
+static int handle_active_devices(void){
+    int max = 255;
+    int bufsz = sizeof(struct dattobd_active_device_info) + (max * sizeof(struct dattobd_info));
+    int ret;
+    int lp;
+    struct dattobd_info *infoitem;
+    struct dattobd_active_device_info *adi;
+
+    adi = malloc(bufsz);
+    memset(adi, 0, bufsz);
+    adi->count = max; // set max we have allocated memory for.
+    ret = dattobd_active_device_info(adi);
+    if (ret) goto error;
+    // print version first.
+    printf("version [%s]\n\n", adi->version_string);
+
+    printf("count returned: %d\n", adi->count);
+    // now dump out the contents.
+    for (lp = 0; lp < adi->count; lp++)
+    {
+        int i;
+        infoitem = &(adi->info[lp]);
+        print_info(infoitem);
+    }
+    goto end;
+
+    error:
+        perror("error from dattobd_active_device_info");
+    end:
+        if (adi)
+            free(adi);
+        return 0;
+}
+
+static int handle_info(int argc, char **argv){
+    int ret;
+    unsigned int minor;
+    struct dattobd_info info;
+
+    if(argc != 2){
+        return handle_active_devices();
+    }
+
+    ret = parse_ui(argv[1], &minor);
+    if(ret) goto error;
+
+    ret = dattobd_info(minor, &info);
+    if (ret) goto error2;
+    print_info(&info);
+    return 0;
+
+    error:
+        perror("error interpreting info parameters");
+        print_help(-1);
+        return 0;
+    error2:
+        perror("error from dattobd_info");
+        return 0;
+}
+
+
 int main(int argc, char **argv){
 	int ret = 0;
 
@@ -337,7 +419,8 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "destroy")) ret = handle_destroy(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "transition-to-incremental")) ret = handle_transition_inc(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "transition-to-snapshot")) ret = handle_transition_snap(argc - 1, argv + 1);
-	else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
+    else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
+    else if(!strcmp(argv[1], "info")) ret = handle_info(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
 

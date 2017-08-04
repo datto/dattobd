@@ -218,9 +218,9 @@ typedef enum req_op {
 	REQ_OP_READ,
 	REQ_OP_WRITE,
 	REQ_OP_DISCARD,		 /* request to discard sectors */
-	REQ_OP_SECURE_ERASE,	/* request to securely erase sectors */
-	REQ_OP_WRITE_SAME,	  /* write same block many times */
-	REQ_OP_FLUSH,		   /* request for cache flush */
+	REQ_OP_SECURE_ERASE, /* request to securely erase sectors */
+	REQ_OP_WRITE_SAME,   /* write same block many times */
+	REQ_OP_FLUSH,		 /* request for cache flush */
 } req_op_t;
 
 static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
@@ -4121,38 +4121,40 @@ error:
 	return ret;
 }
 
-static int ioctl_active_device_info(struct dattobd_active_device_info **adinfo, unsigned int *copyback)
+static void set_version(struct dattobd_active_device_info *adinfo)
 {
-	/* get the count from *adinfo, free the memory, figure out how much we're actually going to return
+    char *src;
+    char *dest;
+    int len;
+    int vslen;
+
+    src = DATTOBD_VERSION;
+    dest = adinfo->version_string;
+    len = strlen(src) + 1;
+    vslen = sizeof(adinfo->version_string);
+    // make sure we don't copy more than the user should have allocated.
+    if (len > vslen)
+        len = vslen;
+    strncpy(dest, src, len);
+    // if the string is too long, make sure to nt the last position
+    if (len == vslen)
+        *(dest + (vslen-1)) = '\0';
+}
+
+static int ioctl_active_device_info(struct dattobd_active_device_info **adinfo, unsigned int *copyback){
+	/*
+	 * get the count from *adinfo, free the memory, figure out how much we're actually going to return
 	 * reallocate *adinfo to that size, then copy the structs in, set the count for what we're returning
-	 * and we're done. */
+	 * and we're done.
+	 */
 	int ret;
-	int active;
+	int active = 0;
 	int user_max; // the count of how many structs the caller has reserved space for
 	int i;
-	int pos;
+	int pos = 0;
 	unsigned long bufsz;
 	struct snap_device *dev;
 	struct dattobd_info *infoitem;
-	char *src;
-	char *dest;
-	int len;
-	int vslen;
-	active = 0;
-	pos = 0;
-
-	// first copy the version back
-	src = DATTOBD_VERSION;
-	dest = (*adinfo)->version_string;
-	len = strlen(src) + 1;
-	vslen = sizeof((*adinfo)->version_string);
-	// make sure we don't copy more than the user should have allocated.
-	if (len > vslen)
-		len = vslen;
-	strncpy(dest, src, len);
-	// if the string is too long, make sure to nt the last position
-	if (len == vslen)
-		*(dest + (vslen-1)) = '\0';
 
 	// now go copy in the snapdevice info
 	user_max = (*adinfo)->count;
@@ -4165,31 +4167,32 @@ static int ioctl_active_device_info(struct dattobd_active_device_info **adinfo, 
 			continue;
 		active++;
 	}
-	if (active == 0) {
+	if (active == 0){
 		// use existing buffer to send back a zero
 		(*adinfo)->count = 0;
 		*copyback = 0; // tell caller to copy the count and version back
+		set_version(*adinfo);
 		LOG_DEBUG("No devices active.");
 		return 0;
 	}
-	if (active > user_max)
-		return -ENOSPC;
+	if (active > user_max) return -ENOSPC;
 
 	kfree(*adinfo); // free up the buffer allocated in giant switch
 	*adinfo = NULL;
 
 	// allocate the buffer we're going to fill
-	// there is already one info in active_device_info so add as many as we need minus that one.
-	bufsz = sizeof(struct dattobd_active_device_info) + ((active - 1) * sizeof(struct dattobd_info));
+	bufsz = sizeof(struct dattobd_active_device_info) + (active * sizeof(struct dattobd_info));
 
 	*adinfo = kmalloc(bufsz, GFP_KERNEL);
-	if (*adinfo == NULL) {
+	if (*adinfo == NULL){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating memory for dattobd active device info, alloc = %lu", bufsz);
 		return -1;
 	}
 
-	// how many we're going to return
+    set_version(*adinfo);
+
+    // how many we're going to return
 	(*adinfo)->count = active;
 
 	// now go through again copying the info info structs over
@@ -4198,7 +4201,7 @@ static int ioctl_active_device_info(struct dattobd_active_device_info **adinfo, 
 		if (ret)
 			continue;
 		LOG_DEBUG("Returning info for minor %d", i);
-		infoitem = &((*adinfo)->first[pos]);
+		infoitem = &((*adinfo)->info[pos]);
 		tracer_dattobd_info(dev, infoitem);
 		pos++;
 	}
@@ -4216,7 +4219,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	struct dattobd_info *info = NULL;
 	unsigned int minor = 0;
 	unsigned long fallocated_space = 0, cache_size = 0;
-	unsigned int copyback;
+	unsigned int copyback = 0;
 	struct dattobd_active_device_info *adinfo = NULL;
 	int bufsz;
 
@@ -4336,7 +4339,6 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
-		copyback = 0;
 		ret = ioctl_active_device_info(&adinfo, &copyback);
 		if(ret) break;
 		bufsz = sizeof(struct dattobd_active_device_info) + (copyback * sizeof(struct dattobd_info));
