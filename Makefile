@@ -19,13 +19,13 @@ library-static:
 
 library: library-shared library-static
 
-application: library-static
+application-static: library-static
 	$(MAKE) -C app
 
-application-shared: library-shared
+application: library-shared
 	$(MAKE) -C app shared
 
-utils: library-static
+utils: library-shared
 	$(MAKE) -C utils
 
 clean:
