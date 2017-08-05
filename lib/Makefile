@@ -1,7 +1,7 @@
-TARGET_LIB = libdattobd.so.0
-SONAME = libdattobd.so
-SHARED_CCFLAGS = -fPIC -lc -shared -Wl,-soname,$(SONAME)
-LIBDIR = $(PREFIX)/lib
+LIBNAME = libdattobd.so
+SOVER = 1
+SHARED_CCFLAGS = -fPIC -lc -shared -Wl,-soname,$(LIBNAME).$(SOVER)
+LIBDIR = $(PREFIX)/lib64
 
 SOURCES = libdattobd.c
 
@@ -10,16 +10,16 @@ SOURCES = libdattobd.c
 all: shared static
 
 shared:
-	$(CC) $(CCFLAGS) $(SHARED_CCFLAGS) $(SOURCES) -o $(TARGET_LIB)
-	ln -sf $(TARGET_LIB) $(SONAME)
+	$(CC) $(CCFLAGS) $(SHARED_CCFLAGS) $(SOURCES) -o $(LIBNAME).$(SOVER)
+	ln -sf $(LIBNAME).$(SOVER) $(LIBNAME)
 
 static:
 	$(CC) $(CCFLAGS) -c $(SOURCES)
 	ar rcs libdattobd.a libdattobd.o
 
 install: shared
-	install $(TARGET_LIB) $(LIBDIR)
-	ln -sf $(LIBDIR)/$(TARGET_LIB) $(LIBDIR)/$(SONAME)
+	install $(LIBNAME).$(SOVER) $(LIBDIR)
+	install $(LIBNAME) $(LIBDIR)
 	ldconfig
 
 clean:
