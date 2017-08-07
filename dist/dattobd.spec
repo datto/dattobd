@@ -70,6 +70,28 @@
 %global rpm_dkms_opt 1
 %endif
 
+# Set the libdir correctly for Debian/Ubuntu systems
+%if %{_vendor} == "debbuild"
+%global _libdir %{_prefix}/lib/%(%{__dpkg_architecture} -qDEB_HOST_MULTIARCH)
+%endif
+
+# Set up library package names properly
+%global libprefix libdattobd
+%global libsover 1
+
+%if %{_vendor} == "debbuild"
+%global devsuffix dev
+%else
+%global devsuffix devel
+%endif
+
+%if 0%{?fedora} || 0%{?rhel}
+%global libname %{libprefix}
+%else
+%global libname %{libprefix}%{libsover}
+%endif
+
+%global devname %{libprefix}-%{devsuffix}
 
 Name:            dattobd
 Version:         0.9.16
@@ -101,6 +123,38 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 The Datto Block Driver is a kernel module that enables
 live image backups through block devices.
 
+%package -n %{libname}
+Summary:         Library for communicating with %{name} kernel module
+%if %{_vendor} == "debbuild"
+Group:           libs
+%else
+%if 0%{?suse_version}
+Group:           System/Libraries
+%else
+Group:           System Environment/Libraries
+%endif
+%endif
+
+%description -n %{libname}
+The library for communicating with the %{name} kernel module.
+
+
+%package -n %{devname}
+Summary:         Files for developing applications to use %{name}.
+%if %{_vendor} == "debbuild"
+Group:           libdevel
+%else
+%if 0%{?suse_version}
+Group:           Development/Libraries/C and C++
+%else
+Group:           Development/Libraries
+%endif
+%endif
+
+%description -n %{devname}
+This package provides the files necessary to develop applications
+to use %{name}.
+
 
 %package utils
 Summary:         Utilities for using %{name} kernel module
@@ -114,6 +168,7 @@ Group:           System Environment/Kernel
 %endif
 %endif
 Requires:        %{dkmsname} = %{version}-%{release}
+Requires:        %{libname}%{?_isa} = %{version}-%{release}
 %if 0%{?fedora} > 21 || 0%{?rhel} >= 8 || 0%{?suse_version} > 1320 || 0%{?debian} || 0%{?ubuntu}
 Recommends:      bash-completion
 %endif
@@ -191,6 +246,26 @@ make utils
 
 
 %install
+# Install library
+mkdir -p %{buildroot}%{_libdir}/pkgconfig
+install -p -m 0755 lib/libdattobd.so.%{libsover} %{buildroot}%{_libdir}/
+ln -sf libdattobd.so.%{libsover} %{buildroot}%{_libdir}/libdattobd.so
+install -p -m 0644 dist/libdattobd.pc.in %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
+
+sed -e "s:@prefix@:%{_prefix}:g" \
+    -e "s:@libdir@:%{_libdir}:g" \
+    -e "s:@includedir@:%{_includedir}:g" \
+    -e "s:@PACKAGE_VERSION@:%{version}:g" \
+    -i %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
+
+
+# Generate symbols for library package (Debian/Ubuntu only)
+%if %{_vendor} == "debbuild"
+mkdir -p %{buildroot}/%{libname}/DEBIAN
+dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover}.* -O%{buildroot}/%{libname}/DEBIAN/symbols
+%endif
+
+# Install utilities and man pages
 mkdir -p %{buildroot}%{_bindir}
 install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
@@ -381,6 +456,38 @@ rm -rf %{buildroot}
 %endif
 %endif
 
+%files -n %{libname}
+%if 0%{?suse_version}
+%defattr(-,root,root,-)
+%endif
+%{_libdir}/libdattobd.so.%{libsover}
+%if %{_vendor} == "redhat"
+%{!?_licensedir:%global license %doc}
+%license COPYING
+%else
+%if %{_vendor} == "debbuild"
+%license dist/copyright
+%else
+%doc COPYING
+%endif
+%endif
+
+%files -n %{devname}
+%if 0%{?suse_version}
+%defattr(-,root,root,-)
+%endif
+%{_libdir}/libdattobd.so
+%{_libdir}/pkgconfig/libdattobd.pc
+%if %{_vendor} == "redhat"
+%{!?_licensedir:%global license %doc}
+%license COPYING
+%else
+%if %{_vendor} == "debbuild"
+%license dist/copyright
+%else
+%doc COPYING
+%endif
+%endif
 
 %files -n %{dkmsname}
 %if 0%{?suse_version}

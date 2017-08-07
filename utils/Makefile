@@ -3,12 +3,19 @@ INSTALLDIR = $(PREFIX)/bin
 SOURCES = update-img.c
 CCFLAGS = -D_XOPEN_SOURCE=500
 
-.PHONY: all install clean
+.PHONY: shared static install-static install clean
 
-all:
+shared:
+	$(CC) $(CCFLAGS) -o $(BINARY_NAME) -L $(BASE_DIR)/lib $(SOURCES) -ldattobd
+
+static:
 	$(CC) $(CCFLAGS) -o $(BINARY_NAME) $(SOURCES) $(BASE_DIR)/lib/libdattobd.a
 
-install: all
+install-static: static
+	mkdir -p $(INSTALLDIR)
+	install $(BINARY_NAME) $(INSTALLDIR)
+
+install: shared
 	mkdir -p $(INSTALLDIR)
 	install $(BINARY_NAME) $(INSTALLDIR)
 
