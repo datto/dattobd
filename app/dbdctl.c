@@ -320,8 +320,7 @@ error:
 	return 0;
 }
 
-static void print_info(struct dattobd_info *infoitem)
-{
+static void print_info(struct dattobd_info *infoitem){
     int i;
     printf("minor: %d\n", infoitem->minor);
     printf("state: %lu\n", infoitem->state);
@@ -333,7 +332,6 @@ static void print_info(struct dattobd_info *infoitem)
     for(i = 0; i < COW_UUID_SIZE; i++)
         printf("%02x", (unsigned int)(infoitem->uuid[i] & 0xff));
     printf("\n");
-
     printf("cow: %s\n", infoitem->cow);
     printf("bdev: %s\n", infoitem->bdev);
     printf("\n");
@@ -386,7 +384,7 @@ static int handle_info(int argc, char **argv){
     if(ret) goto error;
 
     ret = dattobd_info(minor, &info);
-    if (ret) goto error2;
+    if (ret) goto error_info;
     print_info(&info);
     return 0;
 
@@ -394,7 +392,7 @@ static int handle_info(int argc, char **argv){
         perror("error interpreting info parameters");
         print_help(-1);
         return 0;
-    error2:
+    error_info:
         perror("error from dattobd_info");
         return 0;
 }
