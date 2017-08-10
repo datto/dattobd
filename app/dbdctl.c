@@ -363,10 +363,9 @@ static int handle_active_devices(void){
 
 error:
 		perror("error from dattobd_active_device_info");
-	end:
-		if (adi)
-			free(adi);
-		return 0;
+end:
+    if (adi) free(adi);
+    return 0;
 }
 
 static int handle_info(int argc, char **argv){
