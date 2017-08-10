@@ -115,6 +115,3 @@ int dattobd_active_device_info(struct dattobd_active_device_info *info)
 
 	return dattobd_ioctl(IOCTL_DATTOBD_ACTIVE_DEVICE_INFO, info);
 }
-
-
-
