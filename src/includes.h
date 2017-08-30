@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/blkdev.h>
+#include <linux/genhd.h>
 #include <linux/kthread.h>
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
