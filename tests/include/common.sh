@@ -27,6 +27,8 @@ function init_env
     MOUNT="${MOUNT_DIR}/dev0"
     COW_FILE="cow.snap"
     MINOR=1
+
+    export LD_LIBRARY_PATH=../lib
 }
 
 function insert_module
