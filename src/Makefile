@@ -5,6 +5,8 @@ KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 EXTRA_CFLAGS := -g
 
+all:	default
+
 default:
 	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
@@ -18,3 +20,4 @@ insmod: default
 
 rmmod:
 	rmmod dattobd
+

@@ -33,6 +33,9 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
+int dattobd_active_device_info(struct dattobd_active_device_info *info);
+
+
 #ifdef __cplusplus
 }
 #endif
