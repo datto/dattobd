@@ -32,6 +32,10 @@ MODULE_VERSION(DATTOBD_VERSION);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
 
+#ifdef HAVE_UUID_H
+#include <linux/uuid.h>
+#endif
+
 #ifndef HAVE_BIO_LIST
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
 struct bio_list {
@@ -214,6 +218,7 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 #define REQ_DISCARD 0
 #endif
 
+#ifndef HAVE_ENUM_REQ_OP
 typedef enum req_op {
 	REQ_OP_READ,
 	REQ_OP_WRITE,
@@ -248,6 +253,10 @@ static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op
 
 	bio->bi_rw |= op_flags;
 }
+#else
+	typedef enum req_op req_op_t;
+	#define dattobd_set_bio_ops(bio, op, flags) bio_set_op_attrs(bio, op, flags)
+#endif
 
 	#define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
 	#define dattobd_submit_bio(bio) submit_bio(0, bio)
