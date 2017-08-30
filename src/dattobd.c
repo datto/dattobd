@@ -334,6 +334,11 @@ static void dattobd_bio_endio(struct bio *bio, int err){
 static void dattobd_bio_endio(struct bio *bio, int err){
 	bio_endio(bio, err);
 }
+#elif defined HAVE_BLK_STATUS_T
+static void dattobd_bio_endio(struct bio *bio, int err){
+	bio->bi_status = errno_to_blk_status(err);
+	bio_endio(bio);
+}
 #else
 static void dattobd_bio_endio(struct bio *bio, int err){
 	bio->bi_error = err;
@@ -427,7 +432,9 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 #define blk_set_default_limits(ql)
 #endif
 
-#ifdef HAVE_BIOSET_CREATE_3
+#ifdef HAVE_BIOSET_NEED_BVECS_FLAG
+#define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, BIOSET_NEED_BVECS)
+#elif defined HAVE_BIOSET_CREATE_3
 #define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
 #else
 #define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
@@ -2803,6 +2810,10 @@ static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int err){
 static void on_bio_read_complete(struct bio *bio, int err){
 	if(!test_bit(BIO_UPTODATE, &bio->bi_flags)) err = -EIO;
 	__on_bio_read_complete(bio, err);
+}
+#elif defined HAVE_BLK_STATUS_T
+static void on_bio_read_complete(struct bio *bio){
+	__on_bio_read_complete(bio, blk_status_to_errno(bio->bi_status));
 }
 #else
 static void on_bio_read_complete(struct bio *bio){
