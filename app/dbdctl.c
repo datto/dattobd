@@ -15,8 +15,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <ctype.h>
-
-#include <libdattobd.h>
+#include "../lib/libdattobd.h"
 
 static void print_help(int status){
 	printf("Usage:\n");

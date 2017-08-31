@@ -16,8 +16,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-
-#include <libdattobd.h>
+#include "../lib/libdattobd.h"
+#include "../src/dattobd.h"
 
 #define INDEX_BUFFER_SIZE 8192
 
