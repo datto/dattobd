@@ -12,7 +12,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/ioctl.h>
-#include "libdattobd.h"
+
+#include <libdattobd.h>
 
 int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
 	int fd, ret;
