@@ -11,7 +11,9 @@
 #ifndef DATTOBD_H_
 #define DATTOBD_H_
 
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#include <linux/types.h>
+#else
 #include <stdint.h>
 #endif
 

@@ -10,7 +10,8 @@
 
 #include "includes.h"
 #include "kernel-config.h"
-#include "dattobd.h"
+
+#include <dattobd.h>
 
 //current lowest supported kernel = 2.6.18
 

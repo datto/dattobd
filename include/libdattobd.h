@@ -11,7 +11,7 @@
 #ifndef LIBDATTOBD_H_
 #define LIBDATTOBD_H_
 
-#include "../src/dattobd.h"
+#include <dattobd.h>
 
 #ifdef __cplusplus
 extern "C" {
