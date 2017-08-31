@@ -150,6 +150,7 @@ Group:           Development/Libraries/C and C++
 Group:           Development/Libraries
 %endif
 %endif
+Requires:        %{libname}%{?_isa} = %{version}-%{release}
 
 %description -n %{devname}
 This package provides the files necessary to develop applications
@@ -251,10 +252,13 @@ mkdir -p %{buildroot}%{_libdir}/pkgconfig
 install -p -m 0755 lib/libdattobd.so.%{libsover} %{buildroot}%{_libdir}/
 ln -sf libdattobd.so.%{libsover} %{buildroot}%{_libdir}/libdattobd.so
 install -p -m 0644 dist/libdattobd.pc.in %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
+mkdir -p %{buildroot}%{_includedir}/dattobd
+install -p -m 0644 lib/libdattobd.h %{buildroot}%{_includedir}/dattobd/libdattobd.h
+install -p -m 0644 src/dattobd.h %{buildroot}%{_includedir}/dattobd/dattobd.h
 
 sed -e "s:@prefix@:%{_prefix}:g" \
     -e "s:@libdir@:%{_libdir}:g" \
-    -e "s:@includedir@:%{_includedir}:g" \
+    -e "s:@includedir@:%{_includedir}/dattobd:g" \
     -e "s:@PACKAGE_VERSION@:%{version}:g" \
     -i %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
 
@@ -478,6 +482,7 @@ rm -rf %{buildroot}
 %endif
 %{_libdir}/libdattobd.so
 %{_libdir}/pkgconfig/libdattobd.pc
+%{_includedir}/dattobd/
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING

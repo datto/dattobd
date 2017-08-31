@@ -1,7 +1,6 @@
 BINARY_NAME = update-img
 INSTALLDIR = $(PREFIX)/bin
 SOURCES = update-img.c
-CCFLAGS = -D_XOPEN_SOURCE=500
 
 .PHONY: shared static install-static install clean
 
