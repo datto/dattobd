@@ -127,11 +127,14 @@ live image backups through block devices.
 Summary:         Library for communicating with %{name} kernel module
 %if %{_vendor} == "debbuild"
 Group:           libs
+License:         LGPL-2.1+
 %else
 %if 0%{?suse_version}
 Group:           System/Libraries
+License:         LGPL-2.1+
 %else
 Group:           System Environment/Libraries
+License:         LGPLv2+
 %endif
 %endif
 
@@ -143,11 +146,14 @@ The library for communicating with the %{name} kernel module.
 Summary:         Files for developing applications to use %{name}.
 %if %{_vendor} == "debbuild"
 Group:           libdevel
+License:         LGPL-2.1+
 %else
 %if 0%{?suse_version}
 Group:           Development/Libraries/C and C++
+License:         LGPL-2.1+
 %else
 Group:           Development/Libraries
+License:         LGPLv2+
 %endif
 %endif
 Requires:        %{libname}%{?_isa} = %{version}-%{release}
@@ -451,12 +457,12 @@ rm -rf %{buildroot}
 %doc README.md doc/STRUCTURE.md
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
-%license COPYING
+%license COPYING* LICENSING.md
 %else
 %if %{_vendor} == "debbuild"
 %license dist/copyright
 %else
-%doc COPYING
+%doc COPYING* LICENSING.md
 %endif
 %endif
 
@@ -467,12 +473,12 @@ rm -rf %{buildroot}
 %{_libdir}/libdattobd.so.%{libsover}
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
-%license COPYING
+%license COPYING* LICENSING.md
 %else
 %if %{_vendor} == "debbuild"
 %license dist/copyright
 %else
-%doc COPYING
+%doc COPYING* LICENSING.md
 %endif
 %endif
 
@@ -485,12 +491,12 @@ rm -rf %{buildroot}
 %{_includedir}/dattobd/
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
-%license COPYING
+%license COPYING* LICENSING.md
 %else
 %if %{_vendor} == "debbuild"
 %license dist/copyright
 %else
-%doc COPYING
+%doc COPYING* LICENSING.md
 %endif
 %endif
 
@@ -522,12 +528,12 @@ rm -rf %{buildroot}
 %doc README.md
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
-%license COPYING
+%license COPYING* LICENSING.md
 %else
 %if %{_vendor} == "debbuild"
 %license dist/copyright
 %else
-%doc COPYING
+%doc COPYING* LICENSING.md
 %endif
 %endif
 

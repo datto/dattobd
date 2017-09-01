@@ -1,9 +1,10 @@
 Datto Block Driver
-===========
+==================
 
 For build and install instructions, see [INSTALL.md](INSTALL.md).
 For information about the on-disk .datto file this module creates, see [STRUCTURE.md](doc/STRUCTURE.md).
 For instructions regarding the `dbdctl` tool, see [dbdctl.8.md](doc/dbdctl.8.md).
+For details on the license of the software, see [LICENSING.md](LICENSING.md).
 
 ## The Linux Snapshot Problem
 
