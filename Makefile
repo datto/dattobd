@@ -35,6 +35,6 @@ clean:
 	$(MAKE) -C utils clean
 
 install:
-	$(MAKE) -C lib install
-	$(MAKE) -C app install
-	$(MAKE) -C utils install
+	$(MAKE) -C lib install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src"
+	$(MAKE) -C app install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
+	$(MAKE) -C utils install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib -D_XOPEN_SOURCE=500"
