@@ -94,7 +94,7 @@
 %global devname %{libprefix}-%{devsuffix}
 
 Name:            dattobd
-Version:         0.9.16
+Version:         0.10.0
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -539,6 +539,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 5 2017 Tim Crawford <tcrawford@datto.com> - 0.10.0
+- Fixed module loading on RHEL 5/6
+- Made use of `OrderWithRequires` to improve module upgrades
+- Fixed bug in info ioctl
+- Added man pages to utils package
+- Prefixed all library functions with `dattobd`
+- Made module parameters lower case
+- Added packages for shared library
+- Made utilities use the shared library by default
+- Added compatibility with RHEL 7.4
+
 * Mon Mar 6 2017 Tim Crawford <tcrawford@datto.com> - 0.9.16
 - Added Linux 4.10 compatibility
 - Removed unused feature tests
