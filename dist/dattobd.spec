@@ -364,9 +364,16 @@ fi
 
 rmmod %{name} &> /dev/null
 
-dkms add -m %{name} -v %{version} %{?rpm_dkms_opt:--rpm_safe_upgrade}
-dkms build -m %{name} -v %{version}
-dkms install -m %{name} -v %{version}
+%if %{_vendor} == "debbuild"
+if [ "$1" = "configure" ]; then
+%else
+if [ "$1" -ge "1" ]; then
+%endif
+	if [ -f /usr/lib/dkms/common.postinst ]; then
+		/usr/lib/dkms/common.postinst %{name} %{version}
+		exit $?
+	fi
+fi
 
 sleep 5s
 
