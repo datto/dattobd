@@ -1,7 +1,7 @@
 # dattobd INSTALL
 
 ## From Repositories
-We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, and Ubuntu LTS.
+We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, Debian, and Ubuntu LTS.
 
 ### RHEL/CentOS
 The repository install package `datto-el-rpm-release` is available for EL5+.
@@ -38,10 +38,10 @@ sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/open
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-latest.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
-### Ubuntu LTS
+### Debian/Ubuntu LTS
 ```bash
-sudo apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 29FF164C
-echo "deb https://cpkg.datto.com/repositories $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/datto-linux-agent.list
+sudo apt-key adv --recv-keys --keyserver keys.fedoraproject.org 370C85D709D26407
+echo "deb [arch=amd64] https://cpkg.datto.com/datto-deb/public/$(lsb_release -sc) $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/datto-linux-agent.list
 sudo apt-get update
 sudo apt-get install dattobd-dkms dattobd-utils
 ```
