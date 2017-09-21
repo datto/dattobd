@@ -1886,7 +1886,7 @@ static int cow_reload(char *path, uint64_t elements, unsigned long sect_size, un
 	if(ret) goto error;
 
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
-	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL);
+	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL | __GFP_NOWARN);
 	if(!cm->sects){
 		//try falling back to vmalloc
 		cm->flags |= (1 << COW_VMALLOC_UPPER);
@@ -1954,7 +1954,7 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	if(ret) goto error;
 
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
-	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL);
+	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL | __GFP_NOWARN);
 	if(!cm->sects){
 		//try falling back to vmalloc
 		cm->flags |= (1 << COW_VMALLOC_UPPER);
