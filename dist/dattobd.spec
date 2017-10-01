@@ -427,6 +427,12 @@ if [ $1 -eq 0 ]; then
 fi
 %endif
 
+%post -n %{libname}
+/sbin/ldconfig
+
+%postun -n %{libname}
+/sbin/ldconfig
+
 
 %clean
 # EL5 and SLE 11 require this section
