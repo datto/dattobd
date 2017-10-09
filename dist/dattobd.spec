@@ -375,19 +375,6 @@ if [ "$1" -ge "1" ]; then
 	fi
 fi
 
-sleep 5s
-
-echo "Starting kernel module..."
-modprobe %{name}
-sleep 1s
-
-if [[ $(lsmod | grep -o %{name}) != *"%{name}"* ]]; then
-    echo "Module unable to start!"
-    echo "Please start it with 'modprobe %{name}' after install."
-else
-    echo "Module started!"
-fi
-
 
 %post utils
 %if 0%{?rhel} != 5
