@@ -1,52 +1,51 @@
 #!/bin/sh
 
+type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
+
 modprobe dattobd
 
-if [ -n "$root" -o -n "${root#block:*}" ]; then
-	echo "dattobd ROOT = $root" > /dev/kmsg
-	rbd=""
+[ -z "$root" ] && root=$(getarg root=)
+[ -z "$rootfstype" ] && rootfstype=$(getarg rootfstype=)
 
-	if test "${root#*/dev/disk/by-uuid/}" != $root; then
-		orig=$rbd
-		rbd=${root#block:/dev/disk/by-uuid/}
-		rbd=$(blkid -t UUID=$rbd -o device)
-		if test "$rbd" = ""; then
-			# 12/5/2016 if blkid gets nothing, wait for udev to settle
-			echo "dattobd waiting for udev to settle" > /dev/kmsg
-			/usr/bin/udevadm settle
-			echo "dattobd udev settled" > /dev/kmsg
-			rbd=$orig
-			rbd=${root#block:/dev/disk/by-uuid/}
-			rbd=$(blkid -t UUID=$rbd -o device)
-			echo "dattobd settled rbd $rbd" > /dev/kmsg
-		else
-			echo "dattobd rbd $rbd" > /dev/kmsg
-		fi
-	elif test "${root#*/dev/mapper/}" != $root; then
-		rbd=${root#block:}
-	else
-		rbd=${root#block:}
-	fi
+rbd="${root#block:}"
+if [ -n "$rbd" ]; then
+    # Based on 98dracut-systemd/rootfs-generator.sh
+    case "$rbd" in
+        LABEL=*)
+            rbd="$(echo $rbd | sed 's,/,\\x2f,g')"
+            rbd="/dev/disk/by-label/${rbd#LABEL=}"
+            ;;
+        UUID=*)
+            rbd="/dev/disk/by-uuid/${rbd#UUID=}"
+            ;;
+        PARTLABEL=*)
+            rbd="/dev/disk/by-partlabel/${rbd#PARTLABEL=}"
+            ;;
+        PARTUUID=*)
+            rbd="/dev/disk/by-partuuid/${rbd#PARTUUID=}"
+            ;;
+    esac
 
-	echo "RBD = $rbd" > /dev/kmsg
+    echo "dattobd: root block device = $rbd" > /dev/kmsg
 
-	if [ -b "$rbd" ]; then
-		if [ -z "$fstype" ]; then
-			fstype=$(blkid -s TYPE $rbd)
-			fstype=${fstype#*TYPE\=\"}
-			fstype=${fstype%\"*}
-		fi
-		echo "Mounting $rbd as $fstype" > /dev/kmsg
-		mount -t $fstype -o ro "$rbd" /etc/datto/dla/mnt > /dev/kmsg
-		sleep 1
-echo "datto looking for datto_reload" > /dev/kmsg
-		if [ -x /sbin/datto_reload ]; then
-echo "datto found /sbin/datto_reload" > /dev/kmsg
-			/sbin/datto_reload > /dev/kmsg
-		else
-echo "datto did not find /sbin/datto_reload" > /dev/kmsg
-		fi
-		umount -f /etc/datto/dla/mnt > /dev/kmsg
-	fi
+    # Device might not be ready
+    if ! [ -b "$rbd" ]; then
+        udevadm settle
+    fi
+
+    # Kernel cmdline might not specify rootfstype
+    [ -z "$rootfstype" ] && rootfstype=$(blkid -s TYPE "$rbd" -o value)
+
+    echo "dattobd: mounting $rbd as $rootfstype" > /dev/kmsg
+    mount -t $rootfstype -o ro "$rbd" /etc/datto/dla/mnt
+    udevadm settle
+
+    if [ -x /sbin/datto_reload ]; then
+        echo "dattobd: found /sbin/datto_reload" > /dev/kmsg
+        /sbin/datto_reload
+    else
+        echo "dattobd: Warning: did not find /sbin/datto_reload" > /dev/kmsg
+    fi
+
+    umount -f /etc/datto/dla/mnt
 fi
-
