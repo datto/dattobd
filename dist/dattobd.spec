@@ -94,7 +94,7 @@
 %global devname %{libprefix}-%{devsuffix}
 
 Name:            dattobd
-Version:         0.10.0
+Version:         0.10.1
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -539,6 +539,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 7 2017 Tim Crawford <tcrawford@datto.com> - 0.10.1
+- Switched to DKMS common scriplet for installing the module
+- Suppressed warnings for failed memory allocations if fallback is used
+- Added Linux 4.13 compatibility
+- Improved detection of root block device for dracut systems
+
 * Tue Sep 5 2017 Tim Crawford <tcrawford@datto.com> - 0.10.0
 - Fixed module loading on RHEL 5/6
 - Made use of `OrderWithRequires` to improve module upgrades
