@@ -10,29 +10,17 @@ sudo yum localinstall https://cpkg.datto.com/datto-rpm/repoconfig/datto-el-rpm-r
 sudo yum install dkms-dattobd dattobd-utils
 ```
 ### Fedora
-The repository install package `datto-fedora-rpm-release` is available for F20+, excluding Rawhide.
+The repository install package `datto-fedora-rpm-release` is available for F24+, excluding Rawhide.
 ```bash
 sudo yum install https://cpkg.datto.com/datto-rpm/repoconfig/datto-fedora-rpm-release-$(rpm -E %fedora)-latest.noarch.rpm
 sudo yum install kernel-devel-$(uname -r) dkms-dattobd dattobd-utils
 ```
 ### openSUSE
-The repository install package `datto-opensuse-rpm-release` is available for openSUSE 13.1 and newer, excluding Tumbleweed and Factory.
+The repository install package `datto-opensuse-rpm-release` is available for openSUSE Leap 42.x.
 Due to the DKMS software not being present in openSUSE's default repositories, the `X11:Bumblebee` or other similar repository providing
 DKMS is required. The steps below assume no providers of DKMS are available, so it may not be necessary to add `X11:Bumblebee` if you can
 already get DKMS through an already-installed repository.
-#### openSUSE 13.1
-```bash
-sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_13.1/X11:Bumblebee.repo
-sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-13.1-latest.noarch.rpm
-sudo zypper install dkms-dattobd dattobd-utils
-```
-#### openSUSE 13.2
-```bash
-sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_13.2/X11:Bumblebee.repo
-sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-13.2-latest.noarch.rpm
-sudo zypper install dkms-dattobd dattobd-utils
-```
-#### openSUSE Leap 42.1
+#### openSUSE Leap 42.x
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.1/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-latest.noarch.rpm
