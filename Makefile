@@ -3,7 +3,7 @@ export RM = rm -f
 CFLAGS ?= -Wall
 export CCFLAGS = $(CFLAGS) -std=gnu99
 export PREFIX = /usr/local
-export BASE_DIR = $(dir $(abspath ./Makefile))
+export BASE_DIR = $(abspath .)
 
 .PHONY: all driver library-shared library-static library application application-shared utils clean install
 
