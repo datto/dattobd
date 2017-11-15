@@ -94,7 +94,7 @@
 %global devname %{libprefix}-%{devsuffix}
 
 Name:            dattobd
-Version:         0.10.2
+Version:         0.10.3
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -540,6 +540,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 15 2017 Neal Gompa <ngompa@datto.com> - 0.10.3
+- Fix Makefile to have no trailing slash for BASE_DIR to fix debug symbols
+
 * Wed Nov 15 2017 Neal Gompa <ngompa@datto.com> - 0.10.2
 - Correctly pass compile flags to fix the build for Fedora 27
 
