@@ -1,6 +1,7 @@
 export CC = gcc
 export RM = rm -f
-export CCFLAGS = -Wall -std=gnu99
+CFLAGS ?= -Wall
+export CCFLAGS = $(CFLAGS) -std=gnu99
 export PREFIX = /usr/local
 export BASE_DIR = $(dir $(abspath ./Makefile))
 

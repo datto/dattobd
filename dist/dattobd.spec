@@ -248,6 +248,7 @@ automatically build and install for each kernel.
 
 
 %build
+export CFLAGS="%{optflags}"
 make application
 make utils
 
