@@ -1,6 +1,7 @@
 obj-m := $(OBJ)
 
-KDIR := /lib/modules/$(shell uname -r)/build
+KERNELVERSION ?= $(shell uname -r)
+KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 EXTRA_CFLAGS := -g -Werror
 

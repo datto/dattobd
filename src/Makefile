@@ -1,6 +1,6 @@
 obj-m := dattobd.o
 
-KERNELVERSION = $(shell uname -r)
+KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 EXTRA_CFLAGS := -g
