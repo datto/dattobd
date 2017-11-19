@@ -5,8 +5,13 @@ OUTPUT_FILE=$SRC_DIR/kernel-config.h
 FEATURE_TEST_DIR="$SRC_DIR/configure-tests/feature-tests"
 FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
+KERNEL_VERSION=`uname -r`
 
-echo "generating configurations"
+if [ ! -z "$1" ]; then
+	KERNEL_VERSION="$1"
+fi
+
+echo "generating configurations for kernel-${KERNEL_VERSION}"
 
 rm -f $OUTPUT_FILE
 
@@ -16,7 +21,7 @@ echo "#ifndef DATTOBD_KERNEL_CONFIG_H" >> $OUTPUT_FILE
 echo "#define DATTOBD_KERNEL_CONFIG_H" >> $OUTPUT_FILE
 echo "" >> $OUTPUT_FILE
 
-make -s -C $FEATURE_TEST_DIR clean
+make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 
 for TEST_FILE in $FEATURE_TEST_FILES
 do
@@ -24,7 +29,7 @@ do
 	OBJ="$TEST.o"
 	MACRO_NAME="HAVE_$(echo ${TEST} | awk '{print toupper($0)}')"
 	echo -n "performing configure test: $MACRO_NAME - "
-	if make -C $FEATURE_TEST_DIR OBJ=$OBJ &>/dev/null ; then
+	if make -C $FEATURE_TEST_DIR OBJ=$OBJ KERNELVERSION=$KERNEL_VERSION &>/dev/null ; then
 		echo "present"
 		echo "#define $MACRO_NAME" >> $OUTPUT_FILE
 	else
@@ -32,7 +37,7 @@ do
 	fi
 done
 
-make -s -C $FEATURE_TEST_DIR clean
+make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 
 while read SYMBOL_NAME; do
 	if [ -z "$SYMBOL_NAME" ]; then
@@ -41,7 +46,7 @@ while read SYMBOL_NAME; do
 
 	echo "performing $SYMBOL_NAME lookup"
 	MACRO_NAME="$(echo ${SYMBOL_NAME} | awk '{print toupper($0)}')_ADDR"
-	SYMBOL_ADDR=$(grep " ${SYMBOL_NAME}$" "/boot/System.map-$1" | awk '{print $1}')
+	SYMBOL_ADDR=$(grep " ${SYMBOL_NAME}$" "/boot/System.map-${KERNEL_VERSION}" | awk '{print $1}')
 	if [ -z "$SYMBOL_ADDR" ]; then
 		SYMBOL_ADDR="0"
 	fi
