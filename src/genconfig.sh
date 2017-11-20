@@ -1,11 +1,11 @@
 #!/bin/bash
 
-SRC_DIR=`dirname "$0"`
+SRC_DIR=$(dirname "$0")
 OUTPUT_FILE=$SRC_DIR/kernel-config.h
 FEATURE_TEST_DIR="$SRC_DIR/configure-tests/feature-tests"
 FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
-KERNEL_VERSION=`uname -r`
+KERNEL_VERSION=$(uname -r)
 
 if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
