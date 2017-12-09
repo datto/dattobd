@@ -3,6 +3,7 @@ obj-m := dattobd.o
 KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
+INSTALL_MOD_DIR ?= extra
 EXTRA_CFLAGS := -g
 
 default:
@@ -11,10 +12,10 @@ default:
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
-	rm -f kernel-config.h
+	$(RM) kernel-config.h
 
-insmod: default
-	insmod dattobd.ko
+install: default
+	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
 
-rmmod:
-	rmmod dattobd
+uninstall:
+	$(RM) /lib/modules/$(KERNELVERSION)/$(INSTALL_MOD_DIR)/dattobd.ko

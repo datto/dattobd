@@ -5,7 +5,7 @@ export CCFLAGS = $(CFLAGS) -std=gnu99
 export PREFIX = /usr/local
 export BASE_DIR = $(abspath .)
 
-.PHONY: all driver library-shared library-static library application application-shared utils clean install
+.PHONY: all driver library-shared library-static library application application-shared utils clean install uninstall
 
 all: driver library application utils
 
@@ -36,6 +36,13 @@ clean:
 	$(MAKE) -C utils clean
 
 install:
+	$(MAKE) -C src install
 	$(MAKE) -C lib install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src"
 	$(MAKE) -C app install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
 	$(MAKE) -C utils install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib -D_XOPEN_SOURCE=500"
+
+uninstall:
+	$(MAKE) -C app uninstall
+	$(MAKE) -C utils uninstall
+	$(MAKE) -C lib uninstall
+	$(MAKE) -C src uninstall
