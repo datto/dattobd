@@ -5,7 +5,7 @@ LIBDIR = $(PREFIX)/lib64
 
 SOURCES = libdattobd.c
 
-.PHONY: all shared static install clean
+.PHONY: all shared static install uninstall clean
 
 all: shared static
 
@@ -20,6 +20,11 @@ static:
 install: shared
 	install $(LIBNAME).$(SOVER) $(LIBDIR)
 	install $(LIBNAME) $(LIBDIR)
+	ldconfig
+
+uninstall:
+	$(RM) $(LIBDIR)/$(LIBNAME)
+	$(RM) $(LIBDIR)/$(LIBNAME).$(SOVER)
 	ldconfig
 
 clean:

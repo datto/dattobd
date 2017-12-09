@@ -2,7 +2,7 @@ BINARY_NAME = dbdctl
 INSTALLDIR = $(PREFIX)/bin
 SOURCES = dbdctl.c
 
-.PHONY: shared static install-static install clean
+.PHONY: shared static install-static install uninstall clean
 
 shared:
 	$(CC) $(CCFLAGS) -o $(BINARY_NAME) -L $(BASE_DIR)/lib $(SOURCES) -ldattobd
@@ -18,5 +18,8 @@ install: shared
 	mkdir -p $(INSTALLDIR)
 	install $(BINARY_NAME) $(INSTALLDIR)
 
+uninstall:
+	$(RM) $(INSTALLDIR)/$(BINARY_NAME)
+
 clean:
-	rm -f $(BINARY_NAME)
+	$(RM) $(BINARY_NAME)

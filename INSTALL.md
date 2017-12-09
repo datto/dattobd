@@ -72,7 +72,7 @@ sudo make install
 ### Configuring the Kernel Module
 To start the kernel module immediately, run:
 ```bash
-sudo insmod src/dattobd.ko
+sudo modprobe dattobd
 ```
 
 If you would like to have the module be loaded automatically during boot, consult the documentation for your distribution.
