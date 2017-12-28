@@ -572,6 +572,67 @@ error:
 }
 #endif
 
+static inline ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count, loff_t *pos){
+#ifndef HAVE_KERNEL_WRITE_PPOS
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+	ret = vfs_read(filp, (char __user *)buf, count, pos);
+	set_fs(old_fs);
+
+	return ret;
+#else
+	return kernel_read(filp, buf, count, pos);
+#endif
+}
+
+static inline ssize_t dattobd_kernel_write(struct file *filp, const void *buf, size_t count, loff_t *pos){
+#ifndef HAVE_KERNEL_WRITE_PPOS
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+	ret = vfs_write(filp, (__force const char __user *)buf, count, pos);
+	set_fs(old_fs);
+
+	return ret;
+#else
+	return kernel_write(filp, buf, count, pos);
+#endif
+}
+
+static inline struct request_queue *dattobd_bio_get_queue(struct bio *bio){
+#ifdef HAVE_BIO_BI_BDEV
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	return bdev_get_queue(bio->bi_bdev);
+#else
+	return bio->bi_disk->queue;
+#endif
+}
+
+static inline void dattobd_bio_set_dev(struct bio *bio, struct block_device *bdev){
+#ifdef HAVE_BIO_BI_BDEV
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	bio->bi_bdev = bdev;
+#else
+	bio_set_dev(bio, bdev);
+#endif
+}
+
+static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
+#ifdef HAVE_BIO_BI_BDEV
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	dst->bi_bdev = src->bi_bdev;
+#else
+	bio_copy_dev(dst, src);
+#endif
+}
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 
@@ -601,7 +662,7 @@ error:
 #define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
-#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == bdev_get_queue((bio)->bi_bdev))
+#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == dattobd_bio_get_queue(bio))
 
 //returns true if tracing struct's sector range matches the sector of the bio
 #define tracer_sector_matches_bio(dev, bio) (bio_sector(bio) >= (dev)->sd_sect_off && bio_sector(bio) < (dev)->sd_sect_off + (dev)->sd_size)
@@ -1065,8 +1126,8 @@ static void task_work_flush(void){
 
 		if(!work) break;
 
-		raw_spin_unlock_wait(&task->pi_lock);
-		smp_mb();
+		raw_spin_lock_irq(&task->pi_lock);
+		raw_spin_unlock_irq(&task->pi_lock);
 
 		head = NULL;
 		do{
@@ -1343,19 +1404,10 @@ error:
 
 static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, unsigned long len){
 	ssize_t ret;
-	mm_segment_t old_fs;
 	loff_t off = (loff_t)offset;
 
-	//change context for file write
-	old_fs = get_fs();
-	set_fs(get_ds());
-
-	//perform the read or write
-	if(is_write) ret = vfs_write(filp, buf, len, &off);
-	else ret = vfs_read(filp, buf, len, &off);
-
-	//revert context
-	set_fs(old_fs);
+	if(is_write) ret = dattobd_kernel_write(filp, buf, len, &off);
+	else ret = dattobd_kernel_read(filp, buf, len, &off);
 
 	if(ret < 0){
 		LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
@@ -2344,7 +2396,7 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct block_device *bdev, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
+static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, const struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
@@ -2366,7 +2418,7 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	tp_get(tp);
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
-	new_bio->bi_bdev = bdev;
+	dattobd_bio_copy_dev(new_bio, orig_bio);
 	dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
@@ -2465,7 +2517,7 @@ static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
 	bio_orig_size = bio_size(bio);
 	bio_orig_sect = bio_sector(bio);
 
-	bio->bi_bdev = dev->sd_base_dev;
+	dattobd_bio_set_dev(bio, dev->sd_base_dev);
 	dattobd_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
@@ -2622,7 +2674,7 @@ static int snap_mrf_thread(void *data){
 		//submit the original bio to the block IO layer
 		bio_flag(bio, BIO_ALREADY_TRACED);
 
-		ret = dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
+		ret = dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
 #endif
@@ -2829,7 +2881,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages, i = 0;
 
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -2842,7 +2894,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 
 retry:
 	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
-	ret = bio_make_read_clone(dev->sd_bioset, tp, bio->bi_bdev, start_sect, pages, &new_bio, &bytes);
+	ret = bio_make_read_clone(dev->sd_bioset, tp, bio, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto error;
 
 	//make sure we don't excede the max number of bio clones that tp can hold
@@ -2941,7 +2993,7 @@ out:
 	}
 
 	//call the original mrf
-	ret = dattobd_call_mrf(dev->sd_orig_mrf, bdev_get_queue(bio->bi_bdev), bio);
+	ret = dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
 
 	return ret;
 }
