@@ -2357,6 +2357,7 @@ static void tp_put(struct tracing_params *tp){
 /****************************BIO HELPER FUNCTIONS*****************************/
 
 static inline struct inode *page_get_inode(struct page *pg){
+	if(!pg) return NULL;
 	if(!pg->mapping) return NULL;
 	if((unsigned long)pg->mapping & PAGE_MAPPING_ANON) return NULL;
 	if(!pg->mapping->host) return NULL;
