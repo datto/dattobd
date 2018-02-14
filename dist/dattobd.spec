@@ -94,7 +94,7 @@
 %global devname %{libprefix}-%{devsuffix}
 
 Name:            dattobd
-Version:         0.10.3
+Version:         0.10.4
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -350,15 +350,15 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 %else
 if [ $1 -eq 0 ]; then
 %endif
-	lsmod | grep %{name} >& /dev/null
-	if [ $? -eq 0 ]; then
-		modprobe -r %{name}
-	fi
+    lsmod | grep %{name} >& /dev/null
+    if [ $? -eq 0 ]; then
+        modprobe -r %{name}
+    fi
 fi
 
 dkms status -m %{name} -v %{version} | grep %{name} >& /dev/null
 if [ $? -eq 0 ]; then
-	dkms remove -m %{name} -v %{version} --all %{?rpm_dkms_opt:--rpm_safe_upgrade}
+    dkms remove -m %{name} -v %{version} --all %{?rpm_dkms_opt:--rpm_safe_upgrade}
 fi
 
 %post -n %{dkmsname}
@@ -370,10 +370,10 @@ if [ "$1" = "configure" ]; then
 %else
 if [ "$1" -ge "1" ]; then
 %endif
-	if [ -f /usr/lib/dkms/common.postinst ]; then
-		/usr/lib/dkms/common.postinst %{name} %{version}
-		exit $?
-	fi
+    if [ -f /usr/lib/dkms/common.postinst ]; then
+        /usr/lib/dkms/common.postinst %{name} %{version}
+        exit $?
+    fi
 fi
 
 
@@ -381,14 +381,14 @@ fi
 %if 0%{?rhel} != 5
 # Generate initramfs
 if type "dracut" &> /dev/null; then
-	echo "Configuring dracut, please wait..."
-	dracut -f
+    echo "Configuring dracut, please wait..."
+    dracut -f
 elif type "mkinitrd" &> /dev/null; then
-	echo "Configuring initrd, please wait..."
-	mkinitrd
+    echo "Configuring initrd, please wait..."
+    mkinitrd
 elif type "update-initramfs" &> /dev/null; then
-	echo "Configuring initramfs, please wait..."
-	update-initramfs -u
+    echo "Configuring initramfs, please wait..."
+    update-initramfs -u
 fi
 sleep 1
 %endif
@@ -540,6 +540,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 14 2018 Tim Crawford <tcrawford@datto.com> - 0.10.4
+- Added Linux 4.14 compatibility
+- Added support for running the feature tests against non-running kernel
+- Added an uninstall target for make
+- Fixed NULL pointer dereference when reading a page
+
 * Wed Nov 15 2017 Neal Gompa <ngompa@datto.com> - 0.10.3
 - Fix Makefile to have no trailing slash for BASE_DIR to fix debug symbols
 
