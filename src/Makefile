@@ -4,7 +4,7 @@ KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 INSTALL_MOD_DIR ?= extra
-EXTRA_CFLAGS := -g
+ccflags-y:= -g
 
 default:
 	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;

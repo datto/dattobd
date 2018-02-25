@@ -27,7 +27,7 @@ application: library-shared
 	$(MAKE) -C app CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib" shared
 
 utils: library-shared
-	$(MAKE) -C utils CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib -D_XOPEN_SOURCE=500"
+	$(MAKE) -C utils CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
 
 clean:
 	$(MAKE) -C src clean
@@ -39,7 +39,7 @@ install:
 	$(MAKE) -C src install
 	$(MAKE) -C lib install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src"
 	$(MAKE) -C app install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
-	$(MAKE) -C utils install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib -D_XOPEN_SOURCE=500"
+	$(MAKE) -C utils install CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
 
 uninstall:
 	$(MAKE) -C app uninstall

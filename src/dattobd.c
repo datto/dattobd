@@ -12,7 +12,7 @@
 #include "kernel-config.h"
 #include "dattobd.h"
 
-//current lowest supported kernel = 2.6.18
+//current lowest supported kernel = 2.6.32
 
 //basic information
 MODULE_LICENSE("GPL");
@@ -36,53 +36,13 @@ MODULE_VERSION(DATTOBD_VERSION);
 #include <linux/uuid.h>
 #endif
 
-#ifndef HAVE_BIO_LIST
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
-struct bio_list {
-	struct bio *head;
-	struct bio *tail;
-};
-
-#define BIO_EMPTY_LIST { NULL, NULL }
-#define bio_list_for_each(bio, bl) for((bio) = (bl)->head; (bio); (bio) = (bio)->bi_next)
-
-static inline int bio_list_empty(const struct bio_list *bl){
-	return bl->head == NULL;
+static inline struct dentry *dattobd_get_dentry(struct file *file){
+    return file->f_path.dentry;
 }
 
-static inline void bio_list_init(struct bio_list *bl){
-	bl->head = bl->tail = NULL;
+static inline struct vfsmount *dattobd_get_mnt(struct file *file){
+    return file->f_path.mnt;
 }
-
-static inline void bio_list_add(struct bio_list *bl, struct bio *bio){
-	bio->bi_next = NULL;
-
-	if (bl->tail) bl->tail->bi_next = bio;
-	else bl->head = bio;
-
-	bl->tail = bio;
-}
-
-static inline struct bio *bio_list_pop(struct bio_list *bl){
-	struct bio *bio = bl->head;
-
-	if (bio) {
-		bl->head = bl->head->bi_next;
-		if (!bl->head) bl->tail = NULL;
-
-		bio->bi_next = NULL;
-	}
-
-	return bio;
-}
-#endif
-
-#ifndef HAVE_D_UNLINKED
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
-static inline int d_unlinked(struct dentry *dentry){
-	return d_unhashed(dentry) && !IS_ROOT(dentry);
-}
-#endif
 
 #ifndef HAVE_NOOP_LLSEEK
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
@@ -91,34 +51,9 @@ static loff_t noop_llseek(struct file *file, loff_t offset, int origin){
 }
 #endif
 
-
-#ifndef HAVE_STRUCT_PATH
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-struct path {
-	struct vfsmount *mnt;
-	struct dentry *dentry;
-};
-#define dattobd_get_dentry(f) (f)->f_dentry
-#define dattobd_get_mnt(f) (f)->f_vfsmnt
-#else
-#define dattobd_get_dentry(f) (f)->f_path.dentry
-#define dattobd_get_mnt(f) (f)->f_path.mnt
-#endif
-
-#ifndef HAVE_PATH_PUT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-void path_put(const struct path *path) {
-	dput(path->dentry);
-	mntput(path->mnt);
+static inline char *dattobd_d_path(const struct path *path, char *buf, int buflen){
+    return d_path(path, buf, buflen);
 }
-#define dattobd_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) (nd).dentry
-#define dattobd_get_nd_mnt(nd) (nd).mnt
-#else
-#define dattobd_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
-#define dattobd_get_nd_dentry(nd) (nd).path.dentry
-#define dattobd_get_nd_mnt(nd) (nd).path.mnt
-#endif
 
 #ifndef HAVE_FMODE_T
 typedef mode_t fmode_t;
@@ -133,6 +68,7 @@ typedef mode_t fmode_t;
 #endif
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
@@ -143,7 +79,7 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd)))
 		goto fail;
 
-	inode = dattobd_get_nd_dentry(nd)->d_inode;
+	inode = nd.path.dentry->d_inode;
 	if (!inode) {
 		r = -ENOENT;
 		goto fail;
@@ -157,21 +93,13 @@ struct block_device *dattobd_lookup_bdev(const char *pathname, fmode_t mode) {
 	retbd = open_by_devnum(dev, mode);
 
 out:
-#ifdef HAVE_PATH_PUT
 	path_put(&nd.path);
-#else
-	dput(nd.dentry);
-	mntput(nd.mnt);
-#endif
 	return retbd;
 fail:
 	retbd = ERR_PTR(r);
 	goto out;
 }
-#endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
 	bdev = dattobd_lookup_bdev(path, mode);
@@ -377,60 +305,9 @@ static void dattobd_bio_endio(struct bio *bio, int err){
 #define UMOUNT_NOFOLLOW 0
 #endif
 
-#if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
-
-#ifndef min_not_zero
-#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
-#endif
-
-int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t offset){
-	t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
-	t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-	t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
-	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-	t->max_phys_segments = min_not_zero(t->max_phys_segments, b->max_phys_segments);
-	t->max_hw_segments = min_not_zero(t->max_hw_segments, b->max_hw_segments);
-	t->max_segment_size = min_not_zero(t->max_segment_size, b->max_segment_size);
-	return 0;
+static inline int dattobd_bdev_stack_limits(struct request_queue *rq, struct block_device *dev, sector_t offset){
+    return bdev_stack_limits(&rq->limits, dev, offset);
 }
-
-int dattobd_bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start){
-	struct request_queue *bq = bdev_get_queue(bdev);
-	start += get_start_sect(bdev);
-	return blk_stack_limits(t, bq, start << 9);
-}
-
-#elif !defined(HAVE_BDEV_STACK_LIMITS)
-//#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
-
-int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
-	struct request_queue *bq = bdev_get_queue(bdev);
-	start += get_start_sect(bdev);
-	return blk_stack_limits(t, &bq->limits, start << 9);
-}
-#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
-
-#else
-#define dattobd_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
-#endif
-
-#ifndef HAVE_KERN_PATH
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-static int kern_path(const char *name, unsigned int flags, struct path *path){
-	struct nameidata nd;
-	int ret = path_lookup(name, flags, &nd);
-	if(!ret){
-		path->dentry = dattobd_get_nd_dentry(nd);
-		path->mnt = dattobd_get_nd_mnt(nd);
-	}
-	return ret;
-}
-#endif
-
-#ifndef HAVE_BLK_SET_DEFAULT_LIMITS
-#define blk_set_default_limits(ql)
-#endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG
 #define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, BIOSET_NEED_BVECS)
@@ -438,24 +315,6 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 #define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
 #else
 #define dattobd_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
-#endif
-
-#ifndef HAVE_USER_PATH_AT
-int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *path) {
-	struct nameidata nd;
-	char *tmp = getname(name);
-	int err = PTR_ERR(tmp);
-	if (!IS_ERR(tmp)) {
-		BUG_ON(flags & LOOKUP_PARENT);
-		err = path_lookup(tmp, flags, &nd);
-		putname(tmp);
-		if (!err) {
-			path->dentry = dattobd_get_nd_dentry(nd);
-			path->mnt = dattobd_get_nd_mnt(nd);
-		}
-	}
-	return err;
-}
 #endif
 
 int dattobd_should_remove_suid(struct dentry *dentry)
@@ -481,12 +340,7 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 }
 
 
-#ifdef HAVE_BLKDEV_PUT_1
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	#define dattobd_blkdev_put(bdev) blkdev_put(bdev);
-#else
-	#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
-#endif
+#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 
 #ifndef HAVE_PART_NR_SECTS_READ
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
@@ -496,10 +350,12 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 #endif
 
 #ifndef HAVE_VZALLOC
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
 #endif
 
 #ifdef HAVE_MAKE_REQUEST_FN_INT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)
 	#define MRF_RETURN_TYPE int
 	#define MRF_RETURN(ret) return ret
 
@@ -507,6 +363,7 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 	return fn(q, bio);
 }
 #elif defined HAVE_MAKE_REQUEST_FN_VOID
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	#define MRF_RETURN_TYPE void
 	#define MRF_RETURN(ret) return
 
@@ -553,23 +410,6 @@ static inline void dattobd_inode_unlock(struct inode *inode){
 #else
 	#define dattobd_inode_lock inode_lock
 	#define dattobd_inode_unlock inode_unlock
-#endif
-
-#ifndef HAVE_PROC_CREATE
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-static inline struct proc_dir_entry *proc_create(const char *name, mode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops){
-	struct proc_dir_entry *ent;
-
-	ent = create_proc_entry(name, mode, parent);
-	if(!ent) goto error;
-
-	ent->proc_fops = proc_fops;
-
-	return ent;
-
-error:
-	return NULL;
-}
 #endif
 
 static inline ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count, loff_t *pos){
@@ -819,12 +659,8 @@ struct snap_device{
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 
-#ifdef HAVE_BDOPS_OPEN_INODE
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-static int snap_open(struct inode *inode, struct file *filp);
-static int snap_release(struct inode *inode, struct file *filp);
-#elif defined HAVE_BDOPS_OPEN_INT
-//#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+#if defined HAVE_BDOPS_OPEN_INT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static int snap_release(struct gendisk *gd, fmode_t mode);
 #else
@@ -1507,10 +1343,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 
 	if(off + len > inode->i_sb->s_maxbytes || off + len < 0) return -EFBIG;
 
-	#if !defined(HAVE_IOPS_FALLOCATE) && !defined(HAVE_FOPS_FALLOCATE)
-	//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
-	return -EOPNOTSUPP;
-	#elif defined(HAVE_IOPS_FALLOCATE)
+	#if defined(HAVE_IOPS_FALLOCATE)
 	//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	if(!inode->i_op->fallocate) return -EOPNOTSUPP;
 	ret = inode->i_op->fallocate(inode, 0, offset, len);
@@ -3160,7 +2993,6 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	struct super_block *origsb = dattobd_get_super(bdev);
 	struct super_block *sb = NULL;
 	char bdev_name[BDEVNAME_SIZE];
-	MAYBE_UNUSED(ret);
 
 	bdevname(bdev, bdev_name);
 
@@ -3196,17 +3028,12 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-#ifndef HAVE_THAW_BDEV_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-		thaw_bdev(bdev, sb);
-#else
 		ret = thaw_bdev(bdev, sb);
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.
 			//pretend we succeeded so we don't break the block device
 		}
-#endif
 		dattobd_drop_super(origsb);
 	}
 
@@ -4839,17 +4666,8 @@ error:
 #define __tracer_open(dev) __tracer_add_ref(dev, 1)
 #define __tracer_close(dev) __tracer_add_ref(dev, -1)
 
-#ifdef HAVE_BDOPS_OPEN_INODE
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-static int snap_open(struct inode *inode, struct file *filp){
-	return __tracer_open(inode->i_bdev->bd_disk->private_data);
-}
-
-static int snap_release(struct inode *inode, struct file *filp){
-	return __tracer_close(inode->i_bdev->bd_disk->private_data);
-}
-#elif defined HAVE_BDOPS_OPEN_INT
-//#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+#if defined HAVE_BDOPS_OPEN_INT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static int snap_open(struct block_device *bdev, fmode_t mode){
 	return __tracer_open(bdev->bd_disk->private_data);
 }
