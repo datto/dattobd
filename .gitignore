@@ -9,6 +9,7 @@ modules.order
 Module.symvers
 *.cmd
 .tmp_versions/
+.cache.mk
 
 # Leftover files
 *~
