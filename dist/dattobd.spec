@@ -13,8 +13,8 @@
 %global _dracut_modules_root %{_prefix}/lib/dracut/modules.d
 %endif
 
-# RHEL 5 and openSUSE 13.1 and older use mkinitrd instead of dracut
-%if 0%{?rhel} == 5 || 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
+# openSUSE 13.1 and older use mkinitrd instead of dracut
+%if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
 %global _mkinitrd_scripts_root /lib/mkinitrd/scripts
 %endif
 
@@ -24,9 +24,8 @@
 %endif
 
 # SUSE hasn't yet reassigned _sharedstatedir to /var/lib, so we force it
-# Likewise, RHEL/CentOS 5 doesn't have this fixed either, so we force it there too.
-# Debian/Ubuntu doesn't set it there, so we force it for them too
-%if 0%{?suse_version} || 0%{?rhel} == 5 || 0%{?debian} || 0%{?ubuntu}
+# Debian/Ubuntu doesn't set it there, so we force it for them too.
+%if 0%{?suse_version} || 0%{?debian} || 0%{?ubuntu}
 %global _sharedstatedir %{_var}/lib
 %endif
 
@@ -196,8 +195,8 @@ Group:           System Environment/Kernel
 %endif
 %endif
 
-%if 0%{?rhel} != 5 && 0%{?suse_version} != 1110
-# noarch subpackages aren't supported in EL5 and SLE11
+%if 0%{?suse_version} != 1110
+# noarch subpackages aren't supported in SLE11
 BuildArch:       noarch
 %endif
 
@@ -213,7 +212,7 @@ Requires:        perl
 %endif
 
 %if %{_vendor} != "debbuild"
-%if 0%{?rhel} >= 6 || 0%{?suse_version} >= 1210 || 0%{?fedora}
+%if 0%{?rhel} || 0%{?suse_version} >= 1210 || 0%{?fedora}
 # With RPM 4.9.0 and newer, it's possible to give transaction
 # hints to ensure some kind of ordering for transactions using
 # the OrderWithRequires statement.
@@ -298,7 +297,7 @@ sed -i "s/@MODULE_VERSION@/%{version}/g" %{buildroot}%{_kmod_src_root}/dkms.conf
 mkdir -p %{buildroot}%{_sysconfdir}/modules-load.d
 install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_sysconfdir}/modules-load.d/%{name}.conf
 
-# Legacy automatic module loader for RHEL 5/6
+# Legacy automatic module loader for RHEL 6
 %if 0%{?rhel} && 0%{?rhel} < 7
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig/modules
 install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/dattobd.modules
@@ -310,9 +309,6 @@ install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/syscon
 mkdir -p %{buildroot}%{_sysconfdir}/kernel/postinst.d
 install -m 755 dist/kernel.postinst.d/50-dattobd %{buildroot}%{_sysconfdir}/kernel/postinst.d/50-dattobd
 %endif
-
-# RHEL/CentOS 5 will not have the initramfs scripts because its mkinitrd doesn't support scripts
-%if 0%{?rhel} != 5
 
 # Install initramfs stuff
 mkdir -p %{buildroot}%{_sharedstatedir}/datto/dla
@@ -336,7 +332,6 @@ mkdir -p %{buildroot}%{_dracut_modules_root}/90dattobd
 install -m 755 dist/initramfs/dracut/dattobd.sh %{buildroot}%{_dracut_modules_root}/90dattobd/dattobd.sh
 install -m 755 dist/initramfs/dracut/module-setup.sh %{buildroot}%{_dracut_modules_root}/90dattobd/module-setup.sh
 install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}/90dattobd/install
-%endif
 %endif
 %endif
 
@@ -378,7 +373,6 @@ fi
 
 
 %post utils
-%if 0%{?rhel} != 5
 # Generate initramfs
 if type "dracut" &> /dev/null; then
     echo "Configuring dracut, please wait..."
@@ -391,11 +385,9 @@ elif type "update-initramfs" &> /dev/null; then
     update-initramfs -u
 fi
 sleep 1
-%endif
 
 
 %postun utils
-%if 0%{?rhel} != 5
 %if 0%{?debian} || 0%{?ubuntu}
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 %else
@@ -413,7 +405,6 @@ if [ $1 -eq 0 ]; then
                 update-initramfs -u
         fi
 fi
-%endif
 
 %post -n %{libname}
 /sbin/ldconfig
@@ -436,8 +427,6 @@ rm -rf %{buildroot}
 %{_sysconfdir}/bash_completion.d/dbdctl
 %{_mandir}/man8/dbdctl.8*
 %{_mandir}/man8/update-img.8*
-# Initramfs scripts for all but RHEL 5
-%if 0%{?rhel} != 5
 %dir %{_sharedstatedir}/datto/dla
 %{_sharedstatedir}/datto/dla/reload
 %if 0%{?debian} || 0%{?ubuntu}
@@ -452,7 +441,6 @@ rm -rf %{buildroot}
 %{_dracut_modules_root}/90dattobd/dattobd.sh
 %{_dracut_modules_root}/90dattobd/module-setup.sh
 %{_dracut_modules_root}/90dattobd/install
-%endif
 %endif
 %endif
 %doc README.md doc/STRUCTURE.md
@@ -505,8 +493,8 @@ rm -rf %{buildroot}
 %if 0%{?suse_version}
 %defattr(-,root,root,-)
 %endif
-%if 0%{?rhel} == 5 && 0%{?rhel} == 6 && 0%{?suse_version} == 1110
-# RHEL/CentOS 5/6 and SLE 11 don't support this at all
+%if (0%{?rhel} && 0%{?rhel} < 7) || 0%{?suse_version} == 1110
+# RHEL/CentOS 6 and SLE 11 don't support this at all
 %exclude %{_sysconfdir}/modules-load.d/dattobd.conf
 %else
 %config %{_sysconfdir}/modules-load.d/dattobd.conf
