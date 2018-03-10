@@ -1,7 +1,7 @@
 # dattobd INSTALL
 
 ## From Repositories
-We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, Debian, and Ubuntu LTS.
+We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, SUSE Linux Enterprise, Debian, and Ubuntu LTS.
 
 ### RHEL/CentOS
 The repository install package `datto-el-rpm-release` is available for EL5+.
@@ -24,6 +24,31 @@ already get DKMS through an already-installed repository.
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.1/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-latest.noarch.rpm
+sudo zypper install dkms-dattobd dattobd-utils
+```
+### SUSE Linux Enterprise
+The repository install package `datto-sle-rpm-release` is available for SUSE Linux Enterprise 11 SP4 and 12.
+#### SUSE Linux Enterprise 11 SP4
+Due to the DKMS software not being present in the default repositories and most versions for SLE 11 are too old, we provide a
+usable copy in our repositories.
+```bash
+local ktype=$(uname -r | awk -F '-' '{ print $NF }')
+local kver=$(uname -r | sed "s/-${ktype}//")
+local kbuild=$(rpm -qa kernel-${ktype} | grep ${kver} | awk -F '.' '{ print $NF }')
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-11-latest.noarch.rpm
+sudo zypper install -C "kernel-syms = ${kver}.${kbuild}"
+sudo zypper install dkms-dattobd dattobd-utils
+```
+#### SUSE Linux Enterprise 12
+Due to the DKMS software not being present in SLE's default repositories, the `X11:Bumblebee` or other similar repository providing
+DKMS is required. The steps below assume no providers of DKMS are available, so it may not be necessary to add `X11:Bumblebee` if you can
+already get DKMS through an already-installed repository.
+```bash
+local ktype=$(uname -r | awk -F '-' '{ print $NF }')
+local kver=$(uname -r | sed "s/-${ktype}//")
+sudo zypper addrepo http://download.opensuse.org/repositories/X11:/Bumblebee/SLE_12_SP2_Backports/X11:Bumblebee.repo
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-12-latest.noarch.rpm
+sudo zypper install -C "kernel-syms = ${kver}"
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### Debian/Ubuntu LTS
