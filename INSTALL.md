@@ -32,9 +32,9 @@ The repository install package `datto-sle-rpm-release` is available for SUSE Lin
 Due to the DKMS software not being present in the default repositories and most versions for SLE 11 are too old, we provide a
 usable copy in our repositories.
 ```bash
-local ktype=$(uname -r | awk -F '-' '{ print $NF }')
-local kver=$(uname -r | sed "s/-${ktype}//")
-local kbuild=$(rpm -qa kernel-${ktype} | grep ${kver} | awk -F '.' '{ print $NF }')
+ktype=$(uname -r | awk -F '-' '{ print $NF }')
+kver=$(uname -r | sed "s/-${ktype}//")
+kbuild=$(rpm -qa kernel-${ktype} | grep ${kver} | awk -F '.' '{ print $NF }')
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-11-latest.noarch.rpm
 sudo zypper install -C "kernel-syms = ${kver}.${kbuild}"
 sudo zypper install dkms-dattobd dattobd-utils
@@ -44,8 +44,8 @@ Due to the DKMS software not being present in SLE's default repositories, the `X
 DKMS is required. The steps below assume no providers of DKMS are available, so it may not be necessary to add `X11:Bumblebee` if you can
 already get DKMS through an already-installed repository.
 ```bash
-local ktype=$(uname -r | awk -F '-' '{ print $NF }')
-local kver=$(uname -r | sed "s/-${ktype}//")
+ktype=$(uname -r | awk -F '-' '{ print $NF }')
+kver=$(uname -r | sed "s/-${ktype}//")
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:/Bumblebee/SLE_12_SP2_Backports/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-12-latest.noarch.rpm
 sudo zypper install -C "kernel-syms = ${kver}"
