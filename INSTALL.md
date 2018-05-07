@@ -4,13 +4,13 @@
 We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, SUSE Linux Enterprise, Debian, and Ubuntu LTS.
 
 ### RHEL/CentOS
-The repository install package `datto-el-rpm-release` is available for EL5+.
+The repository install package `datto-el-rpm-release` is available for EL6+.
 ```bash
 sudo yum localinstall https://cpkg.datto.com/datto-rpm/repoconfig/datto-el-rpm-release-$(rpm -E %rhel)-latest.noarch.rpm
 sudo yum install dkms-dattobd dattobd-utils
 ```
 ### Fedora
-The repository install package `datto-fedora-rpm-release` is available for F24+, excluding Rawhide.
+The repository install package `datto-fedora-rpm-release` is available for F26+, excluding Rawhide.
 ```bash
 sudo yum install https://cpkg.datto.com/datto-rpm/repoconfig/datto-fedora-rpm-release-$(rpm -E %fedora)-latest.noarch.rpm
 sudo yum install kernel-devel-$(uname -r) dkms-dattobd dattobd-utils
