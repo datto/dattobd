@@ -499,6 +499,26 @@ int dattobd_should_remove_suid(struct dentry *dentry)
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
 #endif
 
+#ifndef HAVE_IS_VMALLOC_ADDR
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,25,0)
+static inline int  is_vmalloc_addr(const void *x){
+	unsigned long addr = (unsigned long)x;
+
+	return addr >= VMALLOC_START && addr < VMALLOC_END;
+}
+#endif
+
+#ifndef HAVE_KVFREE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
+static void kvfree(const void *addr){
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
+#endif
+
+
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 	#define MRF_RETURN_TYPE int
 	#define MRF_RETURN(ret) return ret
@@ -1775,7 +1795,7 @@ static int __cow_write_header(struct cow_manager *cm, int is_clean){
 #define __cow_write_header_dirty(cm) __cow_write_header(cm, 0)
 #define __cow_close_header(cm) __cow_write_header(cm, 1)
 
-static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc){
+static int __cow_open_header(struct cow_manager *cm, int index_only){
 	int ret;
 	struct cow_header ch;
 
@@ -1802,9 +1822,7 @@ static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_v
 
 	LOG_DEBUG("cow header opened with file pos = %llu, seqid = %llu", ((unsigned long long)ch.fpos), (unsigned long long)ch.seqid);
 
-	if(reset_vmalloc) cm->flags = ch.flags & ~(1 << COW_VMALLOC_UPPER);
-	else cm->flags = ch.flags;
-
+	cm->flags = ch.flags;
 	cm->curr_pos = ch.fpos;
 	cm->file_max = ch.fsize;
 	cm->seqid = ch.seqid;
@@ -1828,9 +1846,7 @@ static void cow_free_members(struct cow_manager *cm){
 			if(cm->sects[i].mappings) free_pages((unsigned long)cm->sects[i].mappings, cm->log_sect_pages);
 		}
 
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
-
+		kvfree(cm->sects);
 		cm->sects = NULL;
 	}
 
@@ -1857,8 +1873,7 @@ static int cow_sync_and_free(struct cow_manager *cm){
 	if(cm->filp) file_close(cm->filp);
 
 	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
+		kvfree(cm->sects);
 	}
 
 	kfree(cm);
@@ -1899,7 +1914,7 @@ static int cow_reopen(struct cow_manager *cm, char *pathname){
 	if(ret) goto error;
 
 	LOG_DEBUG("opening cow header");
-	ret = __cow_open_header(cm, (cm->flags & (1 << COW_INDEX_ONLY)), 0);
+	ret = __cow_open_header(cm, (cm->flags & (1 << COW_INDEX_ONLY)));
 	if(ret) goto error;
 
 	return 0;
@@ -1941,14 +1956,13 @@ static int cow_reload(char *path, uint64_t elements, unsigned long sect_size, un
 	cm->allowed_sects = __cow_calculate_allowed_sects(cache_size, cm->total_sects);
 	cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size*8));
 
-	ret = __cow_open_header(cm, index_only, 1);
+	ret = __cow_open_header(cm, index_only);
 	if(ret) goto error;
 
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
 	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL | __GFP_NOWARN);
 	if(!cm->sects){
 		//try falling back to vmalloc
-		cm->flags |= (1 << COW_VMALLOC_UPPER);
 		cm->sects = vzalloc((cm->total_sects) * sizeof(struct cow_section));
 		if(!cm->sects){
 			ret = -ENOMEM;
@@ -1969,8 +1983,7 @@ error:
 	if(cm->filp) file_close(cm->filp);
 
 	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
+		kvfree(cm->sects);
 	}
 
 	if(cm) kfree(cm);
@@ -2016,7 +2029,6 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL | __GFP_NOWARN);
 	if(!cm->sects){
 		//try falling back to vmalloc
-		cm->flags |= (1 << COW_VMALLOC_UPPER);
 		cm->sects = vzalloc((cm->total_sects) * sizeof(struct cow_section));
 		if(!cm->sects){
 			ret = -ENOMEM;
@@ -2037,8 +2049,7 @@ error:
 	if(cm->filp) file_unlink_and_close(cm->filp);
 
 	if(cm->sects){
-		if(cm->flags & (1 << COW_VMALLOC_UPPER)) vfree(cm->sects);
-		else kfree(cm->sects);
+		kvfree(cm->sects);
 	}
 
 	if(cm) kfree(cm);

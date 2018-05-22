@@ -55,7 +55,6 @@ struct reconfigure_params{
 #define COW_MAGIC ((uint32_t)4776)
 #define COW_CLEAN 0
 #define COW_INDEX_ONLY 1
-#define COW_VMALLOC_UPPER 2
 
 struct cow_header{
 	uint32_t magic; //COW header magic
