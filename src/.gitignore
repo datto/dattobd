@@ -1,4 +1,5 @@
 # Object files
+.cache.mk
 *.o
 *.o.d
 *.ko

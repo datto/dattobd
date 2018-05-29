@@ -573,7 +573,7 @@ error:
 #endif
 
 static inline ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count, loff_t *pos){
-#ifndef HAVE_KERNEL_WRITE_PPOS
+#ifndef HAVE_KERNEL_READ_PPOS
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	mm_segment_t old_fs;
 	ssize_t ret;
