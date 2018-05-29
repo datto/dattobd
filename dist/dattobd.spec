@@ -64,6 +64,15 @@
 %endif
 %endif
 
+# Return the appropriate tags for SLE 15 and openSUSE 15.0
+%if 0%{?suse_version} == 1500
+%if 0%{?is_opensuse}
+%global dist .suse1500
+%else
+%global dist .sle15
+%endif
+%endif
+
 %endif
 
 %if %{_vendor} != "debbuild"
