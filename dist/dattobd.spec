@@ -102,6 +102,10 @@
 
 %global devname %{libprefix}-%{devsuffix}
 
+# For local build stuff, disabled by default
+%bcond_with devmode
+
+
 Name:            dattobd
 Version:         0.10.5
 Release:         1%{?dist}
@@ -122,9 +126,14 @@ License:         GPLv2
 %endif
 
 URL:             https://github.com/datto/dattobd
-Source0:         https://github.com/datto/dattobd/archive/v%{version}/%{name}-%{version}.tar.gz
+%if ! %{with devmode}
+Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
+%else
+Source0:         %{name}.tar.gz
+%endif
 
 BuildRequires:   rsync
+
 # Some targets (like EL5) expect a buildroot definition
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
@@ -253,7 +262,11 @@ automatically build and install for each kernel.
 
 
 %prep
+%if ! %{with devmode}
 %setup -q
+%else
+%setup -q -n %{name}
+%endif
 
 
 %build

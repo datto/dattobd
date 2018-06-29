@@ -5,7 +5,16 @@ export CCFLAGS = $(CFLAGS) -std=gnu99
 export PREFIX = /usr/local
 export BASE_DIR = $(abspath .)
 
-.PHONY: all driver library-shared library-static library application application-shared utils clean install uninstall
+BUILDDIR := $(CURDIR)/pkgbuild
+
+# Flags to pass to debbuild/rpmbuild
+PKGBUILDFLAGS := --define "_topdir $(BUILDDIR)" -ba --with devmode
+
+# Command to create the build directory structure
+PKGBUILDROOT_CREATE_CMD = mkdir -p $(BUILDDIR)/DEBS $(BUILDDIR)/SDEBS $(BUILDDIR)/RPMS $(BUILDDIR)/SRPMS \
+			$(BUILDDIR)/SOURCES $(BUILDDIR)/SPECS $(BUILDDIR)/BUILD $(BUILDDIR)/BUILDROOT
+
+.PHONY: all driver library-shared library-static library application application-shared utils clean install uninstall pkgclean pkgprep deb rpm
 
 all: driver library application utils
 
@@ -34,6 +43,20 @@ clean:
 	$(MAKE) -C lib clean
 	$(MAKE) -C app clean
 	$(MAKE) -C utils clean
+
+pkgclean:
+	rm -rf $(BUILDDIR)
+
+pkgprep: pkgclean
+	$(PKGBUILDROOT_CREATE_CMD)
+	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,dattobd,' -czf $(BUILDDIR)/SOURCES/dattobd.tar.gz .
+	cp dist/dattobd.spec $(BUILDDIR)/SPECS/dattobd.spec
+
+deb: pkgprep
+	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/dattobd.spec
+
+rpm: pkgprep
+	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/dattobd.spec
 
 install:
 	$(MAKE) -C src install
