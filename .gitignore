@@ -13,3 +13,6 @@ Module.symvers
 # Leftover files
 *~
 tests/results
+
+# Project directories
+pkgbuild/
