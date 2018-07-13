@@ -3076,32 +3076,6 @@ static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm, struct 
 
 /*******************************SETUP HELPER FUNCTIONS********************************/
 
-static int string_copy(char *str, char **dest){
-	int ret, len;
-	char *out;
-
-	len = strlen(str);
-	out = kmalloc(len + 1, GFP_KERNEL);
-	if(!out){
-		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating destination for string copy");
-		goto error;
-	}
-
-	strncpy(out, str, len);
-	out[len] = '\0';
-
-	*dest = out;
-	return 0;
-
-error:
-	LOG_ERROR(ret, "error copying string");
-	if(out) kfree(out);
-
-	*dest = NULL;
-	return ret;
-}
-
 static int bdev_is_already_traced(struct block_device *bdev){
 	int i;
 	struct snap_device *dev;
@@ -3740,8 +3714,6 @@ error:
 }
 
 static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor, char *bdev_path, char *cow_path, unsigned long cache_size, int is_snap){
-	int ret;
-
 	if(is_snap) set_bit(SNAPSHOT, &dev->sd_state);
 	else clear_bit(SNAPSHOT, &dev->sd_state);
 	clear_bit(ACTIVE, &dev->sd_state);
@@ -3749,13 +3721,11 @@ static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor
 
 	dev->sd_cache_size = cache_size;
 
-	//copy the bdev_path
-	ret = string_copy(bdev_path, &dev->sd_bdev_path);
-	if(ret) goto error;
+	dev->sd_bdev_path = kstrdup(bdev_path, GFP_KERNEL);
+	if(!dev->sd_bdev_path) goto error;
 
-	//copy the cow_path
-	ret = string_copy(cow_path, &dev->sd_cow_path);
-	if(ret) goto error;
+	dev->sd_cow_path = kstrdup(cow_path, GFP_KERNEL);
+	if(!dev->sd_cow_path) goto error;
 
 	//add the tracer to the array of devices
 	__tracer_setup_tracing_unverified(dev, minor);
@@ -3763,9 +3733,9 @@ static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor
 	return 0;
 
 error:
-	LOG_ERROR(ret, "error setting up unverified tracer");
+	LOG_ERROR(-ENOMEM, "error setting up unverified tracer");
 	tracer_destroy(dev);
-	return ret;
+	return -ENOMEM;
 }
 #define tracer_setup_unverified_inc(dev, minor, bdev_path, cow_path, cache_size) __tracer_setup_unverified(dev, minor, bdev_path, cow_path, cache_size, 0)
 #define tracer_setup_unverified_snap(dev, minor, bdev_path, cow_path, cache_size) __tracer_setup_unverified(dev, minor, bdev_path, cow_path, cache_size, 1)
@@ -3922,8 +3892,8 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : dattobd_cow_max_memory_default;
-	strncpy(info->cow, dev->sd_cow_path, PATH_MAX);
-	strncpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_cow->file_max;
