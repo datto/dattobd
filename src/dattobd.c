@@ -4666,12 +4666,15 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 	task_work_flush();
 
 	//if we went dormant, but the block device is still mounted somewhere, goto fail state
-	sb = get_super(dev->sd_base_dev);
+	sb = dattobd_get_super(dev->sd_base_dev);
 	if(sb){
-		LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
-		tracer_set_fail_state(dev, -EIO);
-		drop_super(sb);
-		return;
+		if(!(sb->s_flags & MS_RDONLY)){
+			LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
+			tracer_set_fail_state(dev, -EIO);
+			dattobd_drop_super(sb);
+			return;
+		}
+		dattobd_drop_super(sb);
 	}
 
 	LOG_DEBUG("post umount check succeeded");
