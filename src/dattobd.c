@@ -644,10 +644,6 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
 #define ROUND_UP(x, chunk) ((((x) + (chunk) - 1) / (chunk)) * (chunk))
 #define ROUND_DOWN(x, chunk) (((x) / (chunk)) * (chunk))
 
-//bitmap macros
-#define bitmap_is_marked(bitmap, pos) (((bitmap)[(pos) / 8] & (1 << ((pos) % 8))) != 0)
-#define bitmap_mark(bitmap, pos) (bitmap)[(pos) / 8] |= (1 << ((pos) % 8))
-
 //name macros
 #define INFO_PROC_FILE "datto-info"
 #define DRIVER_NAME "datto"
@@ -658,8 +654,8 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
 #define INC_THREAD_NAME_FMT "datto_inc%d"
 
 //macro for iterating over snap_devices (requires a null check on dev)
-#define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
-#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor) && dev; i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices && dev; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
 #define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == dattobd_bio_get_queue(bio))
@@ -3008,7 +3004,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 
 	smp_rmb();
 	tracer_for_each(dev, i){
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
+		if(test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
 		if(bio_flagged(bio, BIO_ALREADY_TRACED)){
@@ -3081,7 +3077,7 @@ static int bdev_is_already_traced(struct block_device *bdev){
 	struct snap_device *dev;
 
 	tracer_for_each(dev, i){
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
+		if(test_bit(UNVERIFIED, &dev->sd_state)) continue;
 		if(dev->sd_base_dev == bdev) return 1;
 	}
 
@@ -3099,7 +3095,7 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	}
 
 	tracer_for_each(dev, i){
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
+		if(test_bit(UNVERIFIED, &dev->sd_state)) continue;
 		if(q == bdev_get_queue(dev->sd_base_dev)){
 			*mrf = dev->sd_orig_mrf;
 			return 0;
@@ -3121,7 +3117,7 @@ static int __tracer_should_reset_mrf(struct snap_device *dev){
 	//return 0 if there is another device tracing the same queue as dev.
 	if(snap_devices){
 		tracer_for_each(cur_dev, i){
-			if(!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) || cur_dev == dev) continue;
+			if(test_bit(UNVERIFIED, &cur_dev->sd_state) || cur_dev == dev) continue;
 			if(q == bdev_get_queue(cur_dev->sd_base_dev)) return 0;
 		}
 	}
@@ -3595,8 +3591,6 @@ static void minor_range_recalculate(void){
 	struct snap_device *dev;
 
 	tracer_for_each_full(dev, i){
-		if(!dev) continue;
-
 		if(i < lowest) lowest = i;
 		if(i > highest) highest = i;
 	}
@@ -4495,7 +4489,7 @@ static int __handle_bdev_mount_nowrite(struct vfsmount *mnt, unsigned int *idx_o
 	struct snap_device *dev;
 
 	tracer_for_each(dev, i){
-		if(!dev || !test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev) || dev->sd_base_dev != mnt->mnt_sb->s_bdev) continue;
+		if(!test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev) || dev->sd_base_dev != mnt->mnt_sb->s_bdev) continue;
 
 		//if we are unmounting the vfsmount we are using go to dormant state
 		if(mnt == dattobd_get_mnt(dev->sd_cow->filp)){
@@ -4521,7 +4515,7 @@ static int __handle_bdev_mount_writable(char __user *dir_name, struct block_devi
 	struct block_device *cur_bdev;
 
 	tracer_for_each(dev, i){
-		if(!dev || test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev)) continue;
+		if(test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev)) continue;
 
 		if(test_bit(UNVERIFIED, &dev->sd_state)){
 			//get the block device for the unverified tracer we are looking into
@@ -4941,10 +4935,8 @@ static void agent_exit(void){
 	LOG_DEBUG("destroying snap devices");
 	if(snap_devices){
 		tracer_for_each(dev, i){
-			if(dev){
-				LOG_DEBUG("destroying minor - %d", i);
-				tracer_destroy(dev);
-			}
+			LOG_DEBUG("destroying minor - %d", i);
+			tracer_destroy(dev);
 		}
 		kfree(snap_devices);
 		snap_devices = NULL;
