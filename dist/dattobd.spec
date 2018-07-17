@@ -344,9 +344,9 @@ install -m 755 dist/initramfs/reload %{buildroot}%{_sharedstatedir}/datto/dla/re
 %if 0%{?debian} || 0%{?ubuntu}
 mkdir -p %{buildroot}%{_initramfs_tools_root}
 mkdir -p %{buildroot}%{_initramfs_tools_root}/hooks
-mkdir -p %{buildroot}%{_initramfs_tools_root}/scripts/local-premount
+mkdir -p %{buildroot}%{_initramfs_tools_root}/scripts/init-premount
 install -m 755 dist/initramfs/initramfs-tools/hooks/dattobd %{buildroot}%{_initramfs_tools_root}/hooks/dattobd
-install -m 755 dist/initramfs/initramfs-tools/scripts/dattobd %{buildroot}%{_initramfs_tools_root}/scripts/local-premount/dattobd
+install -m 755 dist/initramfs/initramfs-tools/scripts/dattobd %{buildroot}%{_initramfs_tools_root}/scripts/init-premount/dattobd
 %else
 # openSUSE 13.1 and older use mkinitrd
 %if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
@@ -464,7 +464,7 @@ rm -rf %{buildroot}
 %{_sharedstatedir}/datto/dla/reload
 %if 0%{?debian} || 0%{?ubuntu}
 %{_initramfs_tools_root}/hooks/dattobd
-%{_initramfs_tools_root}/scripts/local-premount/dattobd
+%{_initramfs_tools_root}/scripts/init-premount/dattobd
 %else
 %if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
 %{_mkinitrd_scripts_root}/boot-dattobd.sh
