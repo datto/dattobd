@@ -2368,6 +2368,11 @@ static int bio_needs_cow(struct bio *bio, struct inode *inode){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 
+#ifdef HAVE_ENUM_REQ_OPF
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+	if(bio_op(bio) == REQ_OP_WRITE_ZEROES) return 1;
+#endif
+
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
 		if(page_get_inode(bio_iter_page(bio, iter)) != inode) return 1;
@@ -2964,6 +2969,14 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	sector_t start_sect = 0, end_sect = bio_sector(bio);
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
+
+#ifdef HAVE_ENUM_REQ_OPF
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+	if(bio_op(bio) == REQ_OP_WRITE_ZEROES){
+		ret = inc_make_sset(dev, bio_sector(bio), bio_size(bio) / KERNEL_SECTOR_SIZE);
+		goto out;
+	}
+#endif
 
 	bio_for_each_segment(bvec, bio, iter){
 		if(page_get_inode(bio_iter_page(bio, iter)) != dev->sd_cow_inode){
