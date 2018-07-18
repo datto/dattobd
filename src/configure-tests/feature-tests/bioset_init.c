@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2017 Datto Inc.
+    Copyright (C) 2018 Datto Inc.
 
     This file is part of dattobd.
 
@@ -11,6 +11,7 @@
 #include "../../includes.h"
 
 static inline void dummy(void){
-	int flags = BIOSET_NEED_BVECS;
-	(void)flags;
+	struct bio_set bs;
+
+	(void)bioset_init(&bs, 0, 0, 0);
 }
