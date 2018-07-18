@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.5
+Version:         0.10.6
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -562,8 +562,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 18 2018 Tim Crawford <tcrawford@datto.com> - 0.10.6
+- Added targets for making RPMs and DEBs to the Makefile
+- Moved the initramfs hook earlier in the boot so reload scripts are run before the root file system is mounted
+- Fixed unmount check that prevented persist-through-reboot from working correctly
+- Fixed crash when handling a REQ_OP_WRITE_ZEROES request
+
 * Tue Jun 26 2018 Tim Crawford <tcrawford@datto.com> - 0.10.5
 - Add support for openSUSE Leap 15
+
 * Wed Feb 14 2018 Tim Crawford <tcrawford@datto.com> - 0.10.4
 - Added Linux 4.14 compatibility
 - Added support for running the feature tests against non-running kernel
