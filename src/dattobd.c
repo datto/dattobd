@@ -633,6 +633,13 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
 #endif
 }
 
+#ifndef HAVE_BIOSET_INIT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
+#define dev_bioset(dev) ((dev)->sd_bioset)
+#else
+#define dev_bioset(dev) (&(dev)->sd_bioset)
+#endif
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 
@@ -812,7 +819,12 @@ struct snap_device{
 	struct task_struct *sd_mrf_thread; //thread for handling file read/writes
 	struct bio_queue sd_orig_bios; //list of outstanding original bios
 	struct sset_queue sd_pending_ssets; //list of outstanding sector sets
+#ifndef HAVE_BIOSET_INIT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
 	struct bio_set *sd_bioset; //allocation pool for bios
+#else
+	struct bio_set sd_bioset; //allocation pool for bios
+#endif
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 };
@@ -2384,12 +2396,12 @@ static int bio_needs_cow(struct bio *bio, struct inode *inode){
 #ifndef HAVE_BIO_BI_POOL
 static void bio_destructor_tp(struct bio *bio){
 	struct tracing_params *tp = bio->bi_private;
-	bio_free(bio, tp->dev->sd_bioset);
+	bio_free(bio, dev_bioset(tp->dev));
 }
 
 static void bio_destructor_snap_dev(struct bio *bio){
 	struct snap_device *dev = bio->bi_private;
-	bio_free(bio, dev->sd_bioset);
+	bio_free(bio, dev_bioset(dev));
 }
 #endif
 
@@ -2900,7 +2912,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 
 retry:
 	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
-	ret = bio_make_read_clone(dev->sd_bioset, tp, bio, start_sect, pages, &new_bio, &bytes);
+	ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto error;
 
 	//make sure we don't excede the max number of bio clones that tp can hold
@@ -3450,6 +3462,19 @@ static void __tracer_copy_cow_path(struct snap_device *src, struct snap_device *
 	dest->sd_cow_path = src->sd_cow_path;
 }
 
+static inline void __tracer_bioset_exit(struct snap_device *dev){
+#ifndef HAVE_BIOSET_INIT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
+	if(dev->sd_bioset){
+		LOG_DEBUG("freeing bio set");
+		bioset_free(dev->sd_bioset);
+		dev->sd_bioset = NULL;
+	}
+#else
+	bioset_exit(&dev->sd_bioset);
+#endif
+}
+
 static void __tracer_destroy_snap(struct snap_device *dev){
 	if(dev->sd_mrf_thread){
 		LOG_DEBUG("stopping mrf thread");
@@ -3470,22 +3495,26 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 		dev->sd_queue = NULL;
 	}
 
-	if(dev->sd_bioset){
-		LOG_DEBUG("freeing bio set");
-		bioset_free(dev->sd_bioset);
-		dev->sd_bioset = NULL;
-	}
+	__tracer_bioset_exit(dev);
+}
+
+static int __tracer_bioset_init(struct snap_device *dev){
+#ifndef HAVE_BIOSET_INIT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
+	dev->sd_bioset = dattobd_bioset_create(BIO_SET_SIZE, BIO_SET_SIZE, 0);
+	if(!dev->sd_bioset) return -ENOMEM;
+	return 0;
+#else
+	return bioset_init(&dev->sd_bioset, BIO_SET_SIZE, BIO_SET_SIZE, BIOSET_NEED_BVECS);
+#endif
 }
 
 static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, struct block_device *bdev, sector_t size){
 	int ret;
 
-	//allocate the bio_set
-	LOG_DEBUG("creating bioset");
-	dev->sd_bioset = dattobd_bioset_create(BIO_SET_SIZE, BIO_SET_SIZE, 0);
-	if(!dev->sd_bioset){
-		ret = -ENOMEM;
-		LOG_ERROR(ret, "error allocating bio set");
+	ret = __tracer_bioset_init(dev);
+	if(ret){
+		LOG_ERROR(ret, "error initializing bio set");
 		goto error;
 	}
 
