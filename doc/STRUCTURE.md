@@ -47,11 +47,15 @@ The header and index are always present as part of the file. The datastore is al
 
 The COW file header comprises the first 4096 bytes of the file, split up as follows:
 
-* 0x0000 - 0x0004 : File signature
-* 0x0005 - 0x0008 : Flags
-* 0x0009 - 0x000F : Location of file pointer
-* 0x0010 - 0x0018 : Amount of disk space allocated for snapshot mode COW file.
-* 0x0019 - 0xFFFF : Empty
+* 0x0000 - 0x0003 : File signature
+* 0x0004 - 0x0007 : Flags
+* 0x0008 - 0x000F : Location of file pointer
+* 0x0010 - 0x0017 : Amount of disk space allocated for snapshot mode COW file
+* 0x0018 - 0x001F : Sequence ID of snapshot
+* 0x0020 - 0x002F : UUID for snapshot series
+* 0x0030 - 0x0037 : Version of the header format
+* 0x0038 - 0x003F : Number of changed blocks since snapshot
+* 0x0040 - 0xFFFF : Empty
 
 Most of the header is left empty, for future usage and alignment concerns.
 

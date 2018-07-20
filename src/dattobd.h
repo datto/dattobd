@@ -57,6 +57,9 @@ struct reconfigure_params{
 #define COW_INDEX_ONLY 1
 #define COW_VMALLOC_UPPER 2
 
+#define COW_VERSION_0 0
+#define COW_VERSION_CHANGED_BLOCKS 1
+
 struct cow_header{
 	uint32_t magic; //COW header magic
 	uint32_t flags; //COW file flags
@@ -64,6 +67,8 @@ struct cow_header{
 	uint64_t fsize; //file size
 	uint64_t seqid; //seqential id of snapshot (starts at 1)
 	uint8_t uuid[COW_UUID_SIZE]; //uuid for this series of snapshots
+	uint64_t version; //version of cow file format
+	uint64_t nr_changed_blocks; //number of changed blocks since last snapshot
 };
 
 struct dattobd_info{
@@ -76,6 +81,8 @@ struct dattobd_info{
 	char uuid[COW_UUID_SIZE];
 	char cow[PATH_MAX];
 	char bdev[PATH_MAX];
+	unsigned long long version;
+	unsigned long long nr_changed_blocks;
 };
 
 #define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
