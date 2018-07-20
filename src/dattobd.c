@@ -788,6 +788,8 @@ struct cow_manager{
 	uint64_t data_offset; //starting offset of data
 	uint64_t file_max; //max size of the file before an error is thrown
 	uint64_t seqid; //sequence id, increments on each transition to snapshot mode
+	uint64_t version; //version of cow file format
+	uint64_t nr_changed_blocks; //number of changed blocks since last snapshot
 	uint8_t uuid[COW_UUID_SIZE]; //uuid for this series of snaphots
 	unsigned int log_sect_pages; //log2 of the number of pages needed to store a section
 	unsigned long sect_size; //size of a section in number of elements it can contain
@@ -1775,6 +1777,8 @@ static int __cow_write_header(struct cow_manager *cm, int is_clean){
 	ch.fsize = cm->file_max;
 	ch.seqid = cm->seqid;
 	memcpy(ch.uuid, cm->uuid, COW_UUID_SIZE);
+	ch.version = cm->version;
+	ch.nr_changed_blocks = cm->nr_changed_blocks;
 
 	ret = file_write(cm->filp, &ch, 0, sizeof(struct cow_header));
 	if(ret){
@@ -1821,6 +1825,8 @@ static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_v
 	cm->file_max = ch.fsize;
 	cm->seqid = ch.seqid;
 	memcpy(cm->uuid, ch.uuid, COW_UUID_SIZE);
+	cm->version = ch.version;
+	cm->nr_changed_blocks = ch.nr_changed_blocks;
 
 	ret = __cow_write_header_dirty(cm);
 	if(ret) goto error;
@@ -2007,6 +2013,8 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	ret = file_open(path, O_CREAT | O_TRUNC, &cm->filp);
 	if(ret) goto error;
 
+	cm->version = COW_VERSION_CHANGED_BLOCKS;
+	cm->nr_changed_blocks = 0;
 	cm->flags = 0;
 	cm->allocated_sects = 0;
 	cm->file_max = file_max;
@@ -2116,6 +2124,8 @@ static int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t va
 			if(ret) goto error;
 		}
 	}
+
+	if(cm->version >= COW_VERSION_CHANGED_BLOCKS && !cm->sects[sect_idx].mappings[sect_pos]) cm->nr_changed_blocks++;
 
 	cm->sects[sect_idx].mappings[sect_pos] = val;
 
@@ -3941,6 +3951,8 @@ static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *in
 		info->falloc_size = dev->sd_cow->file_max;
 		info->seqid = dev->sd_cow->seqid;
 		memcpy(info->uuid, dev->sd_cow->uuid, COW_UUID_SIZE);
+		info->version = dev->sd_cow->version;
+		info->nr_changed_blocks = dev->sd_cow->nr_changed_blocks;
 	}else{
 		info->falloc_size = 0;
 		info->seqid = 0;
@@ -4916,6 +4928,11 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 					seq_printf(m, "%02x", dev->sd_cow->uuid[i]);
 				}
 				seq_printf(m, "\",\n");
+
+				if(dev->sd_cow->version > COW_VERSION_0){
+					seq_printf(m, "\t\t\t\"version\": %llu\n", dev->sd_cow->version);
+					seq_printf(m, "\t\t\t\"nr_changed_blocks\": %llu\n", dev->sd_cow->nr_changed_blocks);
+				}
 			}
 		}
 
