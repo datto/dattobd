@@ -9,7 +9,6 @@ modprobe dattobd
 
 rbd="${root#block:}"
 if [ -n "$rbd" ]; then
-    # Based on 98dracut-systemd/rootfs-generator.sh
     case "$rbd" in
         LABEL=*)
             rbd="$(echo $rbd | sed 's,/,\\x2f,g')"
@@ -29,7 +28,7 @@ if [ -n "$rbd" ]; then
     echo "dattobd: root block device = $rbd" > /dev/kmsg
 
     # Device might not be ready
-    if ! [ -b "$rbd" ]; then
+    if [ ! -b "$rbd" ]; then
         udevadm settle
     fi
 
@@ -37,15 +36,16 @@ if [ -n "$rbd" ]; then
     [ -z "$rootfstype" ] && rootfstype=$(blkid -s TYPE "$rbd" -o value)
 
     echo "dattobd: mounting $rbd as $rootfstype" > /dev/kmsg
+    blockdev --setro $rbd
     mount -t $rootfstype -o ro "$rbd" /etc/datto/dla/mnt
     udevadm settle
 
     if [ -x /sbin/datto_reload ]; then
-        echo "dattobd: found /sbin/datto_reload" > /dev/kmsg
         /sbin/datto_reload
     else
-        echo "dattobd: Warning: did not find /sbin/datto_reload" > /dev/kmsg
+        echo "dattobd: error: cannot reload tracking data: missing /sbin/datto_reload" > /dev/kmsg
     fi
 
     umount -f /etc/datto/dla/mnt
+    blockdev --setrw $rbd
 fi

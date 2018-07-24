@@ -18,6 +18,7 @@ install() {
     inst_hook pre-mount 01 "$moddir/dattobd.sh"
     inst_dir /etc/datto/dla/mnt
     inst /sbin/blkid
+    inst /sbin/blockdev
     inst /usr/bin/udevadm
     inst /usr/bin/dbdctl
     inst_simple /var/lib/datto/dla/reload /sbin/datto_reload

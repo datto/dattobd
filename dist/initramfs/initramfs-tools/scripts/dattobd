@@ -4,56 +4,59 @@ PREREQ=""
 
 prereqs()
 {
-	echo "$PREREQ"
+    echo "$PREREQ"
 }
 
 case $1 in
-	prereqs)
-		prereqs
-		exit 0
-		;;
+    prereqs)
+        prereqs
+        exit 0
+        ;;
 esac
 
 modprobe dattobd
 
-rbd=""
+rbd="${ROOT#block:}"
+if [ -n "$rbd" ]; then
+    case "$rbd" in
+        LABEL=*)
+            rbd="$(echo $rbd | sed 's,/,\\x2f,g')"
+            rbd="/dev/disk/by-label/${rbd#LABEL=}"
+            ;;
+        UUID=*)
+            rbd="/dev/disk/by-uuid/${ROOT#UUID=}"
+            ;;
+        PARTLABEL=*)
+            rbd="/dev/disk/by-partlabel/${rbd#PARTLABEL=}"
+            ;;
+        PARTUUID=*)
+            rbd="/dev/disk/by-partuuid/${rbd#PARTUUID=}"
+            ;;
+    esac
 
-echo "ROOT = $ROOT" > /dev/kmsg
+    echo "dattobd: root block device = $rbd" > /dev/kmsg
 
-if test "${ROOT#*/dev/disk/by-uuid/}" != $ROOT; then
-	rbd=${ROOT#/dev/disk/by-uuid/}
-	echo "matched /dev/disk/by-uuid/ rbd1=$rbd " > /dev/kmsg
-	rbd=$(blkid -t UUID=$rbd -o device)
-	echo "matched /dev/disk/by-uuid/ rbd2=$rbd " > /dev/kmsg
-elif test "${ROOT#*/dev/mapper/}" != $ROOT; then
-	rbd=$ROOT
-	echo "matched /dev/mapper/ rbd=$rbd " > /dev/kmsg
+    # Device might not be ready
+    if [ ! -b "$rbd" ]; then
+        udevadm settle
+    fi
 
-# the new ubuntu 16.04 way is ROOT=UUID=xyz
-elif test "${ROOT#*UUID=}" != $ROOT; then
-	rbd=${ROOT#UUID=}
-	echo "matched UUID= rbd1=$rbd " > /dev/kmsg
-	rbd=$(blkid -t UUID=$rbd -o device)
-	echo "matched UUID= rbd2=$rbd " > /dev/kmsg
-else
-	echo "Unable to parse ROOT volume $ROOT, can not persist this volume through reboot." > /dev/kmsg
-fi
+    # Kernel cmdline might not specify rootfstype
+    [ -z "$ROOTFSTYPE" ] && ROOTFSTYPE=$(blkid -s TYPE -o value $rbd)
 
-echo "RBD = $rbd" > /dev/kmsg
+    echo "dattobd: mounting $rbd as $ROOTFSTYPE" > /dev/kmsg
+    blockdev --setro $rbd
+    mount -t $ROOTFSTYPE -o ro $rbd /etc/datto/dla/mnt > /dev/kmsg
+    udevadm settle
 
-if [ -b "$rbd" ]
-then
-	if [ -z "$ROOTFSTYPE" ]; then
-		ROOTFSTYPE=$(blkid -s TYPE $rbd)
-		ROOTFSTYPE=${ROOTFSTYPE#*TYPE\=\"}
-		ROOTFSTYPE=${ROOTFSTYPE%\"*}
-	fi
-	mount -t $ROOTFSTYPE -o ro $rbd /etc/datto/dla/mnt > /dev/kmsg
-	sleep 1
-	if [ -x /sbin/datto_reload ]; then
-		/sbin/datto_reload > /dev/kmsg
-	fi
-	umount -f /etc/datto/dla/mnt > /dev/kmsg
+    if [ -x /sbin/datto_reload ]; then
+        /sbin/datto_reload
+    else
+        echo "dattobd: error: cannot reload tracking data: missing /sbin/datto_reload" > /dev/kmsg
+    fi
+
+    umount -f /etc/datto/dla/mnt > /dev/kmsg
+    blockdev --setrw $rbd
 fi
 
 exit 0
