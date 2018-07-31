@@ -16,14 +16,19 @@ sudo yum install https://cpkg.datto.com/datto-rpm/repoconfig/datto-fedora-rpm-re
 sudo yum install kernel-devel-$(uname -r) dkms-dattobd dattobd-utils
 ```
 ### openSUSE
-The repository install package `datto-opensuse-rpm-release` is available for openSUSE Leap 42.x.
+The repository install package `datto-opensuse-rpm-release` is available for openSUSE Leap 42.x and 15.x.
+#### openSUSE Leap 42.x
 Due to the DKMS software not being present in openSUSE's default repositories, the `X11:Bumblebee` or other similar repository providing
 DKMS is required. The steps below assume no providers of DKMS are available, so it may not be necessary to add `X11:Bumblebee` if you can
 already get DKMS through an already-installed repository.
-#### openSUSE Leap 42.x
 ```bash
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.1/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-latest.noarch.rpm
+sudo zypper install dkms-dattobd dattobd-utils
+```
+#### openSUSE Leap 15.x
+```bash
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-15.0-latest.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### SUSE Linux Enterprise
