@@ -4930,8 +4930,8 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 				seq_printf(m, "\",\n");
 
 				if(dev->sd_cow->version > COW_VERSION_0){
-					seq_printf(m, "\t\t\t\"version\": %llu\n", dev->sd_cow->version);
-					seq_printf(m, "\t\t\t\"nr_changed_blocks\": %llu\n", dev->sd_cow->nr_changed_blocks);
+					seq_printf(m, "\t\t\t\"version\": %llu,\n", dev->sd_cow->version);
+					seq_printf(m, "\t\t\t\"nr_changed_blocks\": %llu,\n", dev->sd_cow->nr_changed_blocks);
 				}
 			}
 		}
