@@ -715,11 +715,14 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
 //macros for system call hooks
 #define CR0_WP 0x00010000
 
+#define DATTOBD_DEFAULT_SNAP_DEVICES 24
+#define DATTOBD_MAX_SNAP_DEVICES 255
+
 //global module parameters
 static int dattobd_may_hook_syscalls = 1;
 static unsigned long dattobd_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int dattobd_cow_fallocate_percentage_default = 10;
-static unsigned int dattobd_max_snap_devices = 24;
+static unsigned int dattobd_max_snap_devices = DATTOBD_DEFAULT_SNAP_DEVICES;
 static int dattobd_debug = 0;
 
 module_param_named(may_hook_syscalls, dattobd_may_hook_syscalls, int, S_IRUGO);
@@ -5024,6 +5027,12 @@ static int __init agent_init(void){
 	mutex_init(&ioctl_mutex);
 
 	//init minor range
+	if(dattobd_max_snap_devices == 0 || dattobd_max_snap_devices > DATTOBD_MAX_SNAP_DEVICES){
+		const unsigned int nr_devices = dattobd_max_snap_devices == 0 ? DATTOBD_DEFAULT_SNAP_DEVICES : DATTOBD_MAX_SNAP_DEVICES;
+		LOG_WARN("invalid number of snapshot devices (%u), setting to %u", dattobd_max_snap_devices, nr_devices);
+		dattobd_max_snap_devices = nr_devices;
+	}
+
 	highest_minor = 0;
 	lowest_minor = dattobd_max_snap_devices - 1;
 
