@@ -32,7 +32,7 @@ sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-r
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### SUSE Linux Enterprise
-The repository install package `datto-sle-rpm-release` is available for SUSE Linux Enterprise 11 SP4 and 12.
+The repository install package `datto-sle-rpm-release` is available for SUSE Linux Enterprise 11 SP4 and higher.
 #### SUSE Linux Enterprise 11 SP4
 Due to the DKMS software not being present in the default repositories and most versions for SLE 11 are too old, we provide a
 usable copy in our repositories.
@@ -53,6 +53,18 @@ ktype=$(uname -r | awk -F '-' '{ print $NF }')
 kver=$(uname -r | sed "s/-${ktype}//")
 sudo zypper addrepo http://download.opensuse.org/repositories/X11:/Bumblebee/SLE_12_SP2_Backports/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-12-latest.noarch.rpm
+sudo zypper install -C "kernel-syms = ${kver}"
+sudo zypper install dkms-dattobd dattobd-utils
+```
+#### SUSE Linux Enterprise 15
+Due to the DKMS software not being present in SLE's default repositories, [PackageHub](https://packagehub.suse.com/) or other similar
+repository providing DKMS is required. The steps below assume PackageHub is not enabled, so it may not be necessary to enable
+PackageHub if you can already get DKMS through an already-installed repository.
+```bash
+ktype=$(uname -r | awk -F '-' '{ print $NF }')
+kver=$(uname -r | sed "s/-${ktype}//")
+sudo SUSEConnect -p PackageHub/15/x86_64
+sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-15-latest.noarch.rpm
 sudo zypper install -C "kernel-syms = ${kver}"
 sudo zypper install dkms-dattobd dattobd-utils
 ```
