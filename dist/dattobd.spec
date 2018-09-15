@@ -219,9 +219,15 @@ Group:           System Environment/Kernel
 BuildArch:       noarch
 %endif
 
+%if 0%{?rhel} >= 6 || 0%{?fedora} >= 23 || 0%{?suse_version} >= 1315
+Requires(preun): dkms >= 2.3
+Requires:        dkms >= 2.3
+Requires(post):  dkms >= 2.3
+%else
 Requires(preun): dkms
 Requires:        dkms
 Requires(post):  dkms
+%endif
 
 %if 0%{?rhel}
 # Ensure perl is actually installed for builds to work
@@ -326,8 +332,8 @@ mkdir -p %{buildroot}%{_sysconfdir}/sysconfig/modules
 install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/dattobd.modules
 %endif
 
-# We only need the hook with Fedora, RHEL/CentOS, and SUSE systems
-%if 0%{?fedora} || 0%{?rhel} || 0%{?suse_version}
+# We only need the hook with older distros
+%if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 # Install the kernel hook to enforce dattobd rebuilds
 mkdir -p %{buildroot}%{_sysconfdir}/kernel/postinst.d
 install -m 755 dist/kernel.postinst.d/50-dattobd %{buildroot}%{_sysconfdir}/kernel/postinst.d/50-dattobd
@@ -544,7 +550,7 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
-%if 0%{?fedora} || 0%{?rhel} || 0%{?suse_version}
+%if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
 %{_sysconfdir}/kernel/postinst.d/50-dattobd
 %endif
