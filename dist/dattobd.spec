@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.6
+Version:         0.10.7
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -568,6 +568,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 17 2018 Tim Crawford <tcrawford@datto.com> - 0.10.7
+- Added field to track the number of changed blocks
+- Changed the initramfs scripts to make the root device read-only during mount
+- Changed number of supported concurrent devices to be between 1 and 255
+- Changed behavior on kernel upgrade to not remove the module if DKMS is >= 2.3
+
 * Wed Jul 18 2018 Tim Crawford <tcrawford@datto.com> - 0.10.6
 - Added targets for making RPMs and DEBs to the Makefile
 - Moved the initramfs hook earlier in the boot so reload scripts are run before the root file system is mounted
