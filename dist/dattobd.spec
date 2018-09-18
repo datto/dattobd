@@ -34,7 +34,7 @@
 # and we need it to be /bin/bash, so we set it here.
 %if %{_vendor} == "debbuild"
 %global _buildshell /bin/bash
-%global ___build_args %{?nil}
+%global ___build_args %{nil}
 %endif
 
 # Set up the correct DKMS module name, per Debian convention for Debian/Ubuntu,
