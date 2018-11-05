@@ -2384,7 +2384,11 @@ static void tp_put(struct tracing_params *tp){
 static inline struct inode *page_get_inode(struct page *pg){
 	if(!pg) return NULL;
 	if(!pg->mapping) return NULL;
-	if((unsigned long)pg->mapping & PAGE_MAPPING_ANON) return NULL;
+	if(PageAnon(pg)) return NULL;
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0)
+#ifdef TAIL_MAPPING
+	if (pg->mapping == TAIL_MAPPING) return NULL;
+#endif
 	if(!pg->mapping->host) return NULL;
 	return pg->mapping->host;
 }
