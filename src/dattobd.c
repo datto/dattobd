@@ -692,9 +692,6 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
-//macro to indicate special case for printing the proc file header
-#define DATTOBD_PROC_PRINT_HEADER ((void *)1)
-
 //maximum number of clones per traced bio
 #define MAX_CLONES_PER_BIO 5
 
@@ -4907,14 +4904,14 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 	struct snap_device *dev = NULL;
 
 	//print the header if the "pointer" really an indication to do so
-	if(dev_ptr == DATTOBD_PROC_PRINT_HEADER){
+	if(dev_ptr == SEQ_START_TOKEN){
 		seq_printf(m, "{\n");
 		seq_printf(m, "\t\"version\": \"%s\",\n", DATTOBD_VERSION);
 		seq_printf(m, "\t\"devices\": [\n");
 	}
 
 	//if the pointer is actually a device print it
-	if(dev_ptr != DATTOBD_PROC_PRINT_HEADER && *dev_ptr != NULL){
+	if(dev_ptr != SEQ_START_TOKEN && *dev_ptr != NULL){
 		dev = *dev_ptr;
 
 		if(dev->sd_minor != lowest_minor) seq_printf(m, ",\n");
@@ -4951,7 +4948,7 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 	}
 
 	//print the footer if there are no devices to print or if this device has the highest minor
-	if((dev_ptr == DATTOBD_PROC_PRINT_HEADER && lowest_minor > highest_minor) || (dev && dev->sd_minor == highest_minor)){
+	if((dev_ptr == SEQ_START_TOKEN && lowest_minor > highest_minor) || (dev && dev->sd_minor == highest_minor)){
 		seq_printf(m, "\n\t]\n");
 		seq_printf(m, "}\n");
 	}
@@ -4960,13 +4957,13 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 }
 
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos){
-	if(*pos == 0) return DATTOBD_PROC_PRINT_HEADER;
+	if(*pos == 0) return SEQ_START_TOKEN;
 	if(*pos > highest_minor) return NULL;
 	return &snap_devices[*pos];
 }
 
 static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos){
-	if(v != DATTOBD_PROC_PRINT_HEADER) (*pos)++;
+	if(v != SEQ_START_TOKEN) (*pos)++;
 	if(*pos > highest_minor) return NULL;
 	return &snap_devices[*pos];
 }
