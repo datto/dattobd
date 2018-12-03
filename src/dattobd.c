@@ -2032,9 +2032,6 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 	if(uuid) memcpy(cm->uuid, uuid, COW_UUID_SIZE);
 	else generate_random_uuid(cm->uuid);
 
-	ret = __cow_write_header_dirty(cm);
-	if(ret) goto error;
-
 	LOG_DEBUG("allocating cow manager array (%lu sections)", cm->total_sects);
 	cm->sects = kzalloc((cm->total_sects) * sizeof(struct cow_section), GFP_KERNEL | __GFP_NOWARN);
 	if(!cm->sects){
@@ -2050,6 +2047,9 @@ static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsi
 
 	LOG_DEBUG("allocating cow file (%llu bytes)", (unsigned long long)file_max);
 	ret = file_allocate(cm->filp, 0, file_max);
+	if(ret) goto error;
+
+	ret = __cow_write_header_dirty(cm);
 	if(ret) goto error;
 
 	*cm_out = cm;
