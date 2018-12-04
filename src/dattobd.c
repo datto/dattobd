@@ -4956,16 +4956,20 @@ static int dattobd_proc_show(struct seq_file *m, void *v){
 	return 0;
 }
 
+static inline void *dattobd_proc_get_idx(loff_t pos){
+	if(pos > highest_minor) return NULL;
+	return &snap_devices[pos];
+}
+
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos){
 	if(*pos == 0) return SEQ_START_TOKEN;
-	if(*pos > highest_minor) return NULL;
-	return &snap_devices[*pos];
+	return dattobd_proc_get_idx(*pos);
 }
 
 static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos){
-	if(v != SEQ_START_TOKEN) (*pos)++;
-	if(*pos > highest_minor) return NULL;
-	return &snap_devices[*pos];
+	void *dev = dattobd_proc_get_idx(*pos);
+	++*pos;
+	return dev;
 }
 
 static void dattobd_proc_stop(struct seq_file *m, void *v){
