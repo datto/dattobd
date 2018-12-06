@@ -1,13 +1,8 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
+
 /*
-    Copyright (C) 2015 Datto Inc.
-
-    This file is part of dattobd.
-
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the GNU Lesser General Public License as published
-    by the Free Software Foundation; either version 2.1 of the License, or
-    or (at your option) any later version.
-*/
+ * Copyright (C) 2015 Datto Inc.
+ */
 
 #ifndef LIBDATTOBD_H_
 #define LIBDATTOBD_H_

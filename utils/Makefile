@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 BINARY_NAME = update-img
 INSTALLDIR = $(PREFIX)/bin
 SOURCES = update-img.c

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 obj-m := dattobd.o
 
 KERNELVERSION ?= $(shell uname -r)

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 export CC = gcc
 export RM = rm -f
 CFLAGS ?= -Wall

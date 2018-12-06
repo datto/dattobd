@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 BINARY_NAME = dbdctl
 INSTALLDIR = $(PREFIX)/bin
 SOURCES = dbdctl.c
