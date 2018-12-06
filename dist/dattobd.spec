@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.7
+Version:         0.10.8
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -568,6 +568,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 6 2018 Tim Crawford <tcrawford@datto.com> - 0.10.8
+- Fixed procfs output on Linux 4.19
+- Fixed writing out the header to the COW file
+- Fixed GPF caused by accessing poisoned mappings in pages
+- Fixed building Debian packages with debbuild 18.9
+
 * Mon Sep 17 2018 Tim Crawford <tcrawford@datto.com> - 0.10.7
 - Added field to track the number of changed blocks
 - Changed the initramfs scripts to make the root device read-only during mount
