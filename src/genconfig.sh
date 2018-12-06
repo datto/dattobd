@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
 
 SRC_DIR=$(dirname "$0")
 OUTPUT_FILE=$SRC_DIR/kernel-config.h
