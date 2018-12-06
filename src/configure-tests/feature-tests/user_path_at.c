@@ -8,7 +8,7 @@
     by the Free Software Foundation.
 */
 
-#include "../../includes.h"
+#include "includes.h"
 
 static inline void dummy(void){
 	user_path_at(0, "dummy", 0, NULL);

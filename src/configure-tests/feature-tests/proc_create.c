@@ -8,7 +8,7 @@
     by the Free Software Foundation.
 */
 
-#include "../../includes.h"
+#include "includes.h"
 
 static inline void dummy(void){
 	struct proc_dir_entry *ent = proc_create("file", 0, NULL, NULL);

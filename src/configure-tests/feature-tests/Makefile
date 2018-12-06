@@ -3,7 +3,7 @@ obj-m := $(OBJ)
 KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
-EXTRA_CFLAGS := -g -Werror
+EXTRA_CFLAGS := -g -Werror -I$(src)/../..
 
 default:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
