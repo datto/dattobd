@@ -7,6 +7,6 @@
 #include "includes.h"
 
 static inline void dummy(void){
-	struct vfsmount *mnt
+	struct vfsmount *mnt;
 	mnt_want_write(mnt);
 }
