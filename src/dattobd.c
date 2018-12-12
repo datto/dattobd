@@ -454,7 +454,7 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 }
 #endif
 
-int dattobd_should_remove_suid(struct dentry *dentry)
+static int dattobd_should_remove_suid(struct dentry *dentry)
 {
 	mode_t mode = dentry->d_inode->i_mode;
 	int kill = 0;
@@ -1163,7 +1163,7 @@ static void task_work_flush(void){
 /******************************FILE OPERATIONS*******************************/
 
 static inline void file_close(struct file *f){
-	filp_close(f, 0);
+	filp_close(f, NULL);
 }
 
 static int file_open(const char *filename, int flags, struct file **filp){
@@ -1178,7 +1178,7 @@ static int file_open(const char *filename, int flags, struct file **filp){
 	}else if(IS_ERR(f)){
 		ret = PTR_ERR(f);
 		f = NULL;
-		LOG_ERROR(ret, "error creating/opening file '%s' - %d", filename, (int)PTR_ERR(f));
+		LOG_ERROR(ret, "error creating/opening file '%s' - %d", filename, ret);
 		goto error;
 	}else if(!S_ISREG(dattobd_get_dentry(f)->d_inode->i_mode)){
 		ret = -EINVAL;
