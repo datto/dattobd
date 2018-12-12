@@ -908,7 +908,7 @@ static asmlinkage long (*orig_oldumount)(char __user *);
 
 /*******************************ATOMIC FUNCTIONS******************************/
 
-static inline int tracer_read_fail_state(struct snap_device *dev){
+static inline int tracer_read_fail_state(const struct snap_device *dev){
 	smp_mb();
 	return atomic_read(&dev->sd_fail_code);
 }
@@ -945,7 +945,7 @@ error:
 	return ret;
 }
 
-static int get_setup_params(struct setup_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *fallocated_space, unsigned long *cache_size){
+static int get_setup_params(const struct setup_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *fallocated_space, unsigned long *cache_size){
 	int ret;
 	struct setup_params params;
 
@@ -993,7 +993,7 @@ error:
 	return ret;
 }
 
-static int get_reload_params(struct reload_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *cache_size){
+static int get_reload_params(const struct reload_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *cache_size){
 	int ret;
 	struct reload_params params;
 
@@ -1039,7 +1039,7 @@ error:
 	return ret;
 }
 
-static int get_transition_snap_params(struct transition_snap_params __user *in, unsigned int *minor, char **cow_path, unsigned long *fallocated_space){
+static int get_transition_snap_params(const struct transition_snap_params __user *in, unsigned int *minor, char **cow_path, unsigned long *fallocated_space){
 	int ret;
 	struct transition_snap_params params;
 
@@ -1074,7 +1074,7 @@ error:
 	return ret;
 }
 
-static int get_reconfigure_params(struct reconfigure_params __user *in, unsigned int *minor, unsigned long *cache_size){
+static int get_reconfigure_params(const struct reconfigure_params __user *in, unsigned int *minor, unsigned long *cache_size){
 	int ret;
 	struct reconfigure_params params;
 
@@ -1279,7 +1279,7 @@ error:
 }
 #endif
 
-static int path_get_absolute_pathname(struct path *path, char **buf, int *len_res){
+static int path_get_absolute_pathname(const struct path *path, char **buf, int *len_res){
 	int ret, len;
 	char *pathname, *page_buf, *final_buf = NULL;
 
@@ -1323,7 +1323,7 @@ error:
 	return ret;
 }
 
-static int file_get_absolute_pathname(struct file *filp, char **buf, int *len_res){
+static int file_get_absolute_pathname(const struct file *filp, char **buf, int *len_res){
 	struct path path;
 	int ret;
 
@@ -2217,7 +2217,7 @@ static inline void sset_list_init(struct sset_list *sl){
 	sl->head = sl->tail = NULL;
 }
 
-static inline int sset_list_empty(struct sset_list *sl){
+static inline int sset_list_empty(const struct sset_list *sl){
 	return sl->head == NULL;
 }
 
@@ -2248,7 +2248,7 @@ static void bio_queue_init(struct bio_queue *bq){
 	init_waitqueue_head(&bq->event);
 }
 
-static int bio_queue_empty(struct bio_queue *bq){
+static int bio_queue_empty(const struct bio_queue *bq){
 	return bio_list_empty(&bq->bios);
 }
 
@@ -2272,7 +2272,7 @@ static struct bio *bio_queue_dequeue(struct bio_queue *bq){
 	return bio;
 }
 
-static int bio_overlap(struct bio *bio1, struct bio *bio2){
+static int bio_overlap(const struct bio *bio1, const struct bio *bio2){
 	return max(bio_sector(bio1), bio_sector(bio2)) <= min(bio_sector(bio1) + (bio_size(bio1) / KERNEL_SECTOR_SIZE), bio_sector(bio2) + (bio_size(bio2) / KERNEL_SECTOR_SIZE));
 }
 
@@ -2315,7 +2315,7 @@ static void sset_queue_init(struct sset_queue *sq){
 	init_waitqueue_head(&sq->event);
 }
 
-static int sset_queue_empty(struct sset_queue *sq){
+static int sset_queue_empty(const struct sset_queue *sq){
 	return sset_list_empty(&sq->ssets);
 }
 
@@ -2486,7 +2486,7 @@ error:
 
 /*******************BIO / SECTOR_SET PROCESSING LOGIC***********************/
 
-static int snap_read_bio_get_mode(struct snap_device *dev, struct bio *bio, int *mode){
+static int snap_read_bio_get_mode(const struct snap_device *dev, struct bio *bio, int *mode){
 	int ret, start_mode = 0;
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
@@ -2527,7 +2527,7 @@ error:
 	return ret;
 }
 
-static int snap_handle_read_bio(struct snap_device *dev, struct bio *bio){
+static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	int ret, mode;
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
@@ -2626,7 +2626,7 @@ out:
 	return ret;
 }
 
-static int snap_handle_write_bio(struct snap_device *dev, struct bio *bio){
+static int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio){
 	int ret;
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
@@ -2663,7 +2663,7 @@ error:
 	return ret;
 }
 
-static int inc_handle_sset(struct snap_device *dev, struct sector_set *sset){
+static int inc_handle_sset(const struct snap_device *dev, struct sector_set *sset){
 	int ret;
 	sector_t start_block = SECTOR_TO_BLOCK(sset->sect);
 	sector_t end_block = NUM_SEGMENTS(sset->sect + sset->len, COW_BLOCK_LOG_SIZE - KERNEL_SECTOR_LOG_SIZE);
@@ -3111,7 +3111,7 @@ static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm, struct 
 
 /*******************************SETUP HELPER FUNCTIONS********************************/
 
-static int bdev_is_already_traced(struct block_device *bdev){
+static int bdev_is_already_traced(const struct block_device *bdev){
 	int i;
 	struct snap_device *dev;
 
@@ -3145,7 +3145,7 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	return -EFAULT;
 }
 
-static int __tracer_should_reset_mrf(struct snap_device *dev){
+static int __tracer_should_reset_mrf(const struct snap_device *dev){
 	int i;
 	struct snap_device *cur_dev;
 	struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
@@ -3325,7 +3325,7 @@ error:
 	return ret;
 }
 
-static void __tracer_copy_base_dev(struct snap_device *src, struct snap_device *dest){
+static void __tracer_copy_base_dev(const struct snap_device *src, struct snap_device *dest){
 	dest->sd_size = src->sd_size;
 	dest->sd_sect_off = src->sd_sect_off;
 	dest->sd_base_dev = src->sd_base_dev;
@@ -3361,7 +3361,7 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 #define __tracer_destroy_cow_sync_and_close(dev) __tracer_destroy_cow(dev, 2)
 
 
-static int file_is_on_bdev(struct file *file, struct block_device *bdev) {
+static int file_is_on_bdev(const struct file *file, struct block_device *bdev) {
 	struct super_block *sb = dattobd_get_super(bdev);
 	int ret = 0;
 	if (sb) {
@@ -3437,7 +3437,7 @@ error:
 #define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, NULL, 0, 2)
 #define __tracer_setup_cow_reopen(dev, bdev, cow_path) __tracer_setup_cow(dev, bdev, cow_path, 0, 0, 0, NULL, 0, 3)
 
-static void __tracer_copy_cow(struct snap_device *src, struct snap_device *dest){
+static void __tracer_copy_cow(const struct snap_device *src, struct snap_device *dest){
 	dest->sd_cow = src->sd_cow;
 	dest->sd_cow_inode = src->sd_cow_inode;
 	dest->sd_cache_size = src->sd_cache_size;
@@ -3452,7 +3452,7 @@ static void __tracer_destroy_cow_path(struct snap_device *dev){
 	}
 }
 
-static int __tracer_setup_cow_path(struct snap_device *dev, struct file *cow_file){
+static int __tracer_setup_cow_path(struct snap_device *dev, const struct file *cow_file){
 	int ret;
 
 	//get the pathname of the cow file (relative to the mountpoint)
@@ -3468,7 +3468,7 @@ error:
 	return ret;
 }
 
-static void __tracer_copy_cow_path(struct snap_device *src, struct snap_device *dest){
+static void __tracer_copy_cow_path(const struct snap_device *src, struct snap_device *dest){
 	dest->sd_cow_path = src->sd_cow_path;
 }
 
@@ -3939,7 +3939,7 @@ static void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size
 	if(test_bit(ACTIVE, &dev->sd_state)) cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
-static void tracer_dattobd_info(struct snap_device *dev, struct dattobd_info *info){
+static void tracer_dattobd_info(const struct snap_device *dev, struct dattobd_info *info){
 	info->minor = dev->sd_minor;
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
@@ -4543,7 +4543,7 @@ static void auto_transition_active(unsigned int i, const char __user *dir_name){
 
 /***************************SYSTEM CALL HOOKING***************************/
 
-static int __handle_bdev_mount_nowrite(struct vfsmount *mnt, unsigned int *idx_out){
+static int __handle_bdev_mount_nowrite(const struct vfsmount *mnt, unsigned int *idx_out){
 	int ret;
 	unsigned int i;
 	struct snap_device *dev;
@@ -4568,7 +4568,7 @@ out:
 	return ret;
 }
 
-static int __handle_bdev_mount_writable(const char __user *dir_name, struct block_device *bdev, unsigned int *idx_out){
+static int __handle_bdev_mount_writable(const char __user *dir_name, const struct block_device *bdev, unsigned int *idx_out){
 	int ret;
 	unsigned int i;
 	struct snap_device *dev;
