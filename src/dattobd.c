@@ -858,13 +858,13 @@ static void dattobd_proc_stop(struct seq_file *m, void *v);
 static int dattobd_proc_open(struct inode *inode, struct file *filp);
 static int dattobd_proc_release(struct inode *inode, struct file *file);
 
-static struct block_device_operations snap_ops = {
+static const struct block_device_operations snap_ops = {
 	.owner = THIS_MODULE,
 	.open = snap_open,
 	.release = snap_release,
 };
 
-static struct file_operations snap_control_fops = {
+static const struct file_operations snap_control_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = ctrl_ioctl,
 	.compat_ioctl = ctrl_ioctl,
@@ -878,14 +878,14 @@ static struct miscdevice snap_control_device = {
 	.fops = &snap_control_fops,
 };
 
-static struct seq_operations dattobd_seq_proc_ops = {
+static const struct seq_operations dattobd_seq_proc_ops = {
 	.start = dattobd_proc_start,
 	.next = dattobd_proc_next,
 	.stop = dattobd_proc_stop,
 	.show = dattobd_proc_show,
 };
 
-static struct file_operations dattobd_proc_fops = {
+static const struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = dattobd_proc_open,
 	.read = seq_read,
