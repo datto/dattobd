@@ -1343,7 +1343,7 @@ error:
 	return ret;
 }
 
-static int pathname_to_absolute(char *pathname, char **buf, int *len_res){
+static int pathname_to_absolute(const char *pathname, char **buf, int *len_res){
 	int ret;
 	struct path path = {};
 
@@ -1365,7 +1365,7 @@ error:
 	return ret;
 }
 
-static int pathname_concat(char *pathname1, char *pathname2, char **path_out){
+static int pathname_concat(const char *pathname1, const char *pathname2, char **path_out){
 	int pathname1_len, pathname2_len, need_leading_slash = 0;
 	char *full_pathname;
 
@@ -1391,7 +1391,7 @@ static int pathname_concat(char *pathname1, char *pathname2, char **path_out){
 	return 0;
 }
 
-static int user_mount_pathname_concat(char __user *user_mount_path, char *rel_path, char **path_out){
+static int user_mount_pathname_concat(const char __user *user_mount_path, const char *rel_path, char **path_out){
 	int ret;
 	char *mount_path;
 
@@ -1905,7 +1905,7 @@ error:
 	return ret;
 }
 
-static int cow_reopen(struct cow_manager *cm, char *pathname){
+static int cow_reopen(struct cow_manager *cm, const char *pathname){
 	int ret;
 
 	LOG_DEBUG("reopening cow file");
@@ -1931,7 +1931,7 @@ static unsigned long __cow_calculate_allowed_sects(unsigned long cache_size, uns
 	else return (cache_size - (total_sects * sizeof(struct cow_section))) / (COW_SECTION_SIZE * 8);
 }
 
-static int cow_reload(char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, int index_only, struct cow_manager **cm_out){
+static int cow_reload(const char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, int index_only, struct cow_manager **cm_out){
 	int ret;
 	unsigned long i;
 	struct cow_manager *cm;
@@ -1993,7 +1993,7 @@ error:
 	return ret;
 }
 
-static int cow_init(char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, uint64_t file_max, uint8_t *uuid, uint64_t seqid, struct cow_manager **cm_out){
+static int cow_init(const char *path, uint64_t elements, unsigned long sect_size, unsigned long cache_size, uint64_t file_max, const uint8_t *uuid, uint64_t seqid, struct cow_manager **cm_out){
 	int ret;
 	struct cow_manager *cm;
 
@@ -3275,7 +3275,7 @@ static void __tracer_destroy_base_dev(struct snap_device *dev){
 	}
 }
 
-static int __tracer_setup_base_dev(struct snap_device *dev, char *bdev_path){
+static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_path){
 	int ret;
 
 	//open the base block device
@@ -3371,7 +3371,7 @@ static int file_is_on_bdev(struct file *file, struct block_device *bdev) {
 	return ret;
 }
 
-static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, uint8_t *uuid, uint64_t seqid, int open_method){
+static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, const char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, const uint8_t *uuid, uint64_t seqid, int open_method){
 	int ret;
 	uint64_t max_file_size;
 	char bdev_name[BDEVNAME_SIZE];
@@ -3724,7 +3724,7 @@ static void tracer_destroy(struct snap_device *dev){
 	__tracer_destroy_base_dev(dev);
 }
 
-static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, char *bdev_path, char *cow_path, unsigned long fallocated_space, unsigned long cache_size){
+static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size){
 	int ret;
 
 	set_bit(SNAPSHOT, &dev->sd_state);
@@ -3765,7 +3765,7 @@ error:
 	return ret;
 }
 
-static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor, char *bdev_path, char *cow_path, unsigned long cache_size, int is_snap){
+static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long cache_size, int is_snap){
 	if(is_snap) set_bit(SNAPSHOT, &dev->sd_state);
 	else clear_bit(SNAPSHOT, &dev->sd_state);
 	clear_bit(ACTIVE, &dev->sd_state);
@@ -3874,7 +3874,7 @@ error:
 	return ret;
 }
 
-static int tracer_active_inc_to_snap(struct snap_device *old_dev, char *cow_path, unsigned long fallocated_space){
+static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path, unsigned long fallocated_space){
 	int ret;
 	struct snap_device *dev;
 
@@ -3994,7 +3994,7 @@ static int __verify_minor(unsigned int minor, int mode){
 #define verify_minor_in_use_not_busy(minor) __verify_minor(minor, 1)
 #define verify_minor_in_use(minor) __verify_minor(minor, 2)
 
-static int __verify_bdev_writable(char *bdev_path, int *out){
+static int __verify_bdev_writable(const char *bdev_path, int *out){
 	int ret = 0;
 	struct block_device *bdev;
 	struct super_block *sb;
@@ -4022,7 +4022,7 @@ static int __verify_bdev_writable(char *bdev_path, int *out){
 	return ret;
 }
 
-static int __ioctl_setup(unsigned int minor, char *bdev_path, char *cow_path, unsigned long fallocated_space, unsigned long cache_size, int is_snap, int is_reload){
+static int __ioctl_setup(unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, int is_snap, int is_reload){
 	int ret, is_mounted;
 	struct snap_device *dev = NULL;
 
@@ -4133,7 +4133,7 @@ error:
 	return ret;
 }
 
-static int ioctl_transition_snap(unsigned int minor, char *cow_path, unsigned long fallocated_space){
+static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsigned long fallocated_space){
 	int ret;
 	struct snap_device *dev;
 
@@ -4365,7 +4365,7 @@ error:
 	tracer_set_fail_state(dev, ret);
 }
 
-static void __tracer_unverified_snap_to_active(struct snap_device *dev, char __user *user_mount_path){
+static void __tracer_unverified_snap_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
 	unsigned int minor = dev->sd_minor;
 	char *cow_path, *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
@@ -4427,7 +4427,7 @@ error:
 	if(cow_path) kfree(cow_path);
 }
 
-static void __tracer_unverified_inc_to_active(struct snap_device *dev, char __user *user_mount_path){
+static void __tracer_unverified_inc_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
 	unsigned int minor = dev->sd_minor;
 	char *cow_path, *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
@@ -4485,7 +4485,7 @@ error:
 	if(cow_path) kfree(cow_path);
 }
 
-static void __tracer_dormant_to_active(struct snap_device *dev, char __user *user_mount_path){
+static void __tracer_dormant_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
 	char *cow_path;
 
@@ -4528,7 +4528,7 @@ static void auto_transition_dormant(unsigned int i){
 	mutex_unlock(&ioctl_mutex);
 }
 
-static void auto_transition_active(unsigned int i, char __user *dir_name){
+static void auto_transition_active(unsigned int i, const char __user *dir_name){
 	struct snap_device *dev = snap_devices[i];
 
 	mutex_lock(&ioctl_mutex);
@@ -4568,7 +4568,7 @@ out:
 	return ret;
 }
 
-static int __handle_bdev_mount_writable(char __user *dir_name, struct block_device *bdev, unsigned int *idx_out){
+static int __handle_bdev_mount_writable(const char __user *dir_name, struct block_device *bdev, unsigned int *idx_out){
 	int ret;
 	unsigned int i;
 	struct snap_device *dev;
@@ -4614,7 +4614,7 @@ out:
 	return ret;
 }
 
-static int handle_bdev_mount_event(char __user *dir_name, int follow_flags, unsigned int *idx_out, int mount_writable){
+static int handle_bdev_mount_event(const char __user *dir_name, int follow_flags, unsigned int *idx_out, int mount_writable){
 	int ret, lookup_flags = 0;
 	char *pathname = NULL;
 	struct path path = {};
@@ -4660,7 +4660,7 @@ out:
 #define handle_bdev_mount_nowrite(dir_name, follow_flags, idx_out) handle_bdev_mount_event(dir_name, follow_flags, idx_out, 0)
 #define handle_bdev_mounted_writable(dir_name, idx_out) handle_bdev_mount_event(dir_name, 0, idx_out, 1)
 
-static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx, char __user *dir_name){
+static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx, const char __user *dir_name){
 	struct block_device *bdev;
 	struct snap_device *dev;
 	struct super_block *sb;
