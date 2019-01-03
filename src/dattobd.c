@@ -804,7 +804,7 @@ struct snap_device{
 	unsigned long sd_state; //current state of the snapshot
 	unsigned long sd_falloc_size; //space allocated to the cow file (in megabytes)
 	unsigned long sd_cache_size; //maximum cache size (in bytes)
-	unsigned int sd_refs; //number of users who have this device open
+	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
 	sector_t sd_sect_off; //starting sector of base block device
 	sector_t sd_size; //size of device in sectors
@@ -3997,7 +3997,7 @@ static int __verify_minor(unsigned int minor, int mode){
 		}
 
 		//check that the device is not busy if we care
-		if(mode == 1 && snap_devices[minor]->sd_refs){
+		if(mode == 1 && atomic_read(&snap_devices[minor]->sd_refs)){
 			LOG_ERROR(-EBUSY, "device specified is busy");
 			return -EBUSY;
 		}
@@ -4871,9 +4871,7 @@ static int __tracer_add_ref(struct snap_device *dev, int ref_cnt){
 		goto error;
 	}
 
-	mutex_lock(&ioctl_mutex);
-	dev->sd_refs += ref_cnt;
-	mutex_unlock(&ioctl_mutex);
+	atomic_add(ref_cnt, &dev->sd_refs);
 
 error:
 	return ret;
