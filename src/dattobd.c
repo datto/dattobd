@@ -4959,7 +4959,7 @@ static inline void *dattobd_proc_get_idx(loff_t pos){
 
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos){
 	if(*pos == 0) return SEQ_START_TOKEN;
-	return dattobd_proc_get_idx(*pos);
+	return dattobd_proc_get_idx(*pos - 1);
 }
 
 static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos){
