@@ -624,7 +624,7 @@ static inline void dattobd_bio_set_dev(struct bio *bio, struct block_device *bde
 #endif
 }
 
-static inline void dattobd_bio_copy_dev(struct bio *dst, const struct bio *src){
+static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #ifdef HAVE_BIO_BI_BDEV
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	dst->bi_bdev = src->bi_bdev;
@@ -2428,7 +2428,7 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, const struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
+static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
