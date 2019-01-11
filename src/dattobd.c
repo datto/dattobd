@@ -32,6 +32,10 @@ MODULE_VERSION(DATTOBD_VERSION);
 #include <linux/uuid.h>
 #endif
 
+#ifdef HAVE_UAPI_MOUNT_H
+#include <uapi/linux/mount.h>
+#endif
+
 #ifndef HAVE_BIO_LIST
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
 struct bio_list {
