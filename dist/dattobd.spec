@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.8
+Version:         0.10.9
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -568,6 +568,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 11 2019 Tim Crawford <tcrawford@datto.com> - 0.10.9
+- Fixed procfs output with small reads
+- Fixed mnt_want_write feature test
+
 * Thu Dec 6 2018 Tim Crawford <tcrawford@datto.com> - 0.10.8
 - Fixed procfs output on Linux 4.19
 - Fixed writing out the header to the COW file
