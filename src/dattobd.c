@@ -2702,6 +2702,17 @@ static int snap_mrf_thread(void *data){
 		//submit the original bio to the block IO layer
 		bio_flag(bio, BIO_ALREADY_TRACED);
 
+#ifdef HAVE_GET_TASK_IO_CONTEXT
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0)
+		/*
+		 * We do not have a I/O context associated with the thread.
+		 * Normally this would be created by generic_make_request(), but
+		 * that would just resubmit the bio to ourself. Create the
+		 * context now if needed.
+		 */
+		(void)get_task_io_context(current, GFP_KERNEL, dev->sd_queue->node);
+#endif
+
 		ret = dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
