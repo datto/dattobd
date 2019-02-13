@@ -90,3 +90,5 @@ The current status of the dattobd driver can be read from the file `/proc/datto-
 	* 3 = active snapshot
 	* 4 = unverified incremental
 	* 5 = unverified snapshot
+* `nr_changed_blocks`: The number of blocks that have changed since the last snapshot.
+* `version`: Version of the on-disk format of the COW header.
