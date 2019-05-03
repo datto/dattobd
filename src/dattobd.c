@@ -3062,7 +3062,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 
 		orig_mrf = dev->sd_orig_mrf;
 		if(bio_flagged(bio, BIO_ALREADY_TRACED)){
-			bio->bi_flags &= ~BIO_ALREADY_TRACED;
+			bio->bi_flags &= ~(1UL << BIO_ALREADY_TRACED);
 			goto call_orig;
 		}
 
