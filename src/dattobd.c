@@ -2201,7 +2201,7 @@ error:
 	return ret;
 }
 
-static int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos, unsigned int block_off, unsigned int len){
+static int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos, unsigned long block_off, unsigned long len){
 	int ret;
 
 	if(block_off >= COW_BLOCK_SIZE) return -EINVAL;
@@ -2539,8 +2539,8 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	bio_end_io_t *orig_end_io;
 	char *data;
 	sector_t bio_orig_sect, cur_block, cur_sect;
-	unsigned int bio_orig_idx, bio_orig_size, bytes_to_copy, block_off, bvec_off;
-	uint64_t block_mapping;
+	unsigned int bio_orig_idx, bio_orig_size;
+	uint64_t block_mapping, bytes_to_copy, block_off, bvec_off;
 
 	//save the original state of the bio
 	orig_private = bio->bi_private;
