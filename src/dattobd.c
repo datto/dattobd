@@ -3999,7 +3999,7 @@ static int __verify_minor(unsigned int minor, int mode){
 #define verify_minor_in_use(minor) __verify_minor(minor, 2)
 
 static int __verify_bdev_writable(const char *bdev_path, int *out){
-	int ret = 0;
+	int writable = 0;
 	struct block_device *bdev;
 	struct super_block *sb;
 
@@ -4007,23 +4007,19 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
 
 	if(IS_ERR(bdev)){
-		bdev = NULL;
 		*out = 0;
-		ret = 0;
-	}else{
-		sb = dattobd_get_super(bdev);
-		if(!sb || (sb->s_flags & MS_RDONLY)){
-			*out = 0;
-			ret = 0;
-		}else{
-			*out = 1;
-			ret = 0;
-		}
+		return PTR_ERR(bdev);
+	}
 
+	sb = dattobd_get_super(bdev);
+	if(sb){
+		writable = !(sb->s_flags & MS_RDONLY);
 		dattobd_drop_super(sb);
 	}
-	if(bdev) dattobd_blkdev_put(bdev);
-	return ret;
+
+	dattobd_blkdev_put(bdev);
+	*out = writable;
+	return 0;
 }
 
 static int __ioctl_setup(unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, int is_snap, int is_reload){
