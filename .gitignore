@@ -13,7 +13,9 @@ Module.symvers
 
 # Leftover files
 *~
-tests/results
+dmesg.log
+__pycache__/
+.cache/
 
 # Project directories
 pkgbuild/
