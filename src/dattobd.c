@@ -2380,13 +2380,14 @@ static void tp_put(struct tracing_params *tp){
 
 static inline struct inode *page_get_inode(struct page *pg){
 	if(!pg) return NULL;
-	if(!pg->mapping) return NULL;
-	if(PageAnon(pg)) return NULL;
-//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0)
-#ifdef TAIL_MAPPING
-	if (pg->mapping == TAIL_MAPPING) return NULL;
+
+	// page_mapping() was not exported until 4.8, use compound_head() instead
+#ifdef HAVE_COMPOUND_HEAD
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(2.6.22)
+	pg = compound_head(pg);
 #endif
-	if(!pg->mapping->host) return NULL;
+	if(PageAnon(pg)) return NULL;
+	if(!pg->mapping) return NULL;
 	return pg->mapping->host;
 }
 
