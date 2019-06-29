@@ -22,7 +22,7 @@ Due to the DKMS software not being present in openSUSE's default repositories, t
 DKMS is required. The steps below assume no providers of DKMS are available, so it may not be necessary to add `X11:Bumblebee` if you can
 already get DKMS through an already-installed repository.
 ```bash
-sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.1/X11:Bumblebee.repo
+sudo zypper addrepo http://download.opensuse.org/repositories/X11:Bumblebee/openSUSE_Leap_42.3/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-rpm-release-42.1-latest.noarch.rpm
 sudo zypper install dkms-dattobd dattobd-utils
 ```
@@ -51,7 +51,7 @@ already get DKMS through an already-installed repository.
 ```bash
 ktype=$(uname -r | awk -F '-' '{ print $NF }')
 kver=$(uname -r | sed "s/-${ktype}//")
-sudo zypper addrepo http://download.opensuse.org/repositories/X11:/Bumblebee/SLE_12_SP2_Backports/X11:Bumblebee.repo
+sudo zypper addrepo http://download.opensuse.org/repositories/X11:/Bumblebee/SLE_12_SP4_Backports/X11:Bumblebee.repo
 sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-12-latest.noarch.rpm
 sudo zypper install -C "kernel-syms = ${kver}"
 sudo zypper install dkms-dattobd dattobd-utils
