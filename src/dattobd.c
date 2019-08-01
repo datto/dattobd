@@ -261,6 +261,18 @@ static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op
 	#define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
 	#define dattobd_submit_bio(bio) submit_bio(0, bio)
 	#define dattobd_submit_bio_wait(bio) submit_bio_wait(0, bio)
+
+static inline int dattobd_bio_op_flagged(struct bio *bio, unsigned int flag){
+	return bio->bi_rw & flag;
+}
+
+static inline void dattobd_bio_op_set_flag(struct bio *bio, unsigned int flag){
+	bio->bi_rw |= flag;
+}
+
+static inline void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag){
+	bio->bi_rw &= ~flag;
+}
 #else
 
 #ifndef HAVE_ENUM_REQ_OPF
@@ -273,6 +285,18 @@ typedef enum req_opf req_op_t;
 static inline void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
 	bio->bi_opf = 0;
 	bio_set_op_attrs(bio, op, op_flags);
+}
+
+static inline int dattobd_bio_op_flagged(struct bio *bio, unsigned int flag){
+	return bio->bi_opf & flag;
+}
+
+static inline void dattobd_bio_op_set_flag(struct bio *bio, unsigned int flag){
+	bio->bi_opf |= flag;
+}
+
+static inline void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag){
+	bio->bi_opf &= ~flag;
 }
 
 	#ifdef REQ_DISCARD
@@ -705,9 +729,11 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 
 //macros for working with bios
 #define BIO_SET_SIZE 256
-#define bio_flag(bio, flag) ((bio)->bi_flags |= (1 << (flag)))
-#define BIO_ALREADY_TRACED 20
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE))
+
+// As of Linux 5.2, __REQ_NR_BITS == 26
+#define __DATTOBD_PASSTHROUGH 30    /* don't perform COW operation */
+#define DATTOBD_PASSTHROUGH (1ULL << __DATTOBD_PASSTHROUGH)
 
 //macros for system call hooks
 #define CR0_WP 0x00010000
@@ -2705,7 +2731,7 @@ static int snap_mrf_thread(void *data){
 		bio = bio_queue_dequeue(bq);
 
 		//submit the original bio to the block IO layer
-		bio_flag(bio, BIO_ALREADY_TRACED);
+		dattobd_bio_op_set_flag(bio, DATTOBD_PASSTHROUGH);
 
 		ret = dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
@@ -3051,8 +3077,8 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
-		if(bio_flagged(bio, BIO_ALREADY_TRACED)){
-			bio->bi_flags &= ~(1UL << BIO_ALREADY_TRACED);
+		if(dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH)){
+			dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
 			goto call_orig;
 		}
 
