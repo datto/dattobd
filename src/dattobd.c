@@ -4245,8 +4245,20 @@ error:
 	return ret;
 }
 
+static int get_free_minor(void)
+{
+	struct snap_device *dev;
+	int i;
+
+	tracer_for_each_full(dev, i){
+		if(!dev) return i;
+	}
+
+	return -ENOENT;
+}
+
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
-	int ret;
+	int ret, idx;
 	char *bdev_path = NULL;
 	char *cow_path = NULL;
 	struct dattobd_info *info = NULL;
@@ -4349,6 +4361,22 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		if(ret){
 			ret = -EFAULT;
 			LOG_ERROR(ret, "error copying dattobd info struct to user space");
+			break;
+		}
+
+		break;
+	case IOCTL_GET_FREE:
+		idx = get_free_minor();
+		if(idx < 0){
+			ret = idx;
+			LOG_ERROR(ret, "no free devices");
+			break;
+		}
+
+		ret = copy_to_user((int __user *)arg, &idx, sizeof(idx));
+		if(ret){
+			ret = -EFAULT;
+			LOG_ERROR(ret, "error copying minor to user space");
 			break;
 		}
 

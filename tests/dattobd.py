@@ -36,6 +36,7 @@ int dattobd_transition_incremental(unsigned int minor);
 int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
 int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
+int dattobd_get_free_minor(void);
 """)
 
 lib = ffi.dlopen("../lib/libdattobd.so")
@@ -149,6 +150,12 @@ def info(minor):
         "version": di.version,
         "nr_changed_blocks": di.nr_changed_blocks,
     }
+
+def get_free_minor():
+    ret = lib.dattobd_get_free_minor()
+    if (ret < 0):
+        return -ffi.errno
+    return ret
 
 def version():
     with open("/sys/module/dattobd/version", "r") as v:

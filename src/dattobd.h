@@ -88,5 +88,6 @@ struct dattobd_info{
 #define IOCTL_TRANSITION_SNAP _IOW(DATTO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
 #define IOCTL_RECONFIGURE _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
 #define IOCTL_DATTOBD_INFO _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) //in: see above
+#define IOCTL_GET_FREE _IOR(DATTO_IOCTL_MAGIC, 9, int)
 
 #endif /* DATTOBD_H_ */
