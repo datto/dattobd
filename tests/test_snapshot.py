@@ -71,6 +71,15 @@ class TestSnapshot(DeviceTestCase):
         end_nr = info["nr_changed_blocks"]
         self.assertGreater(end_nr, start_nr)
 
+    def test_next_available_minor(self):
+        self.assertEqual(dattobd.get_free_minor(), 0)
+
+        # Explicitly use a minor of 0 for testing this function
+        self.assertEqual(dattobd.setup(0, self.device, self.cow_full_path), 0)
+        self.addCleanup(dattobd.destroy, 0)
+
+        self.assertEqual(dattobd.get_free_minor(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

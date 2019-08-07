@@ -140,3 +140,17 @@ int dattobd_info(unsigned int minor, struct dattobd_info *info){
 	close(fd);
 	return ret;
 }
+
+int dattobd_get_free_minor(void){
+	int fd, ret, minor;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_GET_FREE, &minor);
+
+	close(fd);
+
+	if(!ret) return minor;
+	return ret;
+}

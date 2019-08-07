@@ -29,6 +29,13 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
+/**
+ * Get the first available minor.
+ *
+ * @returns non-negative number if minor is available, otherwise -1
+ */
+int dattobd_get_free_minor(void);
+
 #ifdef __cplusplus
 }
 #endif
