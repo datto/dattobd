@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.9
+Version:         0.10.10
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -568,6 +568,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 21 2019 Dakota Williams <drwilliams@datto.com> - 0.10.10
+- Added Linux 5.0 compatibility
+- Changed location of custom bio flag
+- Fixed to use the head of compound pages instead of tail
+- Added control to get free minor
+
 * Fri Jan 11 2019 Tim Crawford <tcrawford@datto.com> - 0.10.9
 - Fixed procfs output with small reads
 - Fixed mnt_want_write feature test
