@@ -707,12 +707,18 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define READ_MODE_BASE_DEVICE 2
 #define READ_MODE_MIXED 3
 
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,17,0)
+#ifndef SECTOR_SHIFT
+#define SECTOR_SHIFT 9
+#endif
+#ifndef SECTOR_SIZE
+#define SECTOR_SIZE (1 << SECTOR_SHIFT)
+#endif
+
 //macros for defining sector and block sizes
-#define KERNEL_SECTOR_LOG_SIZE 9
-#define KERNEL_SECTOR_SIZE (1 << KERNEL_SECTOR_LOG_SIZE)
-#define SECTORS_PER_PAGE (PAGE_SIZE / KERNEL_SECTOR_SIZE)
+#define SECTORS_PER_PAGE (PAGE_SIZE / SECTOR_SIZE)
 #define COW_SECTION_SIZE 4096
-#define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / KERNEL_SECTOR_SIZE)
+#define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / SECTOR_SIZE)
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
@@ -729,7 +735,7 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 
 //macros for working with bios
 #define BIO_SET_SIZE 256
-#define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE))
+#define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
 
 // As of Linux 5.2, __REQ_NR_BITS == 26
 #define __DATTOBD_PASSTHROUGH 30    /* don't perform COW operation */
@@ -2300,7 +2306,7 @@ static struct bio *bio_queue_dequeue(struct bio_queue *bq){
 }
 
 static int bio_overlap(const struct bio *bio1, const struct bio *bio2){
-	return max(bio_sector(bio1), bio_sector(bio2)) <= min(bio_sector(bio1) + (bio_size(bio1) / KERNEL_SECTOR_SIZE), bio_sector(bio2) + (bio_size(bio2) / KERNEL_SECTOR_SIZE));
+	return max(bio_sector(bio1), bio_sector(bio2)) <= min(bio_sector(bio1) + (bio_size(bio1) / SECTOR_SIZE), bio_sector(bio2) + (bio_size(bio2) / SECTOR_SIZE));
 }
 
 static struct bio *bio_queue_dequeue_delay_read(struct bio_queue *bq){
@@ -2519,7 +2525,7 @@ static int snap_read_bio_get_mode(const struct snap_device *dev, struct bio *bio
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 	unsigned int bytes;
-	uint64_t block_mapping, curr_byte, curr_end_byte = bio_sector(bio) * KERNEL_SECTOR_SIZE;
+	uint64_t block_mapping, curr_byte, curr_end_byte = bio_sector(bio) * SECTOR_SIZE;
 
 	bio_for_each_segment(bvec, bio, iter){
 		//reset the number of bytes we have traversed for this bio_vec
@@ -2606,8 +2612,8 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 			//map the page into kernel space
 			data = kmap(bio_iter_page(bio, iter));
 
-			cur_block = (cur_sect * KERNEL_SECTOR_SIZE) / COW_BLOCK_SIZE;
-			block_off = (cur_sect * KERNEL_SECTOR_SIZE) % COW_BLOCK_SIZE;
+			cur_block = (cur_sect * SECTOR_SIZE) / COW_BLOCK_SIZE;
+			block_off = (cur_sect * SECTOR_SIZE) % COW_BLOCK_SIZE;
 			bvec_off = bio_iter_offset(bio, iter);
 
 			while(bvec_off < bio_iter_offset(bio, iter) + bio_iter_len(bio, iter)){
@@ -2628,9 +2634,9 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 					}
 				}
 
-				cur_sect += bytes_to_copy / KERNEL_SECTOR_SIZE;
-				cur_block = (cur_sect * KERNEL_SECTOR_SIZE) / COW_BLOCK_SIZE;
-				block_off = (cur_sect * KERNEL_SECTOR_SIZE) % COW_BLOCK_SIZE;
+				cur_sect += bytes_to_copy / SECTOR_SIZE;
+				cur_block = (cur_sect * SECTOR_SIZE) / COW_BLOCK_SIZE;
+				block_off = (cur_sect * SECTOR_SIZE) % COW_BLOCK_SIZE;
 				bvec_off += bytes_to_copy;
 			}
 
@@ -2694,7 +2700,7 @@ error:
 static int inc_handle_sset(const struct snap_device *dev, struct sector_set *sset){
 	int ret;
 	sector_t start_block = SECTOR_TO_BLOCK(sset->sect);
-	sector_t end_block = NUM_SEGMENTS(sset->sect + sset->len, COW_BLOCK_LOG_SIZE - KERNEL_SECTOR_LOG_SIZE);
+	sector_t end_block = NUM_SEGMENTS(sset->sect + sset->len, COW_BLOCK_LOG_SIZE - SECTOR_SHIFT);
 
 	for(; start_block < end_block; start_block++){
 		ret = cow_write_filler_mapping(dev->sd_cow, start_block);
@@ -2941,7 +2947,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
-	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / KERNEL_SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
+	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
 
 	//allocate tracing_params struct to hold all pointers we will need across contexts
@@ -2972,7 +2978,7 @@ retry:
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
-		start_sect += bytes / KERNEL_SECTOR_SIZE;
+		start_sect += bytes / SECTOR_SIZE;
 		pages -= bytes / PAGE_SIZE;
 		i++;
 		goto retry;
@@ -3023,7 +3029,7 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 #ifdef HAVE_ENUM_REQ_OPF
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
 	if(bio_op(bio) == REQ_OP_WRITE_ZEROES){
-		ret = inc_make_sset(dev, bio_sector(bio), bio_size(bio) / KERNEL_SECTOR_SIZE);
+		ret = inc_make_sset(dev, bio_sector(bio), bio_size(bio) / SECTOR_SIZE);
 		goto out;
 	}
 #endif
@@ -3418,7 +3424,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 		if(open_method == 0){
 			//calculate how much space should be allocated to the cow file
 			if(!fallocated_space){
-				max_file_size = size * KERNEL_SECTOR_SIZE * dattobd_cow_fallocate_percentage_default;
+				max_file_size = size * SECTOR_SIZE * dattobd_cow_fallocate_percentage_default;
 				do_div(max_file_size, 100);
 				dev->sd_falloc_size = max_file_size;
 				do_div(dev->sd_falloc_size, (1024 * 1024));
