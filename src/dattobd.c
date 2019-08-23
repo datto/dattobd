@@ -735,9 +735,6 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define __DATTOBD_PASSTHROUGH 30    /* don't perform COW operation */
 #define DATTOBD_PASSTHROUGH (1ULL << __DATTOBD_PASSTHROUGH)
 
-//macros for system call hooks
-#define CR0_WP 0x00010000
-
 #define DATTOBD_DEFAULT_SNAP_DEVICES 24
 #define DATTOBD_MAX_SNAP_DEVICES 255
 
@@ -4823,9 +4820,14 @@ static asmlinkage long oldumount_hook(char __user *name){
 }
 #endif
 
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
+#ifndef X86_CR0_WP
+#define X86_CR0_WP (1UL << 16)
+#endif
+
 static inline void disable_page_protection(unsigned long *cr0) {
 	*cr0 = read_cr0();
-	write_cr0(*cr0 & ~CR0_WP);
+	write_cr0(*cr0 & ~X86_CR0_WP);
 }
 
 static inline void reenable_page_protection(unsigned long *cr0) {
