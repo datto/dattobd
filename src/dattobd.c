@@ -2883,10 +2883,17 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 		goto error;
 	}
 
+	/*
+	 * Reset the position in each bvec. Unnecessary with bvec iterators. Will cause multipage bvec capable kernels to
+	 * lock up.
+	 */
+#ifndef HAVE_BVEC_ITER
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
 	for(i = 0; i < bio->bi_vcnt; i++){
 		bio->bi_io_vec[i].bv_len = PAGE_SIZE;
 		bio->bi_io_vec[i].bv_offset = 0;
 	}
+#endif
 
 	/*
 	 * drop our reference to the tp (will queue the orig_bio if nobody else is using it)
