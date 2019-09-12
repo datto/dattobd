@@ -723,7 +723,7 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
 //maximum number of clones per traced bio
-#define MAX_CLONES_PER_BIO 5
+#define MAX_CLONES_PER_BIO 10
 
 //macros for compilation
 #define MAYBE_UNUSED(x) (void)(x)
