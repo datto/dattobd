@@ -12,6 +12,14 @@ if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
 fi
 
+SYSTEM_MAP_FILE="/lib/modules/${KERNEL_VERSION}/System.map"
+
+if [ ! -f "$SYSTEM_MAP_FILE" ]; then
+	# Use fallback location
+	SYSTEM_MAP_FILE="/boot/System.map-${KERNEL_VERSION}"
+fi
+
+
 echo "generating configurations for kernel-${KERNEL_VERSION}"
 
 rm -f $OUTPUT_FILE
@@ -47,7 +55,7 @@ while read SYMBOL_NAME; do
 
 	echo "performing $SYMBOL_NAME lookup"
 	MACRO_NAME="$(echo ${SYMBOL_NAME} | awk '{print toupper($0)}')_ADDR"
-	SYMBOL_ADDR=$(grep " ${SYMBOL_NAME}$" "/boot/System.map-${KERNEL_VERSION}" | awk '{print $1}')
+	SYMBOL_ADDR=$(grep " ${SYMBOL_NAME}$" "${SYSTEM_MAP_FILE}" | awk '{print $1}')
 	if [ -z "$SYMBOL_ADDR" ]; then
 		SYMBOL_ADDR="0"
 	fi
