@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.10
+Version:         0.10.11
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -568,6 +568,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 23 2019 Dakota Williams <drwilliams@datto.com> - 0.10.11
+- Use upstream names for sector size and CR0 register page protect bit
+- Changed symbol tests to use /lib/modules system maps and then fallback to /boot if it doesn't exist
+- Added Linux 5.1+ compatibility
+
 * Wed Aug 21 2019 Dakota Williams <drwilliams@datto.com> - 0.10.10
 - Added Linux 5.0 compatibility
 - Changed location of custom bio flag
