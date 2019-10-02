@@ -1,12 +1,22 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-only
 
+# ./genconfig.sh - generate C header for setting the correct preprocessor definitions for the kernel version
+# Usage ./genconfig.sh <kernel version> <make flags>
+# The make flags are used for determining concurrency for the feature tests, it pulls out the value of the -j flag.
+# ./genconfig.sh `uname -r` "-j4", four threads for running feature tests
+# ./genconfig.sh `uname -r` "-i -j4 -d", doesn't care about other flags present
+
 SRC_DIR=$(dirname "$0")
 OUTPUT_FILE=$SRC_DIR/kernel-config.h
 FEATURE_TEST_DIR="$SRC_DIR/configure-tests/feature-tests"
 FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
 KERNEL_VERSION=$(uname -r)
+MAX_THREADS=$(echo "$2" | sed -E 's/.*-j\s*([0-9]+).*/\1/')
+if ! [[ "$MAX_THREADS" =~ '^[0-9]+$' ]]; then # if there was no -j flag provided, default to the number of processors
+	MAX_THREADS=$(getconf _NPROCESSORS_ONLN)
+fi
 
 if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
@@ -32,19 +42,24 @@ echo "" >> $OUTPUT_FILE
 
 make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 
-for TEST_FILE in $FEATURE_TEST_FILES
-do
-	TEST="$(basename $TEST_FILE .c)"
-	OBJ="$TEST.o"
-	MACRO_NAME="HAVE_$(echo ${TEST} | awk '{print toupper($0)}')"
-	echo -n "performing configure test: $MACRO_NAME - "
+run_one_test() {
+	local TEST="$(basename $1 .c)"
+	local OBJ="$TEST.o"
+	local MACRO_NAME="HAVE_$(echo ${TEST} | awk '{print toupper($0)}')"
+	local PREFIX="performing configure test: $MACRO_NAME -"
 	if make -C $FEATURE_TEST_DIR OBJ=$OBJ KERNELVERSION=$KERNEL_VERSION &>/dev/null ; then
-		echo "present"
+		echo "$PREFIX present"
 		echo "#define $MACRO_NAME" >> $OUTPUT_FILE
 	else
-		echo "not present"
+		echo "$PREFIX not present"
 	fi
-done
+}
+export -f run_one_test
+export FEATURE_TEST_DIR
+export KERNEL_VERSION
+export OUTPUT_FILE
+
+ls -1 -q $FEATURE_TEST_FILES | xargs -P "$MAX_THREADS" -d"\n" -n1 -I {} bash -c 'run_one_test {}'
 
 make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 

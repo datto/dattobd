@@ -9,7 +9,7 @@ INSTALL_MOD_DIR ?= extra
 EXTRA_CFLAGS := -g
 
 default:
-	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh $(KERNELVERSION); fi;
+	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then ./genconfig.sh "$(KERNELVERSION)" "$(MFLAGS)"; fi;
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 clean:
