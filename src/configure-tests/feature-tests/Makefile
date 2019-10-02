@@ -6,9 +6,17 @@ KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 EXTRA_CFLAGS := -g -Werror -I$(src)/../..
+BUILDDIR ?= $(PWD)/build/$(OBJ)
+BUILDDIR_MAKEFILE ?= $(PWD)/build/$(OBJ)/Makefile
 
-default:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
+default: $(BUILDDIR_MAKEFILE)
+	$(MAKE) -C $(KDIR) M=$(BUILDDIR) src=$(PWD) modules
+
+$(BUILDDIR):
+	mkdir -p "$@"
+
+$(BUILDDIR_MAKEFILE): $(BUILDDIR)
+	touch "$@"
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(BUILDDIR) src=$(PWD) clean
