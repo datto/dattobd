@@ -4771,15 +4771,22 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 
 static asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name, char __user *type, unsigned long flags, void __user *data){
 	int ret;
+	int ret_dev;
+	int ret_dir;
 	long sys_ret;
 	unsigned int idx;
 	unsigned long real_flags = flags;
 
 	//get rid of the magic value if its present
 	if((real_flags & MS_MGC_MSK) == MS_MGC_VAL) real_flags &= ~MS_MGC_MSK;
-
-	LOG_DEBUG("detected block device mount: %s -> %s : %lu", dev_name, dir_name, real_flags);
-
+	char buff_dev_name[256],buff_dir_name[256];
+	ret_dev=copy_from_user(buff_dev_name,dev_name,256);
+	ret_dir=copy_from_user(buff_dir_name,dir_name,256);
+	if(0!=ret_dev || 0!=ret_dir)
+		LOG_DEBUG("detected block device Get mount params error!");
+	else
+	LOG_DEBUG("detected block device mount: %s -> %s : 0x%x", buff_dev_name,
+			buff_dir_name, real_flags);
 	if(real_flags & (MS_BIND | MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE | MS_MOVE) || ((real_flags & MS_RDONLY) && !(real_flags & MS_REMOUNT))){
 		//bind, shared, move, or new read-only mounts it do not affect the state of the driver
 		sys_ret = orig_mount(dev_name, dir_name, type, flags, data);
@@ -4803,9 +4810,12 @@ static asmlinkage long umount_hook(char __user *name, int flags){
 	int ret;
 	long sys_ret;
 	unsigned int idx;
-
-	LOG_DEBUG("detected block device umount: %s : %d", name, flags);
-
+	char buff_dev_name[256];
+	ret=copy_from_user(buff_dev_name,name,256);
+	if(0!=ret)
+	    LOG_DEBUG("detected block device umount error:%d", ret);
+	else
+	LOG_DEBUG("detected block device umount: %s : %d", buff_dev_name, flags);
 	ret = handle_bdev_mount_nowrite(name, flags, &idx);
 	sys_ret = orig_umount(name, flags);
 	post_umount_check(ret, sys_ret, idx, name);
