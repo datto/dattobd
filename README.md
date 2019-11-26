@@ -1,8 +1,12 @@
-Datto Block Driver
+Assurio Change-Tracking Block Driver
 ==================
 
+**NOTE**: This is a GPL licensed fork of the original [Datto `dattobd` driver](https://github.com/datto/dattobd).
+Unless you are an Assurio customer or developer, you're almost certainly better off using the original and not this
+work.
+
 For build and install instructions, see [INSTALL.md](INSTALL.md).
-For information about the on-disk .datto file this module creates, see [STRUCTURE.md](doc/STRUCTURE.md).
+For information about the on-disk .assurio file this module creates, see [STRUCTURE.md](doc/STRUCTURE.md).
 For instructions regarding the `dbdctl` tool, see [dbdctl.8.md](doc/dbdctl.8.md).
 For details on the license of the software, see [LICENSING.md](LICENSING.md).
 
@@ -12,7 +16,7 @@ Linux has some basic tools for creating instant copy-on-write (COW) “snapshots
 
 ## Datto Block Driver (Linux Kernel Module / Driver)
 
-The Datto Block Driver (dattobd) solves the above problems and brings functionality similar to VSS on Windows to a broad range of Linux kernels.  Dattobd is an open source Linux kernel module for point-in-time live snapshotting.  Dattobd can be loaded onto a running Linux machine (without a reboot) and creates a COW file on the original volume representing any block device at the instant the snapshot is taken.  After the first snapshot, the driver tracks incremental changes to the block device and therefore can be used to efficiently update existing backups by copying only the blocks that have changed.  Dattobd is a true live-snapshotting system that will leave your root volume running and available, without requiring a reboot.
+The Datto Block Driver (assurio-snap) solves the above problems and brings functionality similar to VSS on Windows to a broad range of Linux kernels.  Dattobd is an open source Linux kernel module for point-in-time live snapshotting.  Dattobd can be loaded onto a running Linux machine (without a reboot) and creates a COW file on the original volume representing any block device at the instant the snapshot is taken.  After the first snapshot, the driver tracks incremental changes to the block device and therefore can be used to efficiently update existing backups by copying only the blocks that have changed.  Dattobd is a true live-snapshotting system that will leave your root volume running and available, without requiring a reboot.
 
 Dattobd is designed to run on any linux device from small test virtual machines to live production servers with minimal impact on I/O or CPU performance.  Since the driver works at the block layer, it supports most common filesystems including ext 2,3 and 4 and xfs (although filesystems with their own block device management systems such as ZFS and BTRFS can not be supported).  All COW data is tracked in a file on the source block device itself, eliminating the need to have a spare volume in order to snapshot.  
 
@@ -24,24 +28,24 @@ The primary intended use case of Dattobd is for backing up live Linux systems. T
 
 2) Create a snapshot:
 
-	dbdctl setup-snapshot /dev/sda1 /.datto 0
+	dbdctl setup-snapshot /dev/sda1 /.assurio 0
 
 
-This will create a snapshot of the root volume at `/dev/datto0` with a backing COW file at `/.datto`. This file must exist on the volume that will be snapshotted.
+This will create a snapshot of the root volume at `/dev/assurio0` with a backing COW file at `/.assurio`. This file must exist on the volume that will be snapshotted.
 
 3) Copy the image off the block device:
 
-	dd if=/dev/datto0 of=/backups/sda1-bkp bs=1M
+	dd if=/dev/assurio0 of=/backups/sda1-bkp bs=1M
 
 
-`dd` is a standard image copying tool in linux. Here it simply copies the contents of the `/dev/datto0` device to an image. Be careful when running this command as it can badly corrupt filesystems if used incorrectly. NEVER execute `dd` with the "of" parameter pointing to a volume that has important data on it. This can take a while to copy the entire volume. See the man page on `dd` for more details.
+`dd` is a standard image copying tool in linux. Here it simply copies the contents of the `/dev/assurio0` device to an image. Be careful when running this command as it can badly corrupt filesystems if used incorrectly. NEVER execute `dd` with the "of" parameter pointing to a volume that has important data on it. This can take a while to copy the entire volume. See the man page on `dd` for more details.
 
 4) Put the snapshot into incremental mode:
 
 	dbdctl transition-to-incremental 0
 
 
-This command requests the driver to move the snapshot (`/dev/datto0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
+This command requests the driver to move the snapshot (`/dev/assurio0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
 
 5) Continue using your system.
 After the initial backup, the driver will probably be left in incremental mode the vast majority of time.
@@ -49,21 +53,21 @@ After the initial backup, the driver will probably be left in incremental mode t
 
 6) Move the incremental back to snapshot mode:
 
-	dbdctl transition-to-snapshot /.datto1 0
+	dbdctl transition-to-snapshot /.assurio1 0
 
 
-This command requires the name of a new COW file to begin tracking changes again (here we chose `/.datto1`). At this point the driver is finished with our `/.datto` file we created in step 2. The `/.datto` file now contains a list of the blocks that have changed since our initial snapshot. We will use this in the next step to update our backed up image. It is important to not use the same file name that we specified in step 2 for this command. Otherwise, we would overwrite our list of changed blocks.
+This command requires the name of a new COW file to begin tracking changes again (here we chose `/.assurio1`). At this point the driver is finished with our `/.assurio` file we created in step 2. The `/.assurio` file now contains a list of the blocks that have changed since our initial snapshot. We will use this in the next step to update our backed up image. It is important to not use the same file name that we specified in step 2 for this command. Otherwise, we would overwrite our list of changed blocks.
 
 7) Copy the changes:
 
-	update-img /dev/datto0 /.datto /backups/sda1-bkp
+	update-img /dev/assurio0 /.assurio /backups/sda1-bkp
 
 
-Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/datto0`), the list of changed blocks (`/.datto` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
+Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/assurio0`), the list of changed blocks (`/.assurio` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
 
 8) Clean up the leftover file:
 
-	rm /.datto
+	rm /.assurio
 
 
 9) Go back to step 4 and repeat:
@@ -73,7 +77,7 @@ If you wish to keep multiple versions of the image, we recommend that you copy y
 
 ## Driver Status
 
-The current status of the dattobd driver can be read from the file `/proc/datto-info`. This is a JSON-formatted file with 2 fields: a version number "version" and an array of "devices". Each device has the following fields:
+The current status of the assurio-snap driver can be read from the file `/proc/assurio-info`. This is a JSON-formatted file with 2 fields: a version number "version" and an array of "devices". Each device has the following fields:
 
 * `minor`: The minor number of the snapshot (for identification purposes).
 * `cow_file`: The path to the cow file *relative* to the mountpoint of the block device. If the device is in an unverified state, the path is presented as it was given to the driver.
