@@ -1,11 +1,11 @@
 #!/bin/bash
-# we need the dattobd module and the dbdctl binary in the initramfs
+# we need the assurio-snap module and the aioctl binary in the initramfs
 # blkid is already there but I just want to be extra sure. shmura.
 
 #%stage: volumemanager
 #%depends: lvm2
-#%modules: dattobd
-#%programs: /usr/bin/dbdctl
+#%modules: assurio-snap
+#%programs: /usr/bin/aioctl
 #%programs: /sbin/lsmod
 #%programs: /sbin/modprobe
 #%programs: /sbin/blkid
@@ -19,11 +19,11 @@
 #%programs: /bin/udevadm
 #%programs: /usr/bin/udevadm
 
-echo "datto dlad load_modules" > /dev/kmsg
-# this is a function in linuxrc, modprobes dattobd for us.
+echo "assurio-snap dlad load_modules" > /dev/kmsg
+# this is a function in linuxrc, modprobes assurio-snap for us.
 load_modules
 
-/sbin/modprobe --allow-unsupported dattobd
+/sbin/modprobe --allow-unsupported assurio-snap
 
 rbd="${root#block:}"
 if [ -n "$rbd" ]; then
@@ -43,7 +43,7 @@ if [ -n "$rbd" ]; then
             ;;
     esac
 
-    echo "dattobd: root block device = $rbd" > /dev/kmsg
+    echo "assurio-snap: root block device = $rbd" > /dev/kmsg
 
     # Device might not be ready
     if [ ! -b "$rbd" ]; then
@@ -53,17 +53,17 @@ if [ -n "$rbd" ]; then
     # Kernel cmdline might not specify rootfstype
     [ -z "$rootfstype" ] && rootfstype=$(blkid -s TYPE -o value $rbd)
 
-    echo "dattobd: mounting $rbd as $rootfstype" > /dev/kmsg
+    echo "assurio-snap: mounting $rbd as $rootfstype" > /dev/kmsg
     blockdev --setro $rbd
-    mount -t $fstype -o ro "$rbd" /etc/datto/dla/mnt > /dev/kmsg
+    mount -t $fstype -o ro "$rbd" /etc/assurio/dla/mnt > /dev/kmsg
     udevadm settle
 
-    if [ -x /sbin/datto_reload ]; then
-        /sbin/datto_reload
+    if [ -x /sbin/assurio_reload ]; then
+        /sbin/assurio_reload
     else
-        echo "dattobd: error: cannot reload tracking data: missing /sbin/datto_reload" > /dev/kmsg
+        echo "assurio-snap: error: cannot reload tracking data: missing /sbin/assurio_reload" > /dev/kmsg
     fi
 
-    umount -f /etc/datto/dla/mnt > /dev/kmsg
+    umount -f /etc/assurio/dla/mnt > /dev/kmsg
     blockdev --setrw $rbd
 fi
