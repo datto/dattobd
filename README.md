@@ -1,7 +1,7 @@
 Assurio Change-Tracking Block Driver
 ==================
 
-**NOTE**: This is a GPL licensed fork of the original [Datto `dattobd` driver](https://github.com/datto/dattobd).
+**NOTE**: This is a GPL licensed fork of the original [Assurio `dattobd` driver](https://github.com/datto/dattobd).
 Unless you are an Assurio customer or developer, you're almost certainly better off using the original and not this
 work.
 
@@ -14,15 +14,15 @@ For details on the license of the software, see [LICENSING.md](LICENSING.md).
 
 Linux has some basic tools for creating instant copy-on-write (COW) “snapshots” of filesystems.  The most prominent of these are LVM and device mapper (on which LVM is built).  Unfortunately, both have limitations that render them unsuitable for supporting live server snapshotting across disparate Linux environments.  Both require an unused volume to be available on the machine to track COW data. Servers, and particularly production servers, may not be preconfigured with the required spare volume.  In addition, these snapshotting systems only allow a read-only volume to be made read-write.  Taking a live backup requires unmounting your data volume, setting up a snapshot of it, mounting the snapshot, and then using a tool like `dd` or `rsync` to copy the original volume to a safe location.  Many production servers simply cannot be brought down for the time it takes to do this and afterwards all of the new data in the COW volume must eventually be merged back in to the original volume (which requires even more downtime). This is impractical and extremely hacky, to say the least.
 
-## Datto Block Driver (Linux Kernel Module / Driver)
+## Assurio Block Driver (Linux Kernel Module / Driver)
 
-The Datto Block Driver (assurio-snap) solves the above problems and brings functionality similar to VSS on Windows to a broad range of Linux kernels.  Dattobd is an open source Linux kernel module for point-in-time live snapshotting.  Dattobd can be loaded onto a running Linux machine (without a reboot) and creates a COW file on the original volume representing any block device at the instant the snapshot is taken.  After the first snapshot, the driver tracks incremental changes to the block device and therefore can be used to efficiently update existing backups by copying only the blocks that have changed.  Dattobd is a true live-snapshotting system that will leave your root volume running and available, without requiring a reboot.
+The Assurio Block Driver (assurio-snap) solves the above problems and brings functionality similar to VSS on Windows to a broad range of Linux kernels.  Assurio-Snap is an open source Linux kernel module for point-in-time live snapshotting.  Assurio-Snap can be loaded onto a running Linux machine (without a reboot) and creates a COW file on the original volume representing any block device at the instant the snapshot is taken.  After the first snapshot, the driver tracks incremental changes to the block device and therefore can be used to efficiently update existing backups by copying only the blocks that have changed.  Assurio-Snap is a true live-snapshotting system that will leave your root volume running and available, without requiring a reboot.
 
-Dattobd is designed to run on any linux device from small test virtual machines to live production servers with minimal impact on I/O or CPU performance.  Since the driver works at the block layer, it supports most common filesystems including ext 2,3 and 4 and xfs (although filesystems with their own block device management systems such as ZFS and BTRFS can not be supported).  All COW data is tracked in a file on the source block device itself, eliminating the need to have a spare volume in order to snapshot.  
+Assurio-Snap is designed to run on any linux device from small test virtual machines to live production servers with minimal impact on I/O or CPU performance.  Since the driver works at the block layer, it supports most common filesystems including ext 2,3 and 4 and xfs (although filesystems with their own block device management systems such as ZFS and BTRFS can not be supported).  All COW data is tracked in a file on the source block device itself, eliminating the need to have a spare volume in order to snapshot.  
 
 ## Performing Incremental Backups
 
-The primary intended use case of Dattobd is for backing up live Linux systems. The general flow is to take a snapshot, copy it and move the snapshot into 'incremental' mode. Later, we can move the incremental back to snapshot mode and efficiently update the first backup we took. We can then repeat this process to continually update our backed-up image.  What follows is an example of using the driver for this purpose on a simple Ubuntu 12.04 installation with a single root volume on `/dev/sda1`. In this case, we are copying to another (larger) volume mounted at `/backups`. Other Linux distros should work similarly, with minor tweaks.
+The primary intended use case of Assurio-Snap is for backing up live Linux systems. The general flow is to take a snapshot, copy it and move the snapshot into 'incremental' mode. Later, we can move the incremental back to snapshot mode and efficiently update the first backup we took. We can then repeat this process to continually update our backed-up image.  What follows is an example of using the driver for this purpose on a simple Ubuntu 12.04 installation with a single root volume on `/dev/sda1`. In this case, we are copying to another (larger) volume mounted at `/backups`. Other Linux distros should work similarly, with minor tweaks.
 
 1) Install the driver and related tools. Instructions for doing this are explained in [INSTALL.md](INSTALL.md).
 
