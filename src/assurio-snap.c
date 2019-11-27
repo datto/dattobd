@@ -483,7 +483,7 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 }
 #endif
 
-static int assurio-snap.should_remove_suid(struct dentry *dentry)
+static int assurio_snap_should_remove_suid(struct dentry *dentry)
 {
 	mode_t mode = dentry->d_inode->i_mode;
 	int kill = 0;
@@ -528,14 +528,14 @@ static int assurio-snap.should_remove_suid(struct dentry *dentry)
 	#define MRF_RETURN_TYPE int
 	#define MRF_RETURN(ret) return ret
 
-static inline int assurio-snap.call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
 #elif defined HAVE_MAKE_REQUEST_FN_VOID
 	#define MRF_RETURN_TYPE void
 	#define MRF_RETURN(ret) return
 
-static inline int assurio-snap.call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	fn(q, bio);
 	return 0;
 }
@@ -543,7 +543,7 @@ static inline int assurio-snap.call_mrf(make_request_fn *fn, struct request_queu
 	#define MRF_RETURN_TYPE blk_qc_t
 	#define MRF_RETURN(ret) return BLK_QC_T_NONE
 
-static inline int assurio-snap.call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
 #endif
@@ -747,18 +747,18 @@ static inline void assurio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 
 //global module parameters
 static int assurio_snap_may_hook_syscalls = 1;
-static unsigned long assurio-snap.cow_max_memory_default = (300 * 1024 * 1024);
-static unsigned int assurio-snap.cow_fallocate_percentage_default = 10;
+static unsigned long assurio_snap_cow_max_memory_default = (300 * 1024 * 1024);
+static unsigned int assurio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int assurio_snap_max_snap_devices = ASSURIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int assurio_snap_debug = 0;
 
 module_param_named(may_hook_syscalls, assurio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
-module_param_named(cow_max_memory_default, assurio-snap.cow_max_memory_default, ulong, 0);
+module_param_named(cow_max_memory_default, assurio_snap_cow_max_memory_default, ulong, 0);
 MODULE_PARM_DESC(cow_max_memory_default, "default maximum cache size (in bytes)");
 
-module_param_named(cow_fallocate_percentage_default, assurio-snap.cow_fallocate_percentage_default, uint, 0);
+module_param_named(cow_fallocate_percentage_default, assurio_snap_cow_fallocate_percentage_default, uint, 0);
 MODULE_PARM_DESC(cow_fallocate_percentage_default, "default space allocated to the cow file (as integer percentage)");
 
 module_param_named(max_snap_devices, assurio_snap_max_snap_devices, uint, S_IRUGO);
@@ -1481,7 +1481,7 @@ static int assurio_snap_do_truncate(struct dentry *dentry, loff_t length, unsign
 		newattrs.ia_valid |= ATTR_FILE;
 	}
 
-	ret = assurio-snap.should_remove_suid(dentry);
+	ret = assurio_snap_should_remove_suid(dentry);
 	if(ret) newattrs.ia_valid |= ret | ATTR_FORCE;
 
 	assurio_snap_inode_lock(dentry->d_inode);
@@ -2737,7 +2737,7 @@ static int snap_mrf_thread(void *data){
 		//submit the original bio to the block IO layer
 		assurio_snap_bio_op_set_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
 
-		ret = assurio-snap.call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+		ret = assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
 #endif
@@ -2951,7 +2951,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages, i = 0;
 
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return assurio-snap.call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -3071,7 +3071,7 @@ out:
 	}
 
 	//call the original mrf
-	ret = assurio-snap.call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+	ret = assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
 
 	return ret;
 }
@@ -3101,7 +3101,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 call_orig:
-	if(orig_mrf) ret = assurio-snap.call_mrf(orig_mrf, q, bio);
+	if(orig_mrf) ret = assurio_snap_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
 
 out:
@@ -3426,13 +3426,13 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 		ret = cow_reopen(dev->sd_cow, cow_path);
 		if(ret) goto error;
 	}else{
-		if(!cache_size) dev->sd_cache_size = assurio-snap.cow_max_memory_default;
+		if(!cache_size) dev->sd_cache_size = assurio_snap_cow_max_memory_default;
 		else dev->sd_cache_size = cache_size;
 
 		if(open_method == 0){
 			//calculate how much space should be allocated to the cow file
 			if(!fallocated_space){
-				max_file_size = size * SECTOR_SIZE * assurio-snap.cow_fallocate_percentage_default;
+				max_file_size = size * SECTOR_SIZE * assurio_snap_cow_fallocate_percentage_default;
 				do_div(max_file_size, 100);
 				dev->sd_falloc_size = max_file_size;
 				do_div(dev->sd_falloc_size, (1024 * 1024));
@@ -3977,7 +3977,7 @@ error:
 
 static void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size){
 	dev->sd_cache_size = cache_size;
-	if(!cache_size) cache_size = assurio-snap.cow_max_memory_default;
+	if(!cache_size) cache_size = assurio_snap_cow_max_memory_default;
 	if(test_bit(ACTIVE, &dev->sd_state)) cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
@@ -3985,7 +3985,7 @@ static void tracer_assurio_snap_info(const struct snap_device *dev, struct assur
 	info->minor = dev->sd_minor;
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
-	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : assurio-snap.cow_max_memory_default;
+	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : assurio_snap_cow_max_memory_default;
 	strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
 	strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
@@ -4984,7 +4984,7 @@ static int assurio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
-		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : assurio-snap.cow_max_memory_default);
+		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : assurio_snap_cow_max_memory_default);
 
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
 			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
