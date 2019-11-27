@@ -1,4 +1,4 @@
-_dbdctl()
+_aioctl()
 {
     local cur prev opts
     COMPREPLY=()
@@ -11,4 +11,4 @@ _dbdctl()
         return 0
     fi
 }
-complete -o default -F _dbdctl dbdctl
+complete -o default -F _aioctl aioctl

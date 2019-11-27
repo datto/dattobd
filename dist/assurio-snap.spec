@@ -85,7 +85,7 @@
 %endif
 
 # Set up library package names properly
-%global libprefix libdattobd
+%global libprefix libassurio-snap
 %global libsover 1
 
 %if %{_vendor} == "debbuild"
@@ -106,13 +106,13 @@
 %bcond_with devmode
 
 
-Name:            dattobd
+Name:            assurio-snap
 Version:         0.10.11
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
-Vendor:          Datto, Inc.
+Vendor:          Assurio Software, Inc.
 %if %{_vendor} == "debbuild"
-Packager:        Datto Software Packagers <swpackages@datto.com>
+Packager:        Assurio Software Packagers <packages@assurio.com>
 Group:           kernel
 License:         GPL-2.0
 %else
@@ -125,7 +125,7 @@ License:         GPLv2
 %endif
 %endif
 
-URL:             https://github.com/datto/dattobd
+URL:             https://github.com/assuriosw/assurio-snap
 %if ! %{with devmode}
 Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 %else
@@ -138,8 +138,8 @@ BuildRequires:   rsync
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
-The Datto Block Driver is a kernel module that enables
-live image backups through block devices.
+The Assurio-Snap is a kernel module that enables
+live image snapshots through block devices.
 
 %package -n %{libname}
 Summary:         Library for communicating with %{name} kernel module
@@ -284,18 +284,18 @@ make utils
 %install
 # Install library
 mkdir -p %{buildroot}%{_libdir}/pkgconfig
-install -p -m 0755 lib/libdattobd.so.%{libsover} %{buildroot}%{_libdir}/
-ln -sf libdattobd.so.%{libsover} %{buildroot}%{_libdir}/libdattobd.so
-install -p -m 0644 dist/libdattobd.pc.in %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
-mkdir -p %{buildroot}%{_includedir}/dattobd
-install -p -m 0644 lib/libdattobd.h %{buildroot}%{_includedir}/dattobd/libdattobd.h
-install -p -m 0644 src/dattobd.h %{buildroot}%{_includedir}/dattobd/dattobd.h
+install -p -m 0755 lib/libassurio-snap.so.%{libsover} %{buildroot}%{_libdir}/
+ln -sf libassurio-snap.so.%{libsover} %{buildroot}%{_libdir}/libassurio-snap.so
+install -p -m 0644 dist/libassurio-snap.pc.in %{buildroot}%{_libdir}/pkgconfig/libassurio-snap.pc
+mkdir -p %{buildroot}%{_includedir}/assurio-snap
+install -p -m 0644 lib/libassurio-snap.h %{buildroot}%{_includedir}/assurio-snap/libassurio-snap.h
+install -p -m 0644 src/assurio-snap.h %{buildroot}%{_includedir}/assurio-snap/assurio-snap.h
 
 sed -e "s:@prefix@:%{_prefix}:g" \
     -e "s:@libdir@:%{_libdir}:g" \
-    -e "s:@includedir@:%{_includedir}/dattobd:g" \
+    -e "s:@includedir@:%{_includedir}/assurio-snap:g" \
     -e "s:@PACKAGE_VERSION@:%{version}:g" \
-    -i %{buildroot}%{_libdir}/pkgconfig/libdattobd.pc
+    -i %{buildroot}%{_libdir}/pkgconfig/libassurio-snap.pc
 
 
 # Generate symbols for library package (Debian/Ubuntu only)
@@ -306,11 +306,11 @@ dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroo
 
 # Install utilities and man pages
 mkdir -p %{buildroot}%{_bindir}
-install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
+install -p -m 0755 app/aioctl %{buildroot}%{_bindir}/aioctl
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
-install -p -m 0755 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+install -p -m 0755 app/bash_completion.d/aioctl %{buildroot}%{_sysconfdir}/bash_completion.d/
 mkdir -p %{buildroot}%{_mandir}/man8
-install -p -m 0644 doc/dbdctl.8 %{buildroot}%{_mandir}/man8/dbdctl.8
+install -p -m 0644 doc/aioctl.8 %{buildroot}%{_mandir}/man8/aioctl.8
 install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
 install -p -m 0644 doc/update-img.8 %{buildroot}%{_mandir}/man8/update-img.8
 
@@ -319,51 +319,51 @@ mkdir -p %{buildroot}%{_kmod_src_root}
 rsync -av src/ %{buildroot}%{_kmod_src_root}
 
 # Install DKMS configuration
-install -m 0644 dist/dattobd-dkms-conf %{buildroot}%{_kmod_src_root}/dkms.conf
+install -m 0644 dist/assurio-snap-dkms-conf %{buildroot}%{_kmod_src_root}/dkms.conf
 sed -i "s/@MODULE_VERSION@/%{version}/g" %{buildroot}%{_kmod_src_root}/dkms.conf
 
 # Install modern modprobe stuff
 mkdir -p %{buildroot}%{_sysconfdir}/modules-load.d
-install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_sysconfdir}/modules-load.d/%{name}.conf
+install -m 0644 dist/assurio-snap-modprobe-conf %{buildroot}%{_sysconfdir}/modules-load.d/%{name}.conf
 
 # Legacy automatic module loader for RHEL 5/6
 %if 0%{?rhel} && 0%{?rhel} < 7
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig/modules
-install -m 0755 dist/dattobd-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/dattobd.modules
+install -m 0755 dist/assurio-snap-sysconfig-modules %{buildroot}%{_sysconfdir}/sysconfig/modules/assurio-snap.modules
 %endif
 
 # We only need the hook with older distros
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
-# Install the kernel hook to enforce dattobd rebuilds
+# Install the kernel hook to enforce assurio-snap rebuilds
 mkdir -p %{buildroot}%{_sysconfdir}/kernel/postinst.d
-install -m 755 dist/kernel.postinst.d/50-dattobd %{buildroot}%{_sysconfdir}/kernel/postinst.d/50-dattobd
+install -m 755 dist/kernel.postinst.d/50-assurio-snap %{buildroot}%{_sysconfdir}/kernel/postinst.d/50-assurio-snap
 %endif
 
 # RHEL/CentOS 5 will not have the initramfs scripts because its mkinitrd doesn't support scripts
 %if 0%{?rhel} != 5
 
 # Install initramfs stuff
-mkdir -p %{buildroot}%{_sharedstatedir}/datto/dla
-install -m 755 dist/initramfs/reload %{buildroot}%{_sharedstatedir}/datto/dla/reload
+mkdir -p %{buildroot}%{_sharedstatedir}/assurio/dla
+install -m 755 dist/initramfs/reload %{buildroot}%{_sharedstatedir}/assurio/dla/reload
 
 # Debian/Ubuntu use initramfs-tools
 %if 0%{?debian} || 0%{?ubuntu}
 mkdir -p %{buildroot}%{_initramfs_tools_root}
 mkdir -p %{buildroot}%{_initramfs_tools_root}/hooks
 mkdir -p %{buildroot}%{_initramfs_tools_root}/scripts/init-premount
-install -m 755 dist/initramfs/initramfs-tools/hooks/dattobd %{buildroot}%{_initramfs_tools_root}/hooks/dattobd
-install -m 755 dist/initramfs/initramfs-tools/scripts/dattobd %{buildroot}%{_initramfs_tools_root}/scripts/init-premount/dattobd
+install -m 755 dist/initramfs/initramfs-tools/hooks/assurio-snap %{buildroot}%{_initramfs_tools_root}/hooks/assurio-snap
+install -m 755 dist/initramfs/initramfs-tools/scripts/assurio-snap %{buildroot}%{_initramfs_tools_root}/scripts/init-premount/assurio-snap
 %else
 # openSUSE 13.1 and older use mkinitrd
 %if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
 mkdir -p %{buildroot}%{_mkinitrd_scripts_root}
-install -m 755 dist/initramfs/initrd/boot-dattobd.sh %{buildroot}%{_mkinitrd_scripts_root}/boot-dattobd.sh
-install -m 755 dist/initramfs/initrd/setup-dattobd.sh %{buildroot}%{_mkinitrd_scripts_root}/setup-dattobd.sh
+install -m 755 dist/initramfs/initrd/boot-assurio-snap.sh %{buildroot}%{_mkinitrd_scripts_root}/boot-assurio-snap.sh
+install -m 755 dist/initramfs/initrd/setup-assurio-snap.sh %{buildroot}%{_mkinitrd_scripts_root}/setup-assurio-snap.sh
 %else
-mkdir -p %{buildroot}%{_dracut_modules_root}/90dattobd
-install -m 755 dist/initramfs/dracut/dattobd.sh %{buildroot}%{_dracut_modules_root}/90dattobd/dattobd.sh
-install -m 755 dist/initramfs/dracut/module-setup.sh %{buildroot}%{_dracut_modules_root}/90dattobd/module-setup.sh
-install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}/90dattobd/install
+mkdir -p %{buildroot}%{_dracut_modules_root}/90assurio-snap
+install -m 755 dist/initramfs/dracut/assurio-snap.sh %{buildroot}%{_dracut_modules_root}/90assurio-snap/assurio-snap.sh
+install -m 755 dist/initramfs/dracut/module-setup.sh %{buildroot}%{_dracut_modules_root}/90assurio-snap/module-setup.sh
+install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}/90assurio-snap/install
 %endif
 %endif
 %endif
@@ -459,27 +459,27 @@ rm -rf %{buildroot}
 %if 0%{?suse_version}
 %defattr(-,root,root,-)
 %endif
-%{_bindir}/dbdctl
+%{_bindir}/aioctl
 %{_bindir}/update-img
-%{_sysconfdir}/bash_completion.d/dbdctl
-%{_mandir}/man8/dbdctl.8*
+%{_sysconfdir}/bash_completion.d/aioctl
+%{_mandir}/man8/aioctl.8*
 %{_mandir}/man8/update-img.8*
 # Initramfs scripts for all but RHEL 5
 %if 0%{?rhel} != 5
-%dir %{_sharedstatedir}/datto/dla
-%{_sharedstatedir}/datto/dla/reload
+%dir %{_sharedstatedir}/assurio/dla
+%{_sharedstatedir}/assurio/dla/reload
 %if 0%{?debian} || 0%{?ubuntu}
-%{_initramfs_tools_root}/hooks/dattobd
-%{_initramfs_tools_root}/scripts/init-premount/dattobd
+%{_initramfs_tools_root}/hooks/assurio-snap
+%{_initramfs_tools_root}/scripts/init-premount/assurio-snap
 %else
 %if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
-%{_mkinitrd_scripts_root}/boot-dattobd.sh
-%{_mkinitrd_scripts_root}/setup-dattobd.sh
+%{_mkinitrd_scripts_root}/boot-assurio-snap.sh
+%{_mkinitrd_scripts_root}/setup-assurio-snap.sh
 %else
-%dir %{_dracut_modules_root}/90dattobd
-%{_dracut_modules_root}/90dattobd/dattobd.sh
-%{_dracut_modules_root}/90dattobd/module-setup.sh
-%{_dracut_modules_root}/90dattobd/install
+%dir %{_dracut_modules_root}/90assurio-snap
+%{_dracut_modules_root}/90assurio-snap/assurio-snap.sh
+%{_dracut_modules_root}/90assurio-snap/module-setup.sh
+%{_dracut_modules_root}/90assurio-snap/install
 %endif
 %endif
 %endif
@@ -499,7 +499,7 @@ rm -rf %{buildroot}
 %if 0%{?suse_version}
 %defattr(-,root,root,-)
 %endif
-%{_libdir}/libdattobd.so.%{libsover}
+%{_libdir}/libassurio-snap.so.%{libsover}
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
@@ -515,9 +515,9 @@ rm -rf %{buildroot}
 %if 0%{?suse_version}
 %defattr(-,root,root,-)
 %endif
-%{_libdir}/libdattobd.so
-%{_libdir}/pkgconfig/libdattobd.pc
-%{_includedir}/dattobd/
+%{_libdir}/libassurio-snap.so
+%{_libdir}/pkgconfig/libassurio-snap.pc
+%{_includedir}/assurio-snap/
 %if %{_vendor} == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
@@ -535,24 +535,24 @@ rm -rf %{buildroot}
 %endif
 %if 0%{?rhel} == 5 && 0%{?rhel} == 6 && 0%{?suse_version} == 1110
 # RHEL/CentOS 5/6 and SLE 11 don't support this at all
-%exclude %{_sysconfdir}/modules-load.d/dattobd.conf
+%exclude %{_sysconfdir}/modules-load.d/assurio-snap.conf
 %else
-%config %{_sysconfdir}/modules-load.d/dattobd.conf
+%config %{_sysconfdir}/modules-load.d/assurio-snap.conf
 %endif
 %if 0%{?rhel} && 0%{?rhel} < 7
-%config %{_sysconfdir}/sysconfig/modules/dattobd.modules
+%config %{_sysconfdir}/sysconfig/modules/assurio-snap.modules
 %endif
 %dir %{_kmod_src_root}
 %{_kmod_src_root}/Makefile
 %{_kmod_src_root}/configure-tests
-%{_kmod_src_root}/dattobd.c
-%{_kmod_src_root}/dattobd.h
+%{_kmod_src_root}/assurio-snap.c
+%{_kmod_src_root}/assurio-snap.h
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
-%{_sysconfdir}/kernel/postinst.d/50-dattobd
+%{_sysconfdir}/kernel/postinst.d/50-assurio-snap
 %endif
 %doc README.md
 %if %{_vendor} == "redhat"
@@ -714,7 +714,7 @@ rm -rf %{buildroot}
 
 * Fri Jul 17 2015 Neal Gompa <ngompa@datto.com> - 0.8.6-1
 - Updated to 0.8.6
-- Added bash completion script for dbdctl
+- Added bash completion script for aioctl
 
 * Sat Jun 13 2015 Neal Gompa <ngompa@datto.com> - 0.8.5-3
 - Add conditional to prevent module removal on upgrade

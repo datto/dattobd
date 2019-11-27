@@ -1,5 +1,5 @@
 #!/bin/sh
 
-if [ ! -c /dev/datto-ctl ] ; then
-	exec /sbin/modprobe dattobd >/dev/null 2>&1
+if [ ! -c /dev/assurio-snap-ctl ] ; then
+	exec /sbin/modprobe assurio-snap >/dev/null 2>&1
 fi

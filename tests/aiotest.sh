@@ -3,10 +3,11 @@
 
 #
 # Copyright (C) 2019 Datto, Inc.
+# Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
 #
 
 echo
-echo "dattobd: $(git rev-parse --short HEAD)"
+echo "assurio-snap: $(git rev-parse --short HEAD)"
 echo "kernel: $(uname -r)"
 echo "gcc: $(gcc --version | awk 'NR==1 {print $3}')"
 echo "bash: ${BASH_VERSION}"

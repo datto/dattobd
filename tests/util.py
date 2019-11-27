@@ -3,6 +3,7 @@
 
 #
 # Copyright (C) 2019 Datto, Inc.
+# Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
 #
 
 import hashlib

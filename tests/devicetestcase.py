@@ -2,6 +2,7 @@
 
 #
 # Copyright (C) 2019 Datto, Inc.
+# Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
 #
 
 import os
@@ -17,9 +18,9 @@ class DeviceTestCase(unittest.TestCase):
     def setUpClass(cls):
         cls.backing_store = "/tmp/disk.img"
         cls.device = "/dev/loop0"
-        cls.mount = "/tmp/dattobd"
+        cls.mount = "/tmp/assurio-snap"
 
-        cls.kmod = kmod.Module("../src/dattobd.ko")
+        cls.kmod = kmod.Module("../src/assurio-snap.ko")
         cls.kmod.load(debug=1)
 
         util.dd("/dev/zero", cls.backing_store, 256, bs="1M")

@@ -2,6 +2,7 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
+ * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
  */
 
 #include <stdio.h>
@@ -12,18 +13,18 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "libdattobd.h"
+#include "libassurio-snap.h"
 
 static void print_help(int status){
 	printf("Usage:\n");
-	printf("\tdbdctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor>\n");
-	printf("\tdbdctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>\n");
-	printf("\tdbdctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
-	printf("\tdbdctl destroy <minor>\n");
-	printf("\tdbdctl transition-to-incremental <minor>\n");
-	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
-	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
-	printf("\tdbdctl help\n\n");
+	printf("\taioctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor>\n");
+	printf("\taioctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>\n");
+	printf("\taioctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
+	printf("\taioctl destroy <minor>\n");
+	printf("\taioctl transition-to-incremental <minor>\n");
+	printf("\taioctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
+	printf("\taioctl reconfigure [-c <cache size>] <minor>\n");
+	printf("\taioctl help\n\n");
 	printf("for the reload commands, <cow file> should be specified relative to the root of <block device>\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes\n");
 	printf("note: if the -c or -f options are not specified for any given call, module defaults are used\n");
@@ -120,7 +121,7 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
+	return assurio_snap_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
 
 error:
 	perror("error interpreting setup snapshot parameters");
@@ -158,7 +159,7 @@ static int handle_reload_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_reload_snapshot(minor, bdev, cow, cache_size);
+	return assurio_snap_reload_snapshot(minor, bdev, cow, cache_size);
 
 error:
 	perror("error interpreting reload snapshot parameters");
@@ -196,7 +197,7 @@ static int handle_reload_inc(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_reload_incremental(minor, bdev, cow, cache_size);
+	return assurio_snap_reload_incremental(minor, bdev, cow, cache_size);
 
 error:
 	perror("error interpreting reload incremental parameters");
@@ -216,7 +217,7 @@ static int handle_destroy(int argc, char **argv){
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto error;
 
-	return dattobd_destroy(minor);
+	return assurio_snap_destroy(minor);
 
 error:
 	perror("error interpreting destroy parameters");
@@ -236,7 +237,7 @@ static int handle_transition_inc(int argc, char **argv){
 	ret = parse_ui(argv[1], &minor);
 	if(ret) goto error;
 
-	return dattobd_transition_incremental(minor);
+	return assurio_snap_transition_incremental(minor);
 
 error:
 	perror("error interpreting transition to incremental parameters");
@@ -273,7 +274,7 @@ static int handle_transition_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto error;
 
-	return dattobd_transition_snapshot(minor, cow, fallocated_space);
+	return assurio_snap_transition_snapshot(minor, cow, fallocated_space);
 
 error:
 	perror("error interpreting transition to snapshot parameters");
@@ -307,7 +308,7 @@ static int handle_reconfigure(int argc, char **argv){
 	ret = parse_ui(argv[optind], &minor);
 	if(ret) goto error;
 
-	return dattobd_reconfigure(minor, cache_size);
+	return assurio_snap_reconfigure(minor, cache_size);
 
 error:
 	perror("error interpreting reconfigure parameters");
@@ -321,7 +322,7 @@ int main(int argc, char **argv){
 	//check argc
 	if(argc < 2) print_help(-1);
 
-	if(access("/dev/datto-ctl", F_OK) != 0){
+	if(access("/dev/assurio-snap-ctl", F_OK) != 0){
 		errno = EINVAL;
 		perror("driver does not appear to be loaded");
 		return -1;
