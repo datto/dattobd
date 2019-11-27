@@ -2,10 +2,11 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
+ * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
  */
 
-#ifndef DATTOBD_INCLUDES_H_
-#define DATTOBD_INCLUDES_H_
+#ifndef ASSURIO_SNAP_INCLUDES_H_
+#define ASSURIO_SNAP_INCLUDES_H_
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>

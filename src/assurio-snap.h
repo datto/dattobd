@@ -2,10 +2,11 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
+ * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
  */
 
-#ifndef DATTOBD_H_
-#define DATTOBD_H_
+#ifndef ASSURIO_SNAP_H_
+#define ASSURIO_SNAP_H_
 
 #ifndef __KERNEL__
 #include <stdint.h>
@@ -14,8 +15,8 @@
 #include <linux/ioctl.h>
 #include <linux/limits.h>
 
-#define DATTOBD_VERSION "0.10.11"
-#define DATTO_IOCTL_MAGIC 0x91
+#define ASSURIO_SNAP_VERSION "0.10.11"
+#define ASSURIO_IOCTL_MAGIC 'A' // 0x41
 
 struct setup_params{
 	char *bdev; //name of block device to snapshot
@@ -66,7 +67,7 @@ struct cow_header{
 	uint64_t nr_changed_blocks; //number of changed blocks since last snapshot
 };
 
-struct dattobd_info{
+struct assurio_snap_info{
 	unsigned int minor;
 	unsigned long state;
 	int error;
@@ -80,14 +81,14 @@ struct dattobd_info{
 	unsigned long long nr_changed_blocks;
 };
 
-#define IOCTL_SETUP_SNAP _IOW(DATTO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
-#define IOCTL_RELOAD_SNAP _IOW(DATTO_IOCTL_MAGIC, 2, struct reload_params) //in: see above
-#define IOCTL_RELOAD_INC _IOW(DATTO_IOCTL_MAGIC, 3, struct reload_params) //in: see above
-#define IOCTL_DESTROY _IOW(DATTO_IOCTL_MAGIC, 4, unsigned int) //in: minor
-#define IOCTL_TRANSITION_INC _IOW(DATTO_IOCTL_MAGIC, 5, unsigned int) //in: minor
-#define IOCTL_TRANSITION_SNAP _IOW(DATTO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
-#define IOCTL_RECONFIGURE _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
-#define IOCTL_DATTOBD_INFO _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) //in: see above
-#define IOCTL_GET_FREE _IOR(DATTO_IOCTL_MAGIC, 9, int)
+#define IOCTL_SETUP_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
+#define IOCTL_RELOAD_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 2, struct reload_params) //in: see above
+#define IOCTL_RELOAD_INC _IOW(ASSURIO_IOCTL_MAGIC, 3, struct reload_params) //in: see above
+#define IOCTL_DESTROY _IOW(ASSURIO_IOCTL_MAGIC, 4, unsigned int) //in: minor
+#define IOCTL_TRANSITION_INC _IOW(ASSURIO_IOCTL_MAGIC, 5, unsigned int) //in: minor
+#define IOCTL_TRANSITION_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
+#define IOCTL_RECONFIGURE _IOW(ASSURIO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
+#define IOCTL_ASSURIO_SNAP_INFO _IOR(ASSURIO_IOCTL_MAGIC, 8, struct assurio_snap_info) //in: see above
+#define IOCTL_GET_FREE _IOR(ASSURIO_IOCTL_MAGIC, 9, int)
 
-#endif /* DATTOBD_H_ */
+#endif /* ASSURIO_SNAP_H_ */

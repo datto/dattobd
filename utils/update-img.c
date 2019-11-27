@@ -2,6 +2,7 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
+ * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
  */
 
 #define _FILE_OFFSET_BITS 64
@@ -13,7 +14,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "libdattobd.h"
+#include "libassurio-snap.h"
 
 #define INDEX_BUFFER_SIZE 8192
 
@@ -58,23 +59,23 @@ static int verify_files(FILE *cow, unsigned minor){
 	int ret;
 	size_t bytes;
 	struct cow_header ch;
-	struct dattobd_info *info = NULL;
+	struct assurio_snap_info *info = NULL;
 
 	//allocate a buffer for the proc data
-	info = malloc(sizeof(struct dattobd_info));
+	info = malloc(sizeof(struct assurio_snap_info));
 	if(!info){
 		ret = ENOMEM;
 		errno = 0;
-		fprintf(stderr, "error allocating mmeory for dattobd info\n");
+		fprintf(stderr, "error allocating memory for assurio-snap-info\n");
 		goto error;
 	}
 
-	//read info from the dattobd driver
-	ret = dattobd_info(minor, info);
+	//read info from the assurio-snap driver
+	ret = assurio_snap_info(minor, info);
 	if(ret){
 		ret = errno;
 		errno = 0;
-		fprintf(stderr, "error reading dattobd info from driver\n");
+		fprintf(stderr, "error reading assurio-snap-info from driver\n");
 		goto error;
 	}
 
@@ -166,11 +167,11 @@ int main(int argc, char **argv){
 	}
 
 	//get the minor number of the snapshot
-	ret = sscanf(snap_path, "/dev/datto%u", &minor);
+	ret = sscanf(snap_path, "/dev/assurio-snap%u", &minor);
 	if(ret != 1){
 		ret = errno;
 		errno = 0;
-		fprintf(stderr, "snapshot does not appear to be a dattobd snapshot device\n");
+		fprintf(stderr, "snapshot does not appear to be a assurio-snap snapshot device\n");
 		goto error;
 	}
 

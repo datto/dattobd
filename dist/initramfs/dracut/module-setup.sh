@@ -11,15 +11,15 @@ depends() {
 }
 
 installkernel() {
-    hostonly='' instmods dattobd
+    hostonly='' instmods assurio-snap
 }
 
 install() {
-    inst_hook pre-mount 01 "$moddir/dattobd.sh"
-    inst_dir /etc/datto/dla/mnt
+    inst_hook pre-mount 01 "$moddir/assurio-snap.sh"
+    inst_dir /etc/assurio/dla/mnt
     inst /sbin/blkid
     inst /sbin/blockdev
     inst /usr/bin/udevadm
-    inst /usr/bin/dbdctl
-    inst_simple /var/lib/datto/dla/reload /sbin/datto_reload
+    inst /usr/bin/aioctl
+    inst_simple /var/lib/assurio/dla/reload /sbin/assurio_reload
 }

@@ -3,9 +3,9 @@ exec_prefix=${prefix}
 libdir=@libdir@
 includedir=@includedir@
 
-Name: libdattobd
+Name: libassurio-snap
 Description: Library for kernel module for taking block-level snapshots of Linux block devices
 Version: @PACKAGE_VERSION@
 
-Libs: -L${libdir} -ldattobd
+Libs: -L${libdir} -lassurio-snap
 Cflags: -I${includedir}

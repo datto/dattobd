@@ -1,9 +1,9 @@
 #!/bin/sh
 
-ls -l /etc/datto/dla/mnt/etc/datto/dla/reload_* > /dev/null 2>&1
+ls -l /etc/assurio/dla/mnt/etc/assurio/dla/reload_* > /dev/null 2>&1
 
 if [ "$?" = "0" ]; then
-	FILES="/etc/datto/dla/mnt/etc/datto/dla/reload_*"
+	FILES="/etc/assurio/dla/mnt/etc/assurio/dla/reload_*"
 else
 	exit
 fi

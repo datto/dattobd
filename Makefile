@@ -51,14 +51,14 @@ pkgclean:
 
 pkgprep: pkgclean
 	$(PKGBUILDROOT_CREATE_CMD)
-	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,dattobd,' -czf $(BUILDDIR)/SOURCES/dattobd.tar.gz .
-	cp dist/dattobd.spec $(BUILDDIR)/SPECS/dattobd.spec
+	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,assurio-snap,' -czf $(BUILDDIR)/SOURCES/assurio-snap.tar.gz .
+	cp dist/assurio-snap.spec $(BUILDDIR)/SPECS/assurio-snap.spec
 
 deb: pkgprep
-	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/dattobd.spec
+	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/assurio-snap.spec
 
 rpm: pkgprep
-	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/dattobd.spec
+	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/assurio-snap.spec
 
 install:
 	$(MAKE) -C src install

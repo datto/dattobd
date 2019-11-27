@@ -16,13 +16,13 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-mkdir -p ${DESTDIR}/etc/datto/dla/mnt
+mkdir -p ${DESTDIR}/etc/assurio/dla/mnt
 copy_exec /sbin/blkid
 copy_exec /sbin/blockdev
-copy_exec /usr/bin/dbdctl
-copy_exec /var/lib/datto/dla/reload /sbin/datto_reload
+copy_exec /usr/bin/aioctl
+copy_exec /var/lib/assurio/dla/reload /sbin/assurio_reload
 
-manual_add_modules dattobd
+manual_add_modules assurio-snap
 
 exit 0
 

@@ -1,5 +1,5 @@
 # Binaries
-app/dbdctl
+app/aioctl
 utils/update-img
 
 # Dynamically generated files
