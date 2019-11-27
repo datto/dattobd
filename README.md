@@ -7,7 +7,7 @@ work.
 
 For build and install instructions, see [INSTALL.md](INSTALL.md).
 For information about the on-disk .assurio file this module creates, see [STRUCTURE.md](doc/STRUCTURE.md).
-For instructions regarding the `dbdctl` tool, see [dbdctl.8.md](doc/dbdctl.8.md).
+For instructions regarding the `aioctl` tool, see [aioctl.8.md](doc/aioctl.8.md).
 For details on the license of the software, see [LICENSING.md](LICENSING.md).
 
 ## The Linux Snapshot Problem
@@ -28,7 +28,7 @@ The primary intended use case of Assurio-Snap is for backing up live Linux syste
 
 2) Create a snapshot:
 
-	dbdctl setup-snapshot /dev/sda1 /.assurio 0
+	aioctl setup-snapshot /dev/sda1 /.assurio 0
 
 
 This will create a snapshot of the root volume at `/dev/assurio0` with a backing COW file at `/.assurio`. This file must exist on the volume that will be snapshotted.
@@ -42,7 +42,7 @@ This will create a snapshot of the root volume at `/dev/assurio0` with a backing
 
 4) Put the snapshot into incremental mode:
 
-	dbdctl transition-to-incremental 0
+	aioctl transition-to-incremental 0
 
 
 This command requests the driver to move the snapshot (`/dev/assurio0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
@@ -53,7 +53,7 @@ After the initial backup, the driver will probably be left in incremental mode t
 
 6) Move the incremental back to snapshot mode:
 
-	dbdctl transition-to-snapshot /.assurio1 0
+	aioctl transition-to-snapshot /.assurio1 0
 
 
 This command requires the name of a new COW file to begin tracking changes again (here we chose `/.assurio1`). At this point the driver is finished with our `/.assurio` file we created in step 2. The `/.assurio` file now contains a list of the blocks that have changed since our initial snapshot. We will use this in the next step to update our backed up image. It is important to not use the same file name that we specified in step 2 for this command. Otherwise, we would overwrite our list of changed blocks.
