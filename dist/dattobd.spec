@@ -132,6 +132,8 @@ Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source0:         %{name}.tar.gz
 %endif
 
+BuildRequires:   gcc
+BuildRequires:   make
 BuildRequires:   rsync
 
 # Some targets (like EL5) expect a buildroot definition
@@ -235,6 +237,9 @@ Requires(post):  dkms
 # be cautious and just require it across the EL releases.
 Requires:        perl
 %endif
+
+# Dependencies for actually building the kmod
+Requires:        make
 
 %if %{_vendor} != "debbuild"
 %if 0%{?rhel} >= 6 || 0%{?suse_version} >= 1210 || 0%{?fedora}
