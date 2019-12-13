@@ -46,6 +46,8 @@ steps:
     target: /repo/assurio-snap/${DRONE_BRANCH}/deb
     strip_prefix: repobuild/deb/repo/
     exclude: ./**/*GPG-KEY
+    when:
+      event: push
 
 - name: upload gpg pub key
   image: plugins/s3
@@ -61,6 +63,9 @@ steps:
     source: repobuild/deb/repo/ASSURIO-PKGS-GPG-KEY
     target: /repo
     strip_prefix: repobuild/deb/repo/
+    when:
+      branch: master
+      event: push
 
 ---
 kind: pipeline
