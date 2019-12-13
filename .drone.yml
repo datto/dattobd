@@ -1,0 +1,78 @@
+kind: pipeline
+name: debian_jessie_packaging
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build packages
+  image: debian:jessie
+  environment:
+    GPG_KEY_ID:
+      from_secret: GPG_KEY_ID
+    GPG_PUB_KEY:
+      from_secret: GPG_PUB_KEY
+    GPG_PRIV_KEY:
+      from_secret: GPG_PRIV_KEY
+
+  commands:
+    # Step 1: Prepare container
+    - apt-get update &&
+        apt-get install -y build-essential rsync git pax apt-utils tree
+        gnupg2 dpkg-sig
+    - dir=`pwd` && cd / &&
+        git clone https://github.com/ascherer/debbuild.git &&
+        cd /debbuild &&
+        ./configure && make && make install &&
+        cd $dir
+    # Step 2: Build deb packages
+    - make deb
+    # Step 3: Generate package repo
+    - repobuild/deb/gen-repo.sh
+
+- name: upload packages
+  image: plugins/s3
+  settings:
+    bucket: ci.assur.io
+    acl: public-read
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    region:
+      from_secret: AWS_REGION
+    source: repobuild/deb/repo/**/*
+    target: /repo/assurio-snap/${DRONE_BRANCH}/deb
+    strip_prefix: repobuild/deb/repo/
+    exclude: ./**/*GPG-KEY
+
+- name: upload gpg pub key
+  image: plugins/s3
+  settings:
+    bucket: ci.assur.io
+    acl: public-read
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    region:
+      from_secret: AWS_REGION
+    source: repobuild/deb/repo/ASSURIO-PKGS-GPG-KEY
+    target: /repo
+    strip_prefix: repobuild/deb/repo/
+
+---
+kind: pipeline
+name: centos6_packaging
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build packages
+  image: centos:6.10
+  commands:
+    - yum install -y git gcc rsync rpm-build 
+    - make rpm
