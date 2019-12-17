@@ -1,0 +1,5 @@
+#!/usr/bin/expect
+spawn rpm --addsign [lindex $argv 0]
+expect -exact "Enter pass phrase: "
+send -- "\n\r"
+expect eof

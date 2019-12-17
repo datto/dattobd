@@ -43,7 +43,7 @@ steps:
     region:
       from_secret: AWS_REGION
     source: repobuild/deb/repo/**/*
-    target: /repo/assurio-snap/${DRONE_BRANCH}/deb
+    target: /repo/assurio-snap/${DRONE_SOURCE_BRANCH}/deb
     strip_prefix: repobuild/deb/repo/
     exclude: ./**/*GPG-KEY
     when:
@@ -78,6 +78,36 @@ platform:
 steps:
 - name: build packages
   image: centos:6.10
+
+  environment:
+    GPG_KEY_ID:
+      from_secret: GPG_KEY_ID
+    GPG_PUB_KEY:
+      from_secret: GPG_PUB_KEY
+    GPG_PRIV_KEY:
+      from_secret: GPG_PRIV_KEY
+
   commands:
-    - yum install -y git gcc rsync rpm-build 
+    # Step 1: Prepare container
+    - yum install -y git gcc rsync rpm-build createrepo expect tree
+    # Step 2: Build rpm packages
     - make rpm
+    # Step 3: Generate package repo
+    - repobuild/rpm/gen-repo.sh
+
+- name: upload packages
+  image: plugins/s3
+  settings:
+    bucket: ci.assur.io
+    acl: public-read
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    region:
+      from_secret: AWS_REGION
+    source: repobuild/rpm/repo/**/*
+    target: /repo/assurio-snap/${DRONE_SOURCE_BRANCH}/rpm
+    strip_prefix: repobuild/rpm/repo/
+    when:
+      event: push
