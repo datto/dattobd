@@ -1,5 +1,16 @@
 #!/usr/bin/expect
+
 spawn rpm --addsign [lindex $argv 0]
-expect -exact "Enter pass phrase: "
-send -- "\n\r"
-expect eof
+
+# CentOS 6 and 7 asks for passphrase and then send eof
+# CentOS 8 just sends eof
+expect {
+    -exact "Enter pass phrase: " {
+        send -- "\n\r"
+        # continue to wait for eof after passphrase
+        exp_continue
+    }
+    eof
+}
+catch wait result
+exit [lindex $result 3]
