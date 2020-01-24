@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.11
+Version:         0.10.12
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -573,6 +573,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 24 2020 Dakota Williams <drwilliams@datto.com> - 0.10.12
+- Build feature tests out-of-tree and parallelize execution of them
+- Explicitly add incidental build deps to spec file
+- Added missing mount/umount userspace pointer conversion for logs
+- Removed references to removed kernel build variable SUBDIRS, required for kernel 5.4
+
 * Mon Sep 23 2019 Dakota Williams <drwilliams@datto.com> - 0.10.11
 - Use upstream names for sector size and CR0 register page protect bit
 - Changed symbol tests to use /lib/modules system maps and then fallback to /boot if it doesn't exist
