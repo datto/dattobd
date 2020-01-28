@@ -4776,10 +4776,17 @@ static asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name, 
 	long sys_ret;
 	unsigned int idx;
 	unsigned long real_flags = flags;
-	char buff_dev_name[PATH_MAX],buff_dir_name[PATH_MAX];
+	char *buff_dev_name = NULL;
+	char *buff_dir_name = NULL;
 
 	//get rid of the magic value if its present
 	if((real_flags & MS_MGC_MSK) == MS_MGC_VAL) real_flags &= ~MS_MGC_MSK;
+
+	buff_dev_name = kmalloc(PATH_MAX, GFP_ATOMIC);
+	buff_dir_name = kmalloc(PATH_MAX, GFP_ATOMIC);
+	if(!buff_dev_name || !buff_dir_name) {
+		return -ENOMEM;
+	}
 	ret_dev=copy_from_user(buff_dev_name,dev_name,PATH_MAX);
 	ret_dir=copy_from_user(buff_dir_name,dir_name,PATH_MAX);
 	if(ret_dev || ret_dir)
@@ -4787,6 +4794,9 @@ static asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name, 
 	else
 		LOG_DEBUG("detected block device mount: %s -> %s : 0x%lx", buff_dev_name,
 			buff_dir_name, real_flags);
+	kfree(buff_dev_name);
+	kfree(buff_dir_name);
+
 	if(real_flags & (MS_BIND | MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE | MS_MOVE) || ((real_flags & MS_RDONLY) && !(real_flags & MS_REMOUNT))){
 		//bind, shared, move, or new read-only mounts it do not affect the state of the driver
 		sys_ret = orig_mount(dev_name, dir_name, type, flags, data);
@@ -4810,12 +4820,19 @@ static asmlinkage long umount_hook(char __user *name, int flags){
 	int ret;
 	long sys_ret;
 	unsigned int idx;
-	char buff_dev_name[PATH_MAX];
-	ret=copy_from_user(buff_dev_name,name,PATH_MAX);
+	char* buff_dev_name = NULL;
+
+	buff_dev_name = kmalloc(PATH_MAX, GFP_ATOMIC);
+	if(!buff_dev_name) {
+		return -ENOMEM;
+	}
+	ret=copy_from_user(buff_dev_name, name, PATH_MAX);
 	if(ret)
 		LOG_DEBUG("detected block device umount error:%d", ret);
 	else
 		LOG_DEBUG("detected block device umount: %s : %d", buff_dev_name, flags);
+	kfree(buff_dev_name);
+
 	ret = handle_bdev_mount_nowrite(name, flags, &idx);
 	sys_ret = orig_umount(name, flags);
 	post_umount_check(ret, sys_ret, idx, name);
@@ -4830,8 +4847,18 @@ static asmlinkage long oldumount_hook(char __user *name){
 	int ret;
 	long sys_ret;
 	unsigned int idx;
+	char* buff_dev_name = NULL;
 
-	LOG_DEBUG("detected block device oldumount: %s", name);
+	buff_dev_name = kmalloc(PATH_MAX, GFP_ATOMIC);
+	if(!buff_dev_name) {
+		return -ENOMEM;
+	}
+	ret=copy_from_user(buff_dev_name, name, PATH_MAX);
+	if(ret)
+		LOG_DEBUG("detected block device oldumount error:%d", ret);
+	else
+		LOG_DEBUG("detected block device oldumount: %s", name);
+	kfree(buff_dev_name);
 
 	ret = handle_bdev_mount_nowrite(name, 0, &idx);
 	sys_ret = orig_oldumount(name);
