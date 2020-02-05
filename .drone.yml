@@ -8,13 +8,6 @@ platform:
 steps:
 - name: build packages
   image: debian:jessie
-  environment:
-    GPG_KEY_ID:
-      from_secret: GPG_KEY_ID
-    GPG_PUB_KEY:
-      from_secret: GPG_PUB_KEY
-    GPG_PRIV_KEY:
-      from_secret: GPG_PRIV_KEY
 
   commands:
     # Step 1: Prepare container
@@ -28,8 +21,8 @@ steps:
         cd $dir
     # Step 2: Build deb packages
     - make deb
-    # Step 3: Generate package repo
-    - repobuild/deb/gen-repo.sh
+    # Step 3: Collect artifacts
+    - repobuild/collect_artifacts.sh
 
 - name: upload packages
   image: plugins/s3
@@ -42,29 +35,10 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
     region:
       from_secret: AWS_REGION
-    source: repobuild/deb/repo/**/*
-    target: /repo/assurio-snap/${DRONE_SOURCE_BRANCH}/deb
-    strip_prefix: repobuild/deb/repo/
-    exclude: ./**/*GPG-KEY
+    source: repobuild/artifacts/**/*
+    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+    strip_prefix: repobuild/artifacts
   when:
-    event: push
-
-- name: upload gpg pub key
-  image: plugins/s3
-  settings:
-    bucket: ci.assur.io
-    acl: public-read
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    region:
-      from_secret: AWS_REGION
-    source: repobuild/deb/repo/ASSURIO-PKGS-GPG-KEY
-    target: /repo
-    strip_prefix: repobuild/deb/repo/
-  when:
-    branch: master
     event: push
 
 ---
@@ -79,73 +53,97 @@ steps:
 - name: build CentOS 6 packages
   image: centos:6.10
 
-  environment:
-    GPG_KEY_ID:
-      from_secret: GPG_KEY_ID
-    GPG_PUB_KEY:
-      from_secret: GPG_PUB_KEY
-    GPG_PRIV_KEY:
-      from_secret: GPG_PRIV_KEY
-
   commands:
     # Step 1: Prepare container
-    - yum install -y git gcc rsync rpm-build createrepo expect tree
+    - yum install -y gcc rsync rpm-build tree
     # Step 2: Build rpm packages
     - make rpm
-    # Step 3: Generate package repo
-    - repobuild/rpm/gen-repo.sh
+    # Step 3: Collect artifacts
+    - repobuild/collect_artifacts.sh
 
 - name: build CentOS 7 packages
   image: centos:7.0.1406
 
-  environment:
-    GPG_KEY_ID:
-      from_secret: GPG_KEY_ID
-    GPG_PUB_KEY:
-      from_secret: GPG_PUB_KEY
-    GPG_PRIV_KEY:
-      from_secret: GPG_PRIV_KEY
-
   commands:
     # Step 1: Prepare container
-    - yum install -y git gcc make rsync rpm-build rpm-sign createrepo expect tree
+    - yum install -y gcc make rsync rpm-build tree
     # Step 2: Build rpm packages
     - make rpm
-    # Step 3: Generate package repo
-    - repobuild/rpm/gen-repo.sh
+    # Step 3: Collect artifacts
+    - repobuild/collect_artifacts.sh
 
 - name: build CentOS 8 packages
   image: centos:8
 
-  environment:
-    GPG_KEY_ID:
-      from_secret: GPG_KEY_ID
-    GPG_PUB_KEY:
-      from_secret: GPG_PUB_KEY
-    GPG_PRIV_KEY:
-      from_secret: GPG_PRIV_KEY
-
   commands:
     # Step 1: Prepare container
-    - yum install -y git gcc make rsync rpm-build rpm-sign createrepo expect tree
+    - yum install -y gcc make rsync rpm-build tree
     # Step 2: Build rpm packages
     - make rpm
-    # Step 3: Generate package repo
-    - repobuild/rpm/gen-repo.sh
+    # Step 3: Collect artifacts
+    - repobuild/collect_artifacts.sh
 
-- name: upload packages
+- name: upload artifacts
   image: plugins/s3
   settings:
     bucket: ci.assur.io
-    acl: public-read
+    acl: private
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
     secret_key:
       from_secret: AWS_SECRET_ACCESS_KEY
     region:
       from_secret: AWS_REGION
-    source: repobuild/rpm/repo/**/*
-    target: /repo/assurio-snap/${DRONE_SOURCE_BRANCH}/rpm
-    strip_prefix: repobuild/rpm/repo/
+    source: repobuild/artifacts/**/*
+    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+    strip_prefix: repobuild/artifacts
   when:
     event: push
+
+---
+kind: pipeline
+name: trigger_repo_build
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: make artifacts manifest
+  image: debian:jessie
+  commands:
+    - echo ${DRONE_BUILD_NUMBER} >> latest
+
+- name: upload artifacts manifest
+  image: plugins/s3
+  settings:
+    bucket: ci.assur.io
+    acl: private
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    region:
+      from_secret: AWS_REGION
+    source: latest
+    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}
+  when:
+    event: push
+
+- name: trigger
+  image: plugins/downstream
+  settings:
+    server: https://ci.assur.io
+    token:
+      from_secret: MACHINE_KEY
+    fork: true
+    wait: true
+    timeout: 600
+    repositories:
+      - assuriosw/packaging@${DRONE_SOURCE_BRANCH}
+  when:
+    event: push
+
+depends_on:
+- debian_jessie_packaging
+- centos_packaging
