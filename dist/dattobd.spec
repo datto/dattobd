@@ -107,7 +107,7 @@
 
 
 Name:            dattobd
-Version:         0.10.12
+Version:         0.10.13
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -573,6 +573,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 5 2020 Dakota Williams <drwilliams@datto.com> - 0.10.13
+- Fix for -Wframe-larger-than
+
 * Fri Jan 24 2020 Dakota Williams <drwilliams@datto.com> - 0.10.12
 - Build feature tests out-of-tree and parallelize execution of them
 - Explicitly add incidental build deps to spec file
