@@ -24,9 +24,9 @@ static void print_help(int status){
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
 	printf("\tdbdctl help\n\n");
-	printf("for the reload commands, <cow file> should be specified relative to the root of <block device>\n");
-	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes\n");
-	printf("note: if the -c or -f options are not specified for any given call, module defaults are used\n");
+	printf("<cow file> should be specified as an absolute path.\n");
+	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
+	printf("note: if the -c or -f options are not specified for any given call, module defaults are used.\n");
 	exit(status);
 }
 
