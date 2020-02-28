@@ -24,11 +24,11 @@ steps:
     # Step 3: Collect artifacts
     - repobuild/collect_artifacts.sh
 
-- name: upload packages
+- name: upload artifacts
   image: plugins/s3
   settings:
-    bucket: ci.assur.io
-    acl: public-read
+    bucket: artifacts.assur.io
+    acl: private
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
     secret_key:
@@ -36,7 +36,7 @@ steps:
     region:
       from_secret: AWS_REGION
     source: repobuild/artifacts/**/*
-    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
     strip_prefix: repobuild/artifacts
   when:
     event: push
@@ -86,7 +86,7 @@ steps:
 - name: upload artifacts
   image: plugins/s3
   settings:
-    bucket: ci.assur.io
+    bucket: artifacts.assur.io
     acl: private
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -95,7 +95,7 @@ steps:
     region:
       from_secret: AWS_REGION
     source: repobuild/artifacts/**/*
-    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
     strip_prefix: repobuild/artifacts
   when:
     event: push
@@ -117,7 +117,7 @@ steps:
 - name: upload artifacts manifest
   image: plugins/s3
   settings:
-    bucket: ci.assur.io
+    bucket: artifacts.assur.io
     acl: private
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -126,7 +126,7 @@ steps:
     region:
       from_secret: AWS_REGION
     source: latest
-    target: /artifacts/assurio-snap/${DRONE_SOURCE_BRANCH}
+    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}
   when:
     event: push
 
