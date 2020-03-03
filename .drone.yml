@@ -132,6 +132,9 @@ steps:
 
 - name: trigger
   image: plugins/downstream
+  # This step fails when 'packaging' hasn't a branch with the
+  # same name. Ignoring...
+  failure: ignore
   settings:
     server: https://ci.assur.io
     token:
