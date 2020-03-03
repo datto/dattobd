@@ -107,7 +107,7 @@
 
 
 Name:            assurio-snap
-Version:         0.10.11
+Version:         0.10.13
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Assurio Software, Inc.
@@ -132,6 +132,8 @@ Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source0:         %{name}.tar.gz
 %endif
 
+BuildRequires:   gcc
+BuildRequires:   make
 BuildRequires:   rsync
 
 # Some targets (like EL5) expect a buildroot definition
@@ -235,6 +237,9 @@ Requires(post):  dkms
 # be cautious and just require it across the EL releases.
 Requires:        perl
 %endif
+
+# Dependencies for actually building the kmod
+Requires:        make
 
 %if %{_vendor} != "debbuild"
 %if 0%{?rhel} >= 6 || 0%{?suse_version} >= 1210 || 0%{?fedora}
@@ -568,6 +573,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 5 2020 Dakota Williams <drwilliams@datto.com> - 0.10.13
+- Fix for -Wframe-larger-than
+
+* Fri Jan 24 2020 Dakota Williams <drwilliams@datto.com> - 0.10.12
+- Build feature tests out-of-tree and parallelize execution of them
+- Explicitly add incidental build deps to spec file
+- Added missing mount/umount userspace pointer conversion for logs
+- Removed references to removed kernel build variable SUBDIRS, required for kernel 5.4
+
 * Mon Sep 23 2019 Dakota Williams <drwilliams@datto.com> - 0.10.11
 - Use upstream names for sector size and CR0 register page protect bit
 - Changed symbol tests to use /lib/modules system maps and then fallback to /boot if it doesn't exist

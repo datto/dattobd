@@ -15,7 +15,7 @@
 #include <linux/ioctl.h>
 #include <linux/limits.h>
 
-#define ASSURIO_SNAP_VERSION "0.10.11"
+#define ASSURIO_SNAP_VERSION "0.10.13"
 #define ASSURIO_IOCTL_MAGIC 'A' // 0x41
 
 struct setup_params{
