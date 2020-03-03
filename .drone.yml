@@ -15,7 +15,7 @@ steps:
         apt-get install -y build-essential rsync git pax apt-utils tree
         gnupg2 dpkg-sig
     - dir=`pwd` && cd / &&
-        git clone https://github.com/ascherer/debbuild.git &&
+        git clone https://github.com/debbuild/debbuild.git &&
         cd /debbuild &&
         ./configure && make && make install &&
         cd $dir
