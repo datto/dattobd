@@ -18,5 +18,5 @@ $(BUILDDIR):
 $(BUILDDIR_MAKEFILE): $(BUILDDIR)
 	touch "$@"
 
-clean:
+clean: $(BUILDDIR)
 	$(MAKE) -C $(KDIR) M=$(BUILDDIR) src=$(PWD) clean
