@@ -256,8 +256,18 @@ Requires:        make
 # installed first before processing the kernel module, ensuring
 # that DKMS will be able to successfully build against the new
 # kernel being installed.
+#
+# Upd: Left as it is for SLES and changed to Requires 
+# statement for RHEL/CentOS and Fedora due to problem in DKMS.
+# It installs kernel-debug-devel instead of kernel-devel if no
+# kernel-devel package has been already installed. See more
+# here https://github.com/assuriosw/assurio-snap/issues/12 and
+# here https://bugzilla.redhat.com/1228897
+# This change ensures installation of the kernel-devel, not
+# kernel-debug-devel if both dkms and kernel module are installed
+# in one transaction. The installation order is preserved.
 %if 0%{?rhel} || 0%{?fedora}
-OrderWithRequires: kernel-devel
+Requires: kernel-devel
 %endif
 
 %if 0%{?suse_version}
