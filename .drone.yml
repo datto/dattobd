@@ -1,193 +1,319 @@
+env: &env
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+
 kind: pipeline
-name: deb_packaging
+name: Debian 8
+type: exec
 
 platform:
   os: linux
   arch: amd64
+
+node:
+  distro: debian8
 
 steps:
 - name: build Debian Jessie packages
-  image: debian:jessie
-
   commands:
-    # Step 1: Prepare container
-    - apt-get update &&
-        apt-get install -y build-essential rsync git pax apt-utils tree
-        gnupg2 dpkg-sig
-    - dir=`pwd` && cd / &&
-        git clone https://github.com/debbuild/debbuild.git &&
-        cd /debbuild &&
-        ./configure && make && make install &&
-        cd $dir
-    # Step 2: Build deb packages
+    # Step 1: Build deb packages
     - make deb
-    # Step 3: Collect artifacts
+    # Step 2: Collect artifacts
     - repobuild/collect_artifacts.sh
 
-- name: build Debian Stretch packages
-  image: debian:stretch
-
+- name: Upload artifacts
+  <<: *env
   commands:
-    # Step 1: Prepare container
-    - apt-get update &&
-        apt-get install -y build-essential rsync git pax apt-utils tree
-        gnupg2 dpkg-sig
-    - dir=`pwd` && cd / &&
-        git clone https://github.com/debbuild/debbuild.git &&
-        cd /debbuild &&
-        ./configure && make && make install &&
-        cd $dir
-    # Step 2: Build deb packages
-    - make deb
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: build Debian Buster packages
-  image: debian:buster
-
-  commands:
-    # Step 1: Prepare container
-    - apt-get update &&
-        apt-get install -y build-essential rsync git pax apt-utils tree
-        gnupg2 dpkg-sig
-    - dir=`pwd` && cd / &&
-        git clone https://github.com/debbuild/debbuild.git &&
-        cd /debbuild &&
-        ./configure && make && make install &&
-        cd $dir
-    # Step 2: Build deb packages
-    - make deb
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: upload artifacts
-  image: plugins/s3
-  settings:
-    bucket: artifacts.assur.io
-    acl: private
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    region:
-      from_secret: AWS_REGION
-    source: repobuild/artifacts/**/*
-    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
-    strip_prefix: repobuild/artifacts
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --exclude *GPG-KEY
   when:
     event: push
 
----
-kind: pipeline
-name: rpm_packaging
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: build CentOS 6 packages
-  image: centos:6.10
-
-  commands:
-    # Step 1: Prepare container
-    - yum install -y gcc rsync rpm-build tree
-    # Step 2: Build rpm packages
-    - make rpm
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: build CentOS 7 packages
-  image: centos:7.0.1406
-
-  commands:
-    # Step 1: Prepare container
-    - yum install -y gcc make rsync rpm-build tree
-    # Step 2: Build rpm packages
-    - make rpm
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: build CentOS 8 packages
-  image: centos:8
-
-  commands:
-    # Step 1: Prepare container
-    - yum install -y gcc make rsync rpm-build tree
-    # Step 2: Build rpm packages
-    - make rpm
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: build Fedora 31 packages
-  image: fedora:31
-
-  commands:
-    # Step 1: Prepare container
-    - yum install -y gcc make rsync rpm-build tree
-    # Step 2: Build rpm packages
-    - make rpm
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: build Amazon Linux 2 packages
-  image: amazonlinux:2
-
-  commands:
-    # Step 1: Prepare container
-    - yum install -y gcc make rsync rpm-build tree
-    # Step 2: Build rpm packages
-    - make rpm
-    # Step 3: Collect artifacts
-    - repobuild/collect_artifacts.sh
-
-- name: upload artifacts
-  image: plugins/s3
-  settings:
-    bucket: artifacts.assur.io
-    acl: private
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    region:
-      from_secret: AWS_REGION
-    source: repobuild/artifacts/**/*
-    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
-    strip_prefix: repobuild/artifacts
-  when:
-    event: push
-
----
-kind: pipeline
-name: trigger_repo_build
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: make artifacts manifest
-  image: debian:jessie
+- name: Make artifacts manifest
   commands:
     - echo ${DRONE_BUILD_NUMBER} >> latest
 
-- name: upload artifacts manifest
-  image: plugins/s3
-  settings:
-    bucket: artifacts.assur.io
-    acl: private
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    region:
-      from_secret: AWS_REGION
-    source: latest
-    target: /linux/assurio-snap/${DRONE_SOURCE_BRANCH}
+- name: Upload artifacts manifest
+  <<: *env
+  commands:
+    - repobuild/upload.sh
+      --source latest
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}
   when:
     event: push
 
+---
+kind: pipeline
+name: Debian 9
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: debian9
+
+steps:
+- name: build Debian Stretch packages
+  commands:
+    # Step 1: Build deb packages
+    - make deb
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --exclude *GPG-KEY
+  when:
+    event: push
+
+---
+kind: pipeline
+name: Debian 10 
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: debian10
+
+steps:
+- name: build Debian Buster packages
+  commands:
+    # Step 1: Build deb packages
+    - make deb
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --exclude *GPG-KEY
+  when:
+    event: push
+
+---
+kind: pipeline
+name: CentOS 6
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: centos6
+
+steps:
+- name: build CentOS 6 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
+name: CentOS 7
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: centos7
+
+steps:
+- name: build CentOS 7 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
+name: CentOS 8
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: centos8
+
+steps:
+- name: build CentOS 8 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
+name: Fedora 31
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: fedora31
+
+steps:
+- name: build Fedora 31 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
+name: Amazon Linux 2
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: amazon2
+
+steps:
+- name: build Amazon Linux 2 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
+name: Trigger repo build
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
 - name: trigger
   image: plugins/downstream
   # This step fails when 'packaging' hasn't a branch with the
@@ -206,5 +332,11 @@ steps:
     event: push
 
 depends_on:
-- deb_packaging
-- rpm_packaging
+- Debian 8
+- Debian 9 
+- Debian 10
+- CentOS 6
+- CentOS 7
+- CentOS 8
+- Fedora 31
+- Amazon Linux 2
