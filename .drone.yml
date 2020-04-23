@@ -17,6 +17,7 @@ platform:
 
 node:
   distro: debian8
+  kind: build
 
 steps:
 - name: build Debian Jessie packages
@@ -62,6 +63,7 @@ platform:
 
 node:
   distro: debian9
+  kind: build
 
 steps:
 - name: build Debian Stretch packages
@@ -99,6 +101,7 @@ platform:
 
 node:
   distro: debian10
+  kind: build
 
 steps:
 - name: build Debian Buster packages
@@ -136,6 +139,7 @@ platform:
 
 node:
   distro: centos6
+  kind: build
 
 steps:
 - name: build CentOS 6 packages
@@ -172,6 +176,7 @@ platform:
 
 node:
   distro: centos7
+  kind: build
 
 steps:
 - name: build CentOS 7 packages
@@ -208,6 +213,7 @@ platform:
 
 node:
   distro: centos8
+  kind: build
 
 steps:
 - name: build CentOS 8 packages
@@ -244,6 +250,7 @@ platform:
 
 node:
   distro: fedora31
+  kind: build
 
 steps:
 - name: build Fedora 31 packages
@@ -280,6 +287,7 @@ platform:
 
 node:
   distro: amazon2
+  kind: build
 
 steps:
 - name: build Amazon Linux 2 packages
