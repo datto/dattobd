@@ -278,6 +278,43 @@ steps:
 
 ---
 kind: pipeline
+name: Fedora 32
+type: exec
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  distro: fedora32
+  kind: build
+
+steps:
+- name: build Fedora 32 packages
+  commands:
+    # Step 1: Build rpm packages
+    - make rpm
+    # Step 2: Collect artifacts
+    - repobuild/collect_artifacts.sh
+
+- name: Upload artifacts
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION:
+      from_secret: AWS_REGION
+  commands:
+    - repobuild/upload.sh
+      --source repobuild/artifacts/
+      --bucket artifacts.assur.io
+      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+  when:
+    event: push
+
+---
+kind: pipeline
 name: Amazon Linux 2
 type: exec
 
