@@ -1,7 +1,7 @@
 Assurio Change-Tracking Block Driver
 ==================
 
-**NOTE**: This is a GPL licensed fork of the original [Assurio `dattobd` driver](https://github.com/datto/dattobd).
+**NOTE**: This is a GPL licensed fork of the original [Datto `dattobd` driver](https://github.com/datto/dattobd).
 Unless you are an Assurio customer or developer, you're almost certainly better off using the original and not this
 work.
 
