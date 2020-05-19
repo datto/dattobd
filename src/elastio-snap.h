@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
- * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
 #ifndef ASSURIO_SNAP_H_
@@ -67,7 +67,7 @@ struct cow_header{
 	uint64_t nr_changed_blocks; //number of changed blocks since last snapshot
 };
 
-struct assurio_snap_info{
+struct elastio_snap_info{
 	unsigned int minor;
 	unsigned long state;
 	int error;
@@ -88,7 +88,7 @@ struct assurio_snap_info{
 #define IOCTL_TRANSITION_INC _IOW(ASSURIO_IOCTL_MAGIC, 5, unsigned int) //in: minor
 #define IOCTL_TRANSITION_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
 #define IOCTL_RECONFIGURE _IOW(ASSURIO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
-#define IOCTL_ASSURIO_SNAP_INFO _IOR(ASSURIO_IOCTL_MAGIC, 8, struct assurio_snap_info) //in: see above
+#define IOCTL_ASSURIO_SNAP_INFO _IOR(ASSURIO_IOCTL_MAGIC, 8, struct elastio_snap_info) //in: see above
 #define IOCTL_GET_FREE _IOR(ASSURIO_IOCTL_MAGIC, 9, int)
 
 #endif /* ASSURIO_SNAP_H_ */

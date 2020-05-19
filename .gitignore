@@ -1,5 +1,5 @@
 # Binaries
-app/aioctl
+app/elioctl
 utils/update-img
 
 # Dynamically generated files

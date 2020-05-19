@@ -7,19 +7,19 @@
 \fBupdate\-img\fR
 .
 .SH "NAME"
-update\-img \- Update a backup image with assurio-snap COW file\.
+update\-img \- Update a backup image with elastio-snap COW file\.
 .
 .SH "SYNOPSIS"
 \fBupdate\-img <snapshot device> <cow file> <image file>\fR
 .
 .SH "DESCRIPTION"
-\fBupdate\-img\fR is a simple tool to efficiently update backup images made by the assurio-snap kernel module\. It uses the leftover COW file from assurio-snap\'s incremental state to efficiently update an existing backup image\. See the man page on \fBaioctl\fR for an example use case\.
+\fBupdate\-img\fR is a simple tool to efficiently update backup images made by the elastio-snap kernel module\. It uses the leftover COW file from elastio-snap\'s incremental state to efficiently update an existing backup image\. See the man page on \fBelioctl\fR for an example use case\.
 .
 .SS "EXAMPLES"
-\fB# update\-img /dev/assurio-snap4 /var/backup/assurio1 /mnt/data/backup\-img\fR
+\fB# update\-img /dev/elastio-snap4 /var/backup/elastio1 /mnt/data/backup\-img\fR
 .
 .P
-This command will update a previously backed up snapshot \fB/mnt/data/backup\-img\fR with the changed blocks indicated by \fB/var/backup/assurio1\fR from \fB/dev/assurio-snap4\fR\.
+This command will update a previously backed up snapshot \fB/mnt/data/backup\-img\fR with the changed blocks indicated by \fB/var/backup/elastio1\fR from \fB/dev/elastio-snap4\fR\.
 .
 .P
 NOTE: \fB<snapshot device>\fR MUST be the NEXT snapshot after the one that \fB<image file>\fR was copied from\.

@@ -2,12 +2,12 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
- * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
 #include "includes.h"
 #include "kernel-config.h"
-#include "assurio-snap.h"
+#include "elastio-snap.h"
 
 //current lowest supported kernel = 2.6.18
 
@@ -20,11 +20,11 @@ MODULE_VERSION(ASSURIO_SNAP_VERSION);
 //printing macros
 #define LOG_DEBUG(fmt, args...) \
 	do{ \
-		if(assurio_snap_debug) printk(KERN_DEBUG "assurio-snap: " fmt "\n", ## args); \
+		if(elastio_snap_debug) printk(KERN_DEBUG "elastio-snap: " fmt "\n", ## args); \
 	}while(0)
 
-#define LOG_WARN(fmt, args...) printk(KERN_WARNING "assurio-snap: " fmt "\n", ## args)
-#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "assurio-snap: " fmt ": %d\n", ## args, error)
+#define LOG_WARN(fmt, args...) printk(KERN_WARNING "elastio-snap: " fmt "\n", ## args)
+#define LOG_ERROR(error, fmt, args...) printk(KERN_ERR "elastio-snap: " fmt ": %d\n", ## args, error)
 #define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
 
 /*********************************REDEFINED FUNCTIONS*******************************/
@@ -99,11 +99,11 @@ struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;
 };
-#define assurio_snap_get_dentry(f) (f)->f_dentry
-#define assurio_snap_get_mnt(f) (f)->f_vfsmnt
+#define elastio_snap_get_dentry(f) (f)->f_dentry
+#define elastio_snap_get_mnt(f) (f)->f_vfsmnt
 #else
-#define assurio_snap_get_dentry(f) (f)->f_path.dentry
-#define assurio_snap_get_mnt(f) (f)->f_path.mnt
+#define elastio_snap_get_dentry(f) (f)->f_path.dentry
+#define elastio_snap_get_mnt(f) (f)->f_path.mnt
 #endif
 
 #ifndef HAVE_PATH_PUT
@@ -112,13 +112,13 @@ void path_put(const struct path *path) {
 	dput(path->dentry);
 	mntput(path->mnt);
 }
-#define assurio_snap_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
-#define assurio_snap_get_nd_dentry(nd) (nd).dentry
-#define assurio_snap_get_nd_mnt(nd) (nd).mnt
+#define elastio_snap_d_path(path, page_buf, page_size) d_path((path)->dentry, (path)->mnt, page_buf, page_size)
+#define elastio_snap_get_nd_dentry(nd) (nd).dentry
+#define elastio_snap_get_nd_mnt(nd) (nd).mnt
 #else
-#define assurio_snap_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
-#define assurio_snap_get_nd_dentry(nd) (nd).path.dentry
-#define assurio_snap_get_nd_mnt(nd) (nd).path.mnt
+#define elastio_snap_d_path(path, page_buf, page_size) d_path(path, page_buf, page_size)
+#define elastio_snap_get_nd_dentry(nd) (nd).path.dentry
+#define elastio_snap_get_nd_mnt(nd) (nd).path.mnt
 #endif
 
 #ifndef HAVE_FMODE_T
@@ -126,15 +126,15 @@ typedef mode_t fmode_t;
 #endif
 
 #ifdef HAVE_BD_SUPER
-#define assurio_snap_get_super(bdev) (bdev)->bd_super
-#define assurio_snap_drop_super(sb)
+#define elastio_snap_get_super(bdev) (bdev)->bd_super
+#define elastio_snap_drop_super(sb)
 #else
-#define assurio_snap_get_super(bdev) get_super(bdev)
-#define assurio_snap_drop_super(sb) drop_super(sb)
+#define elastio_snap_get_super(bdev) get_super(bdev)
+#define elastio_snap_drop_super(sb) drop_super(sb)
 #endif
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
-struct block_device *assurio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
+struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
 	struct nameidata nd;
@@ -144,7 +144,7 @@ struct block_device *assurio_snap_lookup_bdev(const char *pathname, fmode_t mode
 	if ((r = path_lookup(pathname, LOOKUP_FOLLOW, &nd)))
 		goto fail;
 
-	inode = assurio_snap_get_nd_dentry(nd)->d_inode;
+	inode = elastio_snap_get_nd_dentry(nd)->d_inode;
 	if (!inode) {
 		r = -ENOENT;
 		goto fail;
@@ -175,7 +175,7 @@ fail:
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
-	bdev = assurio_snap_lookup_bdev(path, mode);
+	bdev = elastio_snap_lookup_bdev(path, mode);
 	if(IS_ERR(bdev))
 		return bdev;
 
@@ -229,7 +229,7 @@ typedef enum req_op {
 	REQ_OP_FLUSH,           /* request for cache flush */
 } req_op_t;
 
-static inline void assurio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
+static inline void elastio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
 	bio->bi_rw = 0;
 
 	switch(op){
@@ -256,22 +256,22 @@ static inline void assurio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsign
 }
 #else
 	typedef enum req_op req_op_t;
-	#define assurio_snap_set_bio_ops(bio, op, flags) bio_set_op_attrs(bio, op, flags)
+	#define elastio_snap_set_bio_ops(bio, op, flags) bio_set_op_attrs(bio, op, flags)
 #endif
 
 	#define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
-	#define assurio_snap_submit_bio(bio) submit_bio(0, bio)
-	#define assurio_snap_submit_bio_wait(bio) submit_bio_wait(0, bio)
+	#define elastio_snap_submit_bio(bio) submit_bio(0, bio)
+	#define elastio_snap_submit_bio_wait(bio) submit_bio_wait(0, bio)
 
-static inline int assurio_snap_bio_op_flagged(struct bio *bio, unsigned int flag){
+static inline int elastio_snap_bio_op_flagged(struct bio *bio, unsigned int flag){
 	return bio->bi_rw & flag;
 }
 
-static inline void assurio_snap_bio_op_set_flag(struct bio *bio, unsigned int flag){
+static inline void elastio_snap_bio_op_set_flag(struct bio *bio, unsigned int flag){
 	bio->bi_rw |= flag;
 }
 
-static inline void assurio_snap_bio_op_clear_flag(struct bio *bio, unsigned int flag){
+static inline void elastio_snap_bio_op_clear_flag(struct bio *bio, unsigned int flag){
 	bio->bi_rw &= ~flag;
 }
 #else
@@ -283,20 +283,20 @@ typedef enum req_op req_op_t;
 typedef enum req_opf req_op_t;
 #endif
 
-static inline void assurio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
+static inline void elastio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
 	bio->bi_opf = 0;
 	bio_set_op_attrs(bio, op, op_flags);
 }
 
-static inline int assurio_snap_bio_op_flagged(struct bio *bio, unsigned int flag){
+static inline int elastio_snap_bio_op_flagged(struct bio *bio, unsigned int flag){
 	return bio->bi_opf & flag;
 }
 
-static inline void assurio_snap_bio_op_set_flag(struct bio *bio, unsigned int flag){
+static inline void elastio_snap_bio_op_set_flag(struct bio *bio, unsigned int flag){
 	bio->bi_opf |= flag;
 }
 
-static inline void assurio_snap_bio_op_clear_flag(struct bio *bio, unsigned int flag){
+static inline void elastio_snap_bio_op_clear_flag(struct bio *bio, unsigned int flag){
 	bio->bi_opf &= ~flag;
 }
 
@@ -305,8 +305,8 @@ static inline void assurio_snap_bio_op_clear_flag(struct bio *bio, unsigned int 
 	#else
 		#define bio_is_discard(bio) (bio_op(bio) == REQ_OP_DISCARD || bio_op(bio) == REQ_OP_SECURE_ERASE)
 	#endif
-	#define assurio_snap_submit_bio(bio) submit_bio(bio)
-	#define assurio_snap_submit_bio_wait(bio) submit_bio_wait(bio)
+	#define elastio_snap_submit_bio(bio) submit_bio(bio)
+	#define elastio_snap_submit_bio_wait(bio) submit_bio_wait(bio)
 #endif
 
 #if !defined HAVE_SUBMIT_BIO_WAIT && !defined HAVE_SUBMIT_BIO_1
@@ -352,20 +352,20 @@ static int submit_bio_wait(int rw, struct bio *bio){
 #endif
 
 #ifdef HAVE_BIO_ENDIO_INT
-static void assurio_snap_bio_endio(struct bio *bio, int err){
+static void elastio_snap_bio_endio(struct bio *bio, int err){
 	bio_endio(bio, bio->bi_size, err);
 }
 #elif !defined HAVE_BIO_ENDIO_1
-static void assurio_snap_bio_endio(struct bio *bio, int err){
+static void elastio_snap_bio_endio(struct bio *bio, int err){
 	bio_endio(bio, err);
 }
 #elif defined HAVE_BLK_STATUS_T
-static void assurio_snap_bio_endio(struct bio *bio, int err){
+static void elastio_snap_bio_endio(struct bio *bio, int err){
 	bio->bi_status = errno_to_blk_status(err);
 	bio_endio(bio);
 }
 #else
-static void assurio_snap_bio_endio(struct bio *bio, int err){
+static void elastio_snap_bio_endio(struct bio *bio, int err){
 	bio->bi_error = err;
 	bio_endio(bio);
 }
@@ -420,7 +420,7 @@ int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t 
 	return 0;
 }
 
-int assurio_snap_bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start){
+int elastio_snap_bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start){
 	struct request_queue *bq = bdev_get_queue(bdev);
 	start += get_start_sect(bdev);
 	return blk_stack_limits(t, bq, start << 9);
@@ -434,10 +434,10 @@ int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_
 	start += get_start_sect(bdev);
 	return blk_stack_limits(t, &bq->limits, start << 9);
 }
-#define assurio_snap_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
+#define elastio_snap_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
 
 #else
-#define assurio_snap_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
+#define elastio_snap_bdev_stack_limits(queue, bdev, start) bdev_stack_limits(&(queue)->limits, bdev, start)
 #endif
 
 #ifndef HAVE_KERN_PATH
@@ -446,8 +446,8 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 	struct nameidata nd;
 	int ret = path_lookup(name, flags, &nd);
 	if(!ret){
-		path->dentry = assurio_snap_get_nd_dentry(nd);
-		path->mnt = assurio_snap_get_nd_mnt(nd);
+		path->dentry = elastio_snap_get_nd_dentry(nd);
+		path->mnt = elastio_snap_get_nd_mnt(nd);
 	}
 	return ret;
 }
@@ -458,11 +458,11 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 #endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG
-#define assurio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, BIOSET_NEED_BVECS)
+#define elastio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, BIOSET_NEED_BVECS)
 #elif defined HAVE_BIOSET_CREATE_3
-#define assurio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
+#define elastio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, bvec_size, scale)
 #else
-#define assurio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
+#define elastio_snap_bioset_create(bio_size, bvec_size, scale) bioset_create(bio_size, scale)
 #endif
 
 #ifndef HAVE_USER_PATH_AT
@@ -475,15 +475,15 @@ int user_path_at(int dfd, const char __user *name, unsigned flags, struct path *
 		err = path_lookup(tmp, flags, &nd);
 		putname(tmp);
 		if (!err) {
-			path->dentry = assurio_snap_get_nd_dentry(nd);
-			path->mnt = assurio_snap_get_nd_mnt(nd);
+			path->dentry = elastio_snap_get_nd_dentry(nd);
+			path->mnt = elastio_snap_get_nd_mnt(nd);
 		}
 	}
 	return err;
 }
 #endif
 
-static int assurio_snap_should_remove_suid(struct dentry *dentry)
+static int elastio_snap_should_remove_suid(struct dentry *dentry)
 {
 	mode_t mode = dentry->d_inode->i_mode;
 	int kill = 0;
@@ -508,16 +508,16 @@ static int assurio_snap_should_remove_suid(struct dentry *dentry)
 
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	#define assurio_snap_blkdev_put(bdev) blkdev_put(bdev);
+	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev);
 #else
-	#define assurio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
+	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
 #ifndef HAVE_PART_NR_SECTS_READ
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
-	#define assurio_snap_bdev_size(bdev) ((bdev)->bd_part->nr_sects)
+	#define elastio_snap_bdev_size(bdev) ((bdev)->bd_part->nr_sects)
 #else
-	#define assurio_snap_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
+	#define elastio_snap_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
 #endif
 
 #ifndef HAVE_VZALLOC
@@ -528,14 +528,14 @@ static int assurio_snap_should_remove_suid(struct dentry *dentry)
 	#define MRF_RETURN_TYPE int
 	#define MRF_RETURN(ret) return ret
 
-static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
 #elif defined HAVE_MAKE_REQUEST_FN_VOID
 	#define MRF_RETURN_TYPE void
 	#define MRF_RETURN(ret) return
 
-static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	fn(q, bio);
 	return 0;
 }
@@ -543,7 +543,7 @@ static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queu
 	#define MRF_RETURN_TYPE blk_qc_t
 	#define MRF_RETURN(ret) return BLK_QC_T_NONE
 
-static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
 #endif
@@ -568,16 +568,16 @@ static inline int assurio_snap_call_mrf(make_request_fn *fn, struct request_queu
 
 #ifndef HAVE_INODE_LOCK
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
-static inline void assurio_snap_inode_lock(struct inode *inode){
+static inline void elastio_snap_inode_lock(struct inode *inode){
 	mutex_lock(&inode->i_mutex);
 }
 
-static inline void assurio_snap_inode_unlock(struct inode *inode){
+static inline void elastio_snap_inode_unlock(struct inode *inode){
 	mutex_unlock(&inode->i_mutex);
 }
 #else
-	#define assurio_snap_inode_lock inode_lock
-	#define assurio_snap_inode_unlock inode_unlock
+	#define elastio_snap_inode_lock inode_lock
+	#define elastio_snap_inode_unlock inode_unlock
 #endif
 
 #ifndef HAVE_PROC_CREATE
@@ -597,7 +597,7 @@ error:
 }
 #endif
 
-static inline ssize_t assurio_snap_kernel_read(struct file *filp, void *buf, size_t count, loff_t *pos){
+static inline ssize_t elastio_snap_kernel_read(struct file *filp, void *buf, size_t count, loff_t *pos){
 #ifndef HAVE_KERNEL_READ_PPOS
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	mm_segment_t old_fs;
@@ -614,7 +614,7 @@ static inline ssize_t assurio_snap_kernel_read(struct file *filp, void *buf, siz
 #endif
 }
 
-static inline ssize_t assurio_snap_kernel_write(struct file *filp, const void *buf, size_t count, loff_t *pos){
+static inline ssize_t elastio_snap_kernel_write(struct file *filp, const void *buf, size_t count, loff_t *pos){
 #ifndef HAVE_KERNEL_WRITE_PPOS
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	mm_segment_t old_fs;
@@ -631,7 +631,7 @@ static inline ssize_t assurio_snap_kernel_write(struct file *filp, const void *b
 #endif
 }
 
-static inline struct request_queue *assurio_snap_bio_get_queue(struct bio *bio){
+static inline struct request_queue *elastio_snap_bio_get_queue(struct bio *bio){
 #ifdef HAVE_BIO_BI_BDEV
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	return bdev_get_queue(bio->bi_bdev);
@@ -640,7 +640,7 @@ static inline struct request_queue *assurio_snap_bio_get_queue(struct bio *bio){
 #endif
 }
 
-static inline void assurio_snap_bio_set_dev(struct bio *bio, struct block_device *bdev){
+static inline void elastio_snap_bio_set_dev(struct bio *bio, struct block_device *bdev){
 #ifdef HAVE_BIO_BI_BDEV
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	bio->bi_bdev = bdev;
@@ -649,7 +649,7 @@ static inline void assurio_snap_bio_set_dev(struct bio *bio, struct block_device
 #endif
 }
 
-static inline void assurio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
+static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #ifdef HAVE_BIO_BI_BDEV
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	dst->bi_bdev = src->bi_bdev;
@@ -681,20 +681,20 @@ static inline void assurio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define bitmap_mark(bitmap, pos) (bitmap)[(pos) / 8] |= (1 << ((pos) % 8))
 
 //name macros
-#define INFO_PROC_FILE "assurio-snap-info"
-#define DRIVER_NAME "assurio-snap"
-#define CONTROL_DEVICE_NAME "assurio-snap-ctl"
-#define SNAP_DEVICE_NAME "assurio-snap%d"
-#define SNAP_COW_THREAD_NAME_FMT "assurio_snap_cow%d"
-#define SNAP_MRF_THREAD_NAME_FMT "assurio_snap_mrf%d"
-#define INC_THREAD_NAME_FMT "assurio_snap_inc%d"
+#define INFO_PROC_FILE "elastio-snap-info"
+#define DRIVER_NAME "elastio-snap"
+#define CONTROL_DEVICE_NAME "elastio-snap-ctl"
+#define SNAP_DEVICE_NAME "elastio-snap%d"
+#define SNAP_COW_THREAD_NAME_FMT "elastio_snap_cow%d"
+#define SNAP_MRF_THREAD_NAME_FMT "elastio_snap_mrf%d"
+#define INC_THREAD_NAME_FMT "elastio_snap_inc%d"
 
 //macro for iterating over snap_devices (requires a null check on dev)
 #define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
-#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < assurio_snap_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
+#define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < elastio_snap_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
 //returns true if tracing struct's base device queue matches that of bio
-#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == assurio_snap_bio_get_queue(bio))
+#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == elastio_snap_bio_get_queue(bio))
 
 //returns true if tracing struct's sector range matches the sector of the bio
 #define tracer_sector_matches_bio(dev, bio) (bio_sector(bio) >= (dev)->sd_sect_off && bio_sector(bio) < (dev)->sd_sect_off + (dev)->sd_size)
@@ -746,25 +746,25 @@ static inline void assurio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define ASSURIO_SNAP_MAX_SNAP_DEVICES 255
 
 //global module parameters
-static int assurio_snap_may_hook_syscalls = 1;
-static unsigned long assurio_snap_cow_max_memory_default = (300 * 1024 * 1024);
-static unsigned int assurio_snap_cow_fallocate_percentage_default = 10;
-static unsigned int assurio_snap_max_snap_devices = ASSURIO_SNAP_DEFAULT_SNAP_DEVICES;
-static int assurio_snap_debug = 0;
+static int elastio_snap_may_hook_syscalls = 1;
+static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
+static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
+static unsigned int elastio_snap_max_snap_devices = ASSURIO_SNAP_DEFAULT_SNAP_DEVICES;
+static int elastio_snap_debug = 0;
 
-module_param_named(may_hook_syscalls, assurio_snap_may_hook_syscalls, int, S_IRUGO);
+module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
-module_param_named(cow_max_memory_default, assurio_snap_cow_max_memory_default, ulong, 0);
+module_param_named(cow_max_memory_default, elastio_snap_cow_max_memory_default, ulong, 0);
 MODULE_PARM_DESC(cow_max_memory_default, "default maximum cache size (in bytes)");
 
-module_param_named(cow_fallocate_percentage_default, assurio_snap_cow_fallocate_percentage_default, uint, 0);
+module_param_named(cow_fallocate_percentage_default, elastio_snap_cow_fallocate_percentage_default, uint, 0);
 MODULE_PARM_DESC(cow_fallocate_percentage_default, "default space allocated to the cow file (as integer percentage)");
 
-module_param_named(max_snap_devices, assurio_snap_max_snap_devices, uint, S_IRUGO);
+module_param_named(max_snap_devices, elastio_snap_max_snap_devices, uint, S_IRUGO);
 MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 
-module_param_named(debug, assurio_snap_debug, int, S_IRUGO | S_IWUSR);
+module_param_named(debug, elastio_snap_debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enables debug logging");
 
 /*********************************STRUCT DEFINITIONS*******************************/
@@ -885,12 +885,12 @@ static void on_bio_read_complete(struct bio *bio, int err);
 static void on_bio_read_complete(struct bio *bio);
 #endif
 
-static int assurio_snap_proc_show(struct seq_file *m, void *v);
-static void *assurio_snap_proc_start(struct seq_file *m, loff_t *pos);
-static void *assurio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos);
-static void assurio_snap_proc_stop(struct seq_file *m, void *v);
-static int assurio_snap_proc_open(struct inode *inode, struct file *filp);
-static int assurio_snap_proc_release(struct inode *inode, struct file *file);
+static int elastio_snap_proc_show(struct seq_file *m, void *v);
+static void *elastio_snap_proc_start(struct seq_file *m, loff_t *pos);
+static void *elastio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos);
+static void elastio_snap_proc_stop(struct seq_file *m, void *v);
+static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
+static int elastio_snap_proc_release(struct inode *inode, struct file *file);
 
 static const struct block_device_operations snap_ops = {
 	.owner = THIS_MODULE,
@@ -912,19 +912,19 @@ static struct miscdevice snap_control_device = {
 	.fops = &snap_control_fops,
 };
 
-static const struct seq_operations assurio_snap_seq_proc_ops = {
-	.start = assurio_snap_proc_start,
-	.next = assurio_snap_proc_next,
-	.stop = assurio_snap_proc_stop,
-	.show = assurio_snap_proc_show,
+static const struct seq_operations elastio_snap_seq_proc_ops = {
+	.start = elastio_snap_proc_start,
+	.next = elastio_snap_proc_next,
+	.stop = elastio_snap_proc_stop,
+	.show = elastio_snap_proc_show,
 };
 
-static const struct file_operations assurio_snap_proc_fops = {
+static const struct file_operations elastio_snap_proc_fops = {
 	.owner = THIS_MODULE,
-	.open = assurio_snap_proc_open,
+	.open = elastio_snap_proc_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = assurio_snap_proc_release,
+	.release = elastio_snap_proc_release,
 };
 
 static int major;
@@ -1214,7 +1214,7 @@ static int file_open(const char *filename, int flags, struct file **filp){
 		f = NULL;
 		LOG_ERROR(ret, "error creating/opening file '%s' - %d", filename, ret);
 		goto error;
-	}else if(!S_ISREG(assurio_snap_get_dentry(f)->d_inode->i_mode)){
+	}else if(!S_ISREG(elastio_snap_get_dentry(f)->d_inode->i_mode)){
 		ret = -EINVAL;
 		LOG_ERROR(ret, "'%s' is not a regular file", filename);
 		goto error;
@@ -1324,7 +1324,7 @@ static int path_get_absolute_pathname(const struct path *path, char **buf, int *
 		goto error;
 	}
 
-	pathname = assurio_snap_d_path(path, page_buf, PAGE_SIZE);
+	pathname = elastio_snap_d_path(path, page_buf, PAGE_SIZE);
 	if(IS_ERR(pathname)){
 		ret = PTR_ERR(pathname);
 		pathname = NULL;
@@ -1361,8 +1361,8 @@ static int file_get_absolute_pathname(const struct file *filp, char **buf, int *
 	struct path path;
 	int ret;
 
-	path.mnt = assurio_snap_get_mnt(filp);
-	path.dentry = assurio_snap_get_dentry(filp);
+	path.mnt = elastio_snap_get_mnt(filp);
+	path.dentry = elastio_snap_get_dentry(filp);
 
 	ret = path_get_absolute_pathname(&path, buf, len_res);
 	if(ret) goto error;
@@ -1450,8 +1450,8 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 	ssize_t ret;
 	loff_t off = (loff_t)offset;
 
-	if(is_write) ret = assurio_snap_kernel_write(filp, buf, len, &off);
-	else ret = assurio_snap_kernel_read(filp, buf, len, &off);
+	if(is_write) ret = elastio_snap_kernel_write(filp, buf, len, &off);
+	else ret = elastio_snap_kernel_read(filp, buf, len, &off);
 
 	if(ret < 0){
 		LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu", (is_write)? "write" : "read", (unsigned long long)offset, len);
@@ -1468,7 +1468,7 @@ static int file_io(struct file *filp, int is_write, void *buf, sector_t offset, 
 #define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
 
 //reimplemented from linux kernel (it isn't exported in the vanilla kernel)
-static int assurio_snap_do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs, struct file *filp){
+static int elastio_snap_do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs, struct file *filp){
 	int ret;
 	struct iattr newattrs;
 
@@ -1481,17 +1481,17 @@ static int assurio_snap_do_truncate(struct dentry *dentry, loff_t length, unsign
 		newattrs.ia_valid |= ATTR_FILE;
 	}
 
-	ret = assurio_snap_should_remove_suid(dentry);
+	ret = elastio_snap_should_remove_suid(dentry);
 	if(ret) newattrs.ia_valid |= ret | ATTR_FORCE;
 
-	assurio_snap_inode_lock(dentry->d_inode);
+	elastio_snap_inode_lock(dentry->d_inode);
 #ifdef HAVE_NOTIFY_CHANGE_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	ret = notify_change(dentry, &newattrs);
 #else
 	ret = notify_change(dentry, &newattrs, NULL);
 #endif
-	assurio_snap_inode_unlock(dentry->d_inode);
+	elastio_snap_inode_unlock(dentry->d_inode);
 
 	return ret;
 }
@@ -1501,7 +1501,7 @@ static int file_truncate(struct file *filp, loff_t len){
 	struct dentry *dentry;
 	int ret;
 
-	dentry = assurio_snap_get_dentry(filp);
+	dentry = elastio_snap_get_dentry(filp);
 	inode = dentry->d_inode;
 
 	ret = locks_verify_truncate(inode, filp, len);
@@ -1515,7 +1515,7 @@ static int file_truncate(struct file *filp, loff_t len){
 	sb_start_write(inode->i_sb);
 #endif
 
-	ret = assurio_snap_do_truncate(dentry, len, ATTR_MTIME|ATTR_CTIME, filp);
+	ret = elastio_snap_do_truncate(dentry, len, ATTR_MTIME|ATTR_CTIME, filp);
 
 #ifdef HAVE_SB_START_WRITE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
@@ -1544,7 +1544,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length){
 	loff_t len = length;
 	#ifndef HAVE_FILE_INODE
 	//#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
-	struct inode *inode = assurio_snap_get_dentry(f)->d_inode;
+	struct inode *inode = elastio_snap_get_dentry(f)->d_inode;
 	#else
 	struct inode *inode = file_inode(f);
 	#endif
@@ -1642,9 +1642,9 @@ error:
 
 static int __file_unlink(struct file *filp, int close, int force){
 	int ret = 0;
-	struct inode *dir_inode = assurio_snap_get_dentry(filp)->d_parent->d_inode;
-	struct dentry *file_dentry = assurio_snap_get_dentry(filp);
-	struct vfsmount *mnt = assurio_snap_get_mnt(filp);
+	struct inode *dir_inode = elastio_snap_get_dentry(filp)->d_parent->d_inode;
+	struct dentry *file_dentry = elastio_snap_get_dentry(filp);
+	struct vfsmount *mnt = elastio_snap_get_mnt(filp);
 
 	if(d_unlinked(file_dentry)){
 		if(close) file_close(filp);
@@ -2481,8 +2481,8 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	tp_get(tp);
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
-	assurio_snap_bio_copy_dev(new_bio, orig_bio);
-	assurio_snap_set_bio_ops(new_bio, REQ_OP_READ, 0);
+	elastio_snap_bio_copy_dev(new_bio, orig_bio);
+	elastio_snap_set_bio_ops(new_bio, REQ_OP_READ, 0);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
@@ -2580,8 +2580,8 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	bio_orig_size = bio_size(bio);
 	bio_orig_sect = bio_sector(bio);
 
-	assurio_snap_bio_set_dev(bio, dev->sd_base_dev);
-	assurio_snap_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
+	elastio_snap_bio_set_dev(bio, dev->sd_base_dev);
+	elastio_snap_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
@@ -2589,7 +2589,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 
 	//submit the bio to the base device and wait for completion
 	if(mode != READ_MODE_COW_FILE){
-		ret = assurio_snap_submit_bio_wait(bio);
+		ret = elastio_snap_submit_bio_wait(bio);
 		if(ret){
 			LOG_ERROR(ret, "error reading from base device for read");
 			goto out;
@@ -2735,9 +2735,9 @@ static int snap_mrf_thread(void *data){
 		bio = bio_queue_dequeue(bq);
 
 		//submit the original bio to the block IO layer
-		assurio_snap_bio_op_set_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
+		elastio_snap_bio_op_set_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
 
-		ret = assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
 #endif
@@ -2775,7 +2775,7 @@ static int snap_cow_thread(void *data){
 		if(!bio_data_dir(bio)){
 			//if we're in the fail state just send back an IO error and free the bio
 			if(is_failed){
-				assurio_snap_bio_endio(bio, -EIO); //end the bio with an IO error
+				elastio_snap_bio_endio(bio, -EIO); //end the bio with an IO error
 				continue;
 			}
 
@@ -2785,7 +2785,7 @@ static int snap_cow_thread(void *data){
 				tracer_set_fail_state(dev, ret);
 			}
 
-			assurio_snap_bio_endio(bio, (ret)? -EIO : 0);
+			elastio_snap_bio_endio(bio, (ret)? -EIO : 0);
 		}else{
 			if(is_failed){
 				bio_free_clone(bio);
@@ -2866,7 +2866,7 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	}
 
 	//change the bio into a write bio
-	assurio_snap_set_bio_ops(bio, REQ_OP_WRITE, 0);
+	elastio_snap_set_bio_ops(bio, REQ_OP_WRITE, 0);
 
 	//reset the bio iterator to its original state
 	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
@@ -2951,7 +2951,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages, i = 0;
 
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -2982,7 +2982,7 @@ retry:
 	smp_wmb();
 
 	//submit the bios
-	assurio_snap_submit_bio(new_bio);
+	elastio_snap_submit_bio(new_bio);
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
@@ -3071,7 +3071,7 @@ out:
 	}
 
 	//call the original mrf
-	ret = assurio_snap_call_mrf(dev->sd_orig_mrf, assurio_snap_bio_get_queue(bio), bio);
+	ret = elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
 
 	return ret;
 }
@@ -3088,8 +3088,8 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
-		if(assurio_snap_bio_op_flagged(bio, ASSURIO_SNAP_PASSTHROUGH)){
-			assurio_snap_bio_op_clear_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
+		if(elastio_snap_bio_op_flagged(bio, ASSURIO_SNAP_PASSTHROUGH)){
+			elastio_snap_bio_op_clear_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
 			goto call_orig;
 		}
 
@@ -3101,7 +3101,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 call_orig:
-	if(orig_mrf) ret = assurio_snap_call_mrf(orig_mrf, q, bio);
+	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
 
 out:
@@ -3113,13 +3113,13 @@ static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
-		assurio_snap_bio_endio(bio, -EOPNOTSUPP);
+		elastio_snap_bio_endio(bio, -EOPNOTSUPP);
 		MRF_RETURN(0);
 	}else if(tracer_read_fail_state(dev)){
-		assurio_snap_bio_endio(bio, -EIO);
+		elastio_snap_bio_endio(bio, -EIO);
 		MRF_RETURN(0);
 	}else if(!test_bit(ACTIVE, &dev->sd_state)){
-		assurio_snap_bio_endio(bio, -EBUSY);
+		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	}
 
@@ -3208,7 +3208,7 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
 	int ret;
-	struct super_block *origsb = assurio_snap_get_super(bdev);
+	struct super_block *origsb = elastio_snap_get_super(bdev);
 	struct super_block *sb = NULL;
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
@@ -3221,11 +3221,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		sb = freeze_bdev(bdev);
 		if(!sb){
 			LOG_ERROR(-EFAULT, "error freezing '%s': null", bdev_name);
-			assurio_snap_drop_super(origsb);
+			elastio_snap_drop_super(origsb);
 			return -EFAULT;
 		}else if(IS_ERR(sb)){
 			LOG_ERROR((int)PTR_ERR(sb), "error freezing '%s': error", bdev_name);
-			assurio_snap_drop_super(origsb);
+			elastio_snap_drop_super(origsb);
 			return (int)PTR_ERR(sb);
 		}
 	}
@@ -3258,7 +3258,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 			//pretend we succeeded so we don't break the block device
 		}
 #endif
-		assurio_snap_drop_super(origsb);
+		elastio_snap_drop_super(origsb);
 	}
 
 	return 0;
@@ -3312,7 +3312,7 @@ static void __tracer_destroy_base_dev(struct snap_device *dev){
 
 	if(dev->sd_base_dev){
 		LOG_DEBUG("freeing base block device");
-		assurio_snap_blkdev_put(dev->sd_base_dev);
+		elastio_snap_blkdev_put(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
 	}
 }
@@ -3351,7 +3351,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_pat
 	LOG_DEBUG("calculating block device size and offset");
 	if(dev->sd_base_dev->bd_contains != dev->sd_base_dev){
 		dev->sd_sect_off = dev->sd_base_dev->bd_part->start_sect;
-		dev->sd_size = assurio_snap_bdev_size(dev->sd_base_dev);
+		dev->sd_size = elastio_snap_bdev_size(dev->sd_base_dev);
 	}else{
 		dev->sd_sect_off = 0;
 		dev->sd_size = get_capacity(dev->sd_base_dev->bd_disk);
@@ -3404,11 +3404,11 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 
 
 static int file_is_on_bdev(const struct file *file, struct block_device *bdev) {
-	struct super_block *sb = assurio_snap_get_super(bdev);
+	struct super_block *sb = elastio_snap_get_super(bdev);
 	int ret = 0;
 	if (sb) {
-		ret = ((assurio_snap_get_mnt(file))->mnt_sb == sb);
-		assurio_snap_drop_super(sb);
+		ret = ((elastio_snap_get_mnt(file))->mnt_sb == sb);
+		elastio_snap_drop_super(sb);
 	}
 	return ret;
 }
@@ -3426,13 +3426,13 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 		ret = cow_reopen(dev->sd_cow, cow_path);
 		if(ret) goto error;
 	}else{
-		if(!cache_size) dev->sd_cache_size = assurio_snap_cow_max_memory_default;
+		if(!cache_size) dev->sd_cache_size = elastio_snap_cow_max_memory_default;
 		else dev->sd_cache_size = cache_size;
 
 		if(open_method == 0){
 			//calculate how much space should be allocated to the cow file
 			if(!fallocated_space){
-				max_file_size = size * SECTOR_SIZE * assurio_snap_cow_fallocate_percentage_default;
+				max_file_size = size * SECTOR_SIZE * elastio_snap_cow_fallocate_percentage_default;
 				do_div(max_file_size, 100);
 				dev->sd_falloc_size = max_file_size;
 				do_div(dev->sd_falloc_size, (1024 * 1024));
@@ -3465,7 +3465,7 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 	//find the cow file's inode number
 	LOG_DEBUG("finding cow file inode");
-	dev->sd_cow_inode = assurio_snap_get_dentry(dev->sd_cow->filp)->d_inode;
+	dev->sd_cow_inode = elastio_snap_get_dentry(dev->sd_cow->filp)->d_inode;
 
 	return 0;
 
@@ -3499,7 +3499,7 @@ static int __tracer_setup_cow_path(struct snap_device *dev, const struct file *c
 
 	//get the pathname of the cow file (relative to the mountpoint)
 	LOG_DEBUG("getting relative pathname of cow file");
-	ret = dentry_get_relative_pathname(assurio_snap_get_dentry(cow_file), &dev->sd_cow_path, NULL);
+	ret = dentry_get_relative_pathname(elastio_snap_get_dentry(cow_file), &dev->sd_cow_path, NULL);
 	if(ret) goto error;
 
 	return 0;
@@ -3553,7 +3553,7 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 static int __tracer_bioset_init(struct snap_device *dev){
 #ifndef HAVE_BIOSET_INIT
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
-	dev->sd_bioset = assurio_snap_bioset_create(BIO_SET_SIZE, BIO_SET_SIZE, 0);
+	dev->sd_bioset = elastio_snap_bioset_create(BIO_SET_SIZE, BIO_SET_SIZE, 0);
 	if(!dev->sd_bioset) return -ENOMEM;
 	return 0;
 #else
@@ -3586,7 +3586,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	//give our request queue the same properties as the base device's
 	LOG_DEBUG("setting queue limits");
 	blk_set_stacking_limits(&dev->sd_queue->limits);
-	assurio_snap_bdev_stack_limits(dev->sd_queue, bdev, 0);
+	elastio_snap_bdev_stack_limits(dev->sd_queue, bdev, 0);
 
 #ifdef HAVE_MERGE_BVEC_FN
 	//use a thin wrapper around the base device's merge_bvec_fn
@@ -3685,7 +3685,7 @@ error:
 #define __tracer_setup_snap_cow_thread(dev, minor)  __tracer_setup_cow_thread(dev, minor, 1)
 
 static void minor_range_recalculate(void){
-	unsigned int i, highest = 0, lowest = assurio_snap_max_snap_devices - 1;
+	unsigned int i, highest = 0, lowest = elastio_snap_max_snap_devices - 1;
 	struct snap_device *dev;
 
 	tracer_for_each_full(dev, i){
@@ -3977,15 +3977,15 @@ error:
 
 static void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size){
 	dev->sd_cache_size = cache_size;
-	if(!cache_size) cache_size = assurio_snap_cow_max_memory_default;
+	if(!cache_size) cache_size = elastio_snap_cow_max_memory_default;
 	if(test_bit(ACTIVE, &dev->sd_state)) cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
-static void tracer_assurio_snap_info(const struct snap_device *dev, struct assurio_snap_info *info){
+static void tracer_elastio_snap_info(const struct snap_device *dev, struct elastio_snap_info *info){
 	info->minor = dev->sd_minor;
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
-	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : assurio_snap_cow_max_memory_default;
+	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
 	strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
@@ -4006,7 +4006,7 @@ static void tracer_assurio_snap_info(const struct snap_device *dev, struct assur
 
 static int __verify_minor(unsigned int minor, int mode){
 	//check minor number is within range
-	if(minor >= assurio_snap_max_snap_devices){
+	if(minor >= elastio_snap_max_snap_devices){
 		LOG_ERROR(-EINVAL, "minor number specified is out of range");
 		return -EINVAL;
 	}
@@ -4049,13 +4049,13 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 		return PTR_ERR(bdev);
 	}
 
-	sb = assurio_snap_get_super(bdev);
+	sb = elastio_snap_get_super(bdev);
 	if(sb){
 		writable = !(sb->s_flags & MS_RDONLY);
-		assurio_snap_drop_super(sb);
+		elastio_snap_drop_super(sb);
 	}
 
-	assurio_snap_blkdev_put(bdev);
+	elastio_snap_blkdev_put(bdev);
 	*out = writable;
 	return 0;
 }
@@ -4235,11 +4235,11 @@ error:
 	return ret;
 }
 
-static int ioctl_assurio_snap_info(struct assurio_snap_info *info){
+static int ioctl_elastio_snap_info(struct elastio_snap_info *info){
 	int ret;
 	struct snap_device *dev;
 
-	LOG_DEBUG("received assurio-snap info ioctl - %u", info->minor);
+	LOG_DEBUG("received elastio-snap info ioctl - %u", info->minor);
 
 	//verify that the minor number is valid
 	ret = verify_minor_in_use(info->minor);
@@ -4247,7 +4247,7 @@ static int ioctl_assurio_snap_info(struct assurio_snap_info *info){
 
 	dev = snap_devices[info->minor];
 
-	tracer_assurio_snap_info(dev, info);
+	tracer_elastio_snap_info(dev, info);
 
 	return 0;
 
@@ -4272,7 +4272,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	int ret, idx;
 	char *bdev_path = NULL;
 	char *cow_path = NULL;
-	struct assurio_snap_info *info = NULL;
+	struct elastio_snap_info *info = NULL;
 	unsigned int minor = 0;
 	unsigned long fallocated_space = 0, cache_size = 0;
 
@@ -4351,27 +4351,27 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		break;
 	case IOCTL_ASSURIO_SNAP_INFO:
 		//get params from user space
-		info = kmalloc(sizeof(struct assurio_snap_info), GFP_KERNEL);
+		info = kmalloc(sizeof(struct elastio_snap_info), GFP_KERNEL);
 		if(!info){
 			ret = -ENOMEM;
-			LOG_ERROR(ret, "error allocating memory for assurio-snap-info");
+			LOG_ERROR(ret, "error allocating memory for elastio-snap-info");
 			break;
 		}
 
-		ret = copy_from_user(info, (struct assurio_snap_info __user *)arg, sizeof(struct assurio_snap_info));
+		ret = copy_from_user(info, (struct elastio_snap_info __user *)arg, sizeof(struct elastio_snap_info));
 		if(ret){
 			ret = -EFAULT;
-			LOG_ERROR(ret, "error copying assurio-snap-info struct from user space");
+			LOG_ERROR(ret, "error copying elastio-snap-info struct from user space");
 			break;
 		}
 
-		ret = ioctl_assurio_snap_info(info);
+		ret = ioctl_elastio_snap_info(info);
 		if(ret) break;
 
-		ret = copy_to_user((struct assurio_snap_info __user *)arg, info, sizeof(struct assurio_snap_info));
+		ret = copy_to_user((struct elastio_snap_info __user *)arg, info, sizeof(struct elastio_snap_info));
 		if(ret){
 			ret = -EFAULT;
-			LOG_ERROR(ret, "error copying assurio-snap-info struct to user space");
+			LOG_ERROR(ret, "error copying elastio-snap-info struct to user space");
 			break;
 		}
 
@@ -4618,7 +4618,7 @@ static int __handle_bdev_mount_nowrite(const struct vfsmount *mnt, unsigned int 
 		if(!dev || !test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev) || dev->sd_base_dev != mnt->mnt_sb->s_bdev) continue;
 
 		//if we are unmounting the vfsmount we are using go to dormant state
-		if(mnt == assurio_snap_get_mnt(dev->sd_cow->filp)){
+		if(mnt == elastio_snap_get_mnt(dev->sd_cow->filp)){
 			LOG_DEBUG("block device umount detected for device %d", i);
 			auto_transition_dormant(i);
 
@@ -4655,14 +4655,14 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 			if(cur_bdev == bdev){
 				LOG_DEBUG("block device mount detected for unverified device %d", i);
 				auto_transition_active(i, dir_name);
-				assurio_snap_blkdev_put(cur_bdev);
+				elastio_snap_blkdev_put(cur_bdev);
 
 				ret = 0;
 				goto out;
 			}
 
 			//put the block device
-			assurio_snap_blkdev_put(cur_bdev);
+			elastio_snap_blkdev_put(cur_bdev);
 
 		}else if(dev->sd_base_dev == bdev){
 			LOG_DEBUG("block device mount detected for dormant device %d", i);
@@ -4745,7 +4745,7 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 			return;
 		}
 
-		assurio_snap_blkdev_put(bdev);
+		elastio_snap_blkdev_put(bdev);
 
 		LOG_DEBUG("umount call failed, reactivating tracer %u", idx);
 		auto_transition_active(idx, dir_name);
@@ -4756,15 +4756,15 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 	task_work_flush();
 
 	//if we went dormant, but the block device is still mounted somewhere, goto fail state
-	sb = assurio_snap_get_super(dev->sd_base_dev);
+	sb = elastio_snap_get_super(dev->sd_base_dev);
 	if(sb){
 		if(!(sb->s_flags & MS_RDONLY)){
 			LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
 			tracer_set_fail_state(dev, -EIO);
-			assurio_snap_drop_super(sb);
+			elastio_snap_drop_super(sb);
 			return;
 		}
-		assurio_snap_drop_super(sb);
+		elastio_snap_drop_super(sb);
 	}
 
 	LOG_DEBUG("post umount check succeeded");
@@ -5000,7 +5000,7 @@ static void snap_release(struct gendisk *gd, fmode_t mode){
 }
 #endif
 
-static int assurio_snap_proc_show(struct seq_file *m, void *v){
+static int elastio_snap_proc_show(struct seq_file *m, void *v){
 	int error, i;
 	struct snap_device **dev_ptr = v;
 	struct snap_device *dev = NULL;
@@ -5021,7 +5021,7 @@ static int assurio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
 		seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n", dev->sd_cow_path);
 		seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n", dev->sd_bdev_path);
-		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : assurio_snap_cow_max_memory_default);
+		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default);
 
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
 			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
@@ -5058,31 +5058,31 @@ static int assurio_snap_proc_show(struct seq_file *m, void *v){
 	return 0;
 }
 
-static inline void *assurio_snap_proc_get_idx(loff_t pos){
+static inline void *elastio_snap_proc_get_idx(loff_t pos){
 	if(pos > highest_minor) return NULL;
 	return &snap_devices[pos];
 }
 
-static void *assurio_snap_proc_start(struct seq_file *m, loff_t *pos){
+static void *elastio_snap_proc_start(struct seq_file *m, loff_t *pos){
 	if(*pos == 0) return SEQ_START_TOKEN;
-	return assurio_snap_proc_get_idx(*pos - 1);
+	return elastio_snap_proc_get_idx(*pos - 1);
 }
 
-static void *assurio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos){
-	void *dev = assurio_snap_proc_get_idx(*pos);
+static void *elastio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos){
+	void *dev = elastio_snap_proc_get_idx(*pos);
 	++*pos;
 	return dev;
 }
 
-static void assurio_snap_proc_stop(struct seq_file *m, void *v){
+static void elastio_snap_proc_stop(struct seq_file *m, void *v){
 }
 
-static int assurio_snap_proc_open(struct inode *inode, struct file *filp){
+static int elastio_snap_proc_open(struct inode *inode, struct file *filp){
 	mutex_lock(&ioctl_mutex);
-	return seq_open(filp, &assurio_snap_seq_proc_ops);
+	return seq_open(filp, &elastio_snap_seq_proc_ops);
 }
 
-static int assurio_snap_proc_release(struct inode *inode, struct file *file){
+static int elastio_snap_proc_release(struct inode *inode, struct file *file){
 	seq_release(inode, file);
 	mutex_unlock(&ioctl_mutex);
 	return 0;
@@ -5134,14 +5134,14 @@ static int __init agent_init(void){
 	mutex_init(&ioctl_mutex);
 
 	//init minor range
-	if(assurio_snap_max_snap_devices == 0 || assurio_snap_max_snap_devices > ASSURIO_SNAP_MAX_SNAP_DEVICES){
-		const unsigned int nr_devices = assurio_snap_max_snap_devices == 0 ? ASSURIO_SNAP_DEFAULT_SNAP_DEVICES : ASSURIO_SNAP_MAX_SNAP_DEVICES;
-		LOG_WARN("invalid number of snapshot devices (%u), setting to %u", assurio_snap_max_snap_devices, nr_devices);
-		assurio_snap_max_snap_devices = nr_devices;
+	if(elastio_snap_max_snap_devices == 0 || elastio_snap_max_snap_devices > ASSURIO_SNAP_MAX_SNAP_DEVICES){
+		const unsigned int nr_devices = elastio_snap_max_snap_devices == 0 ? ASSURIO_SNAP_DEFAULT_SNAP_DEVICES : ASSURIO_SNAP_MAX_SNAP_DEVICES;
+		LOG_WARN("invalid number of snapshot devices (%u), setting to %u", elastio_snap_max_snap_devices, nr_devices);
+		elastio_snap_max_snap_devices = nr_devices;
 	}
 
 	highest_minor = 0;
-	lowest_minor = assurio_snap_max_snap_devices - 1;
+	lowest_minor = elastio_snap_max_snap_devices - 1;
 
 	//get a major number for the driver
 	LOG_DEBUG("get major number");
@@ -5154,7 +5154,7 @@ static int __init agent_init(void){
 
 	//allocate global device array
 	LOG_DEBUG("allocate global device array");
-	snap_devices = kzalloc(assurio_snap_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
+	snap_devices = kzalloc(elastio_snap_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
 	if(!snap_devices){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating global device array");
@@ -5163,7 +5163,7 @@ static int __init agent_init(void){
 
 	//register proc file
 	LOG_DEBUG("registering proc file");
-	info_proc = proc_create(INFO_PROC_FILE, 0, NULL, &assurio_snap_proc_fops);
+	info_proc = proc_create(INFO_PROC_FILE, 0, NULL, &elastio_snap_proc_fops);
 	if(!info_proc){
 		ret = -ENOENT;
 		LOG_ERROR(ret, "error registering proc file");
@@ -5178,7 +5178,7 @@ static int __init agent_init(void){
 		goto error;
 	}
 
-	if(assurio_snap_may_hook_syscalls) (void)hook_system_call_table();
+	if(elastio_snap_may_hook_syscalls) (void)hook_system_call_table();
 
 	return 0;
 

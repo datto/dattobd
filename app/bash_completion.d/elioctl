@@ -1,4 +1,4 @@
-_aioctl()
+_elioctl()
 {
     local cur prev opts
     COMPREPLY=()
@@ -11,4 +11,4 @@ _aioctl()
         return 0
     fi
 }
-complete -o default -F _aioctl aioctl
+complete -o default -F _elioctl elioctl

@@ -2,7 +2,7 @@
 
 #
 # Copyright (C) 2019 Datto, Inc.
-# Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+# Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
 from cffi import FFI
@@ -15,7 +15,7 @@ ffi.cdef("""
 #define COW_UUID_SIZE 16
 #define PATH_MAX 4096
 
-struct assurio_snap_info {
+struct elastio_snap_info {
     unsigned int minor;
     unsigned long state;
     int error;
@@ -29,22 +29,22 @@ struct assurio_snap_info {
     unsigned long long nr_changed_blocks;
 };
 
-int assurio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
-int assurio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
-int assurio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
-int assurio_snap_destroy(unsigned int minor);
-int assurio_snap_transition_incremental(unsigned int minor);
-int assurio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
-int assurio_snap_reconfigure(unsigned int minor, unsigned long cache_size);
-int assurio_snap_info(unsigned int minor, struct assurio_snap_info *info);
-int assurio_snap_get_free_minor(void);
+int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
+int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
+int elastio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
+int elastio_snap_destroy(unsigned int minor);
+int elastio_snap_transition_incremental(unsigned int minor);
+int elastio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
+int elastio_snap_reconfigure(unsigned int minor, unsigned long cache_size);
+int elastio_snap_info(unsigned int minor, struct elastio_snap_info *info);
+int elastio_snap_get_free_minor(void);
 """)
 
-lib = ffi.dlopen("../lib/libassurio-snap.so")
+lib = ffi.dlopen("../lib/libelastio-snap.so")
 
 
 def setup(minor, device, cow_file, fallocated_space=0, cache_size=0):
-    ret = lib.assurio_snap_setup_snapshot(
+    ret = lib.elastio_snap_setup_snapshot(
         minor,
         device.encode("utf-8"),
         cow_file.encode("utf-8"),
@@ -60,7 +60,7 @@ def setup(minor, device, cow_file, fallocated_space=0, cache_size=0):
 
 
 def reload_snapshot(minor, device, cow_file, cache_size=0):
-    ret = lib.assurio_snap_reload_snapshot(
+    ret = lib.elastio_snap_reload_snapshot(
         minor,
         device.encode("utf-8"),
         cow_file.encode("utf-8"),
@@ -75,7 +75,7 @@ def reload_snapshot(minor, device, cow_file, cache_size=0):
 
 
 def reload_incremental(minor, device, cow_file, cache_size=0):
-    ret = lib.assurio_snap_reload_incremental(
+    ret = lib.elastio_snap_reload_incremental(
         minor,
         device.encode("utf-8"),
         cow_file.encode("utf-8"),
@@ -90,7 +90,7 @@ def reload_incremental(minor, device, cow_file, cache_size=0):
 
 
 def destroy(minor):
-    ret = lib.assurio_snap_destroy(minor)
+    ret = lib.elastio_snap_destroy(minor)
     if ret != 0:
         return ffi.errno
 
@@ -99,7 +99,7 @@ def destroy(minor):
 
 
 def transition_to_incremental(minor):
-    ret = lib.assurio_snap_transition_incremental(minor)
+    ret = lib.elastio_snap_transition_incremental(minor)
     if ret != 0:
         return ffi.errno
 
@@ -108,7 +108,7 @@ def transition_to_incremental(minor):
 
 
 def transition_to_snapshot(minor, cow_file, fallocated_space=0):
-    ret = lib.assurio_snap_transition_snapshot(
+    ret = lib.elastio_snap_transition_snapshot(
         minor,
         cow_file.encode("utf-8"),
         fallocated_space
@@ -122,7 +122,7 @@ def transition_to_snapshot(minor, cow_file, fallocated_space=0):
 
 
 def reconfigure(minor, cache_size):
-    ret = lib.assurio_snap_reconfigure(minor, cache_size)
+    ret = lib.elastio_snap_reconfigure(minor, cache_size)
     if ret != 0:
         return ffi.errno
 
@@ -131,8 +131,8 @@ def reconfigure(minor, cache_size):
 
 
 def info(minor):
-    di = ffi.new("struct assurio_snap_info *")
-    ret = lib.assurio_snap_info(minor, di)
+    di = ffi.new("struct elastio_snap_info *")
+    ret = lib.elastio_snap_info(minor, di)
     if ret != 0:
         return None
 
@@ -153,11 +153,11 @@ def info(minor):
     }
 
 def get_free_minor():
-    ret = lib.assurio_snap_get_free_minor()
+    ret = lib.elastio_snap_get_free_minor()
     if (ret < 0):
         return -ffi.errno
     return ret
 
 def version():
-    with open("/sys/module/assurio-snap/version", "r") as v:
+    with open("/sys/module/elastio-snap/version", "r") as v:
         return v.read().strip()

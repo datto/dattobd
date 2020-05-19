@@ -1,12 +1,12 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: assurio-snap
-Upstream-Contact: Eugene Kovalenko <ikovalenko@assurio.com>
-Source: https://github.com/assuriosw/assurio-snap
+Upstream-Name: elastio-snap
+Upstream-Contact: Eugene Kovalenko <ikovalenko@elastio.com>
+Source: https://github.com/elastio/elastio-snap
 
 Files: *
 Copyright:
  Copyright 2015 Datto, Inc.
- Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 
 License: GPL-2.0
  This program is free software; you can redistribute it
@@ -32,7 +32,7 @@ License: GPL-2.0
 Files: lib/*
 Copyright:
  Copyright 2015 Datto, Inc.
- Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 License: LGPL-2.1+
  This program is free software; you can redistribute it
  and/or modify it under the terms of the GNU General Public
@@ -54,10 +54,10 @@ License: LGPL-2.1+
  Public License version 2.1 can be found in the file
  `/usr/share/common-licenses/LGPL-2.1'.
 
-Files: src/assurio-snap.h
+Files: src/elastio-snap.h
 Copyright:
  Copyright 2015 Datto, Inc.
- Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 License: LGPL-2.1+
  This program is free software; you can redistribute it
  and/or modify it under the terms of the GNU General Public

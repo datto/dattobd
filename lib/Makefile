@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-LIBNAME = libassurio-snap.so
+LIBNAME = libelastio-snap.so
 SOVER = 1
 SHARED_CCFLAGS = -fPIC -lc -shared -Wl,-soname,$(LIBNAME).$(SOVER)
 LIBDIR = $(PREFIX)/lib64
 
-SOURCES = libassurio-snap.c
+SOURCES = libelastio-snap.c
 
 .PHONY: all shared static install uninstall clean
 
@@ -17,7 +17,7 @@ shared:
 
 static:
 	$(CC) $(CCFLAGS) -c $(SOURCES)
-	ar rcs libassurio-snap.a libassurio-snap.o
+	ar rcs libelastio-snap.a libelastio-snap.o
 
 install: shared
 	install $(LIBNAME).$(SOVER) $(LIBDIR)

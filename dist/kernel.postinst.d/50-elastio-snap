@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Scriptlet to force assurio-snap kernel module to be rebuilt
+# Scriptlet to force elastio-snap kernel module to be rebuilt
 # on systems that don't automatically do it for kernel updates
 # See http://lists.us.dell.com/pipermail/dkms-devel/2007-May/000562.html
 
@@ -15,23 +15,23 @@ fi
 # we wouldn't be here if dkms wasn't working, so
 # we can happily just call dkms to fix the mess
 
-echo "Forcing rebuild of assurio-snap."
+echo "Forcing rebuild of elastio-snap."
 
 
-# but first we need the assurio-snap version number
+# but first we need the elastio-snap version number
 
-aiosnap_ver=`modinfo  assurio-snap |grep "^version:" | awk '{ print $2 }'`
-echo "Found assurio-snap version $aiosnap_ver"
+aiosnap_ver=`modinfo  elastio-snap |grep "^version:" | awk '{ print $2 }'`
+echo "Found elastio-snap version $aiosnap_ver"
 echo "Building for kernel version $inst_kern"
 
 echo "Removing module..."
-dkms remove -m assurio-snap -v $aiosnap_ver --all
+dkms remove -m elastio-snap -v $aiosnap_ver --all
 
 echo "Re-adding module..."
-dkms add -m assurio-snap -v $aiosnap_ver
+dkms add -m elastio-snap -v $aiosnap_ver
 
 echo "Building..."
-dkms build -m assurio-snap -v $aiosnap_ver -k $inst_kern
+dkms build -m elastio-snap -v $aiosnap_ver -k $inst_kern
 
 echo "Installing..."
-dkms install -m assurio-snap -v $aiosnap_ver -k $inst_kern
+dkms install -m elastio-snap -v $aiosnap_ver -k $inst_kern

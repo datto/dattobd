@@ -73,7 +73,7 @@
 </p>
 <h2 id="NAME">NAME</h2>
 
-<p>update-img - Update a backup image with assurio-snap COW file.</p>
+<p>update-img - Update a backup image with elastio-snap COW file.</p>
 
 <h2 id="SYNOPSIS">SYNOPSIS</h2>
 
@@ -81,13 +81,13 @@
 
 <h2 id="DESCRIPTION">DESCRIPTION</h2>
 
-<p><code>update-img</code> is a simple tool to efficiently update backup images made by the assurio-snap kernel module. It uses the leftover COW file from assurio-snap's incremental state to efficiently update an existing backup image. See the man page on <code>aioctl</code> for an example use case.</p>
+<p><code>update-img</code> is a simple tool to efficiently update backup images made by the elastio-snap kernel module. It uses the leftover COW file from elastio-snap's incremental state to efficiently update an existing backup image. See the man page on <code>elioctl</code> for an example use case.</p>
 
 <h3 id="EXAMPLES">EXAMPLES</h3>
 
-<p><code># update-img /dev/assurio-snap4 /var/backup/assurio1 /mnt/data/backup-img</code></p>
+<p><code># update-img /dev/elastio-snap4 /var/backup/elastio1 /mnt/data/backup-img</code></p>
 
-<p>This command will update a previously backed up snapshot <code>/mnt/data/backup-img</code> with the changed blocks indicated by <code>/var/backup/assurio1</code> from <code>/dev/assurio-snap4</code>.</p>
+<p>This command will update a previously backed up snapshot <code>/mnt/data/backup-img</code> with the changed blocks indicated by <code>/var/backup/elastio1</code> from <code>/dev/elastio-snap4</code>.</p>
 
 <p>NOTE: <code>&lt;snapshot device></code> MUST be the NEXT snapshot after the one that <code>&lt;image file></code> was copied from.</p>
 

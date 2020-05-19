@@ -3,9 +3,9 @@ exec_prefix=${prefix}
 libdir=@libdir@
 includedir=@includedir@
 
-Name: libassurio-snap
+Name: libelastio-snap
 Description: Library for kernel module for taking block-level snapshots of Linux block devices
 Version: @PACKAGE_VERSION@
 
-Libs: -L${libdir} -lassurio-snap
+Libs: -L${libdir} -lelastio-snap
 Cflags: -I${includedir}

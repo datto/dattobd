@@ -2,20 +2,20 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
- * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/ioctl.h>
-#include "libassurio-snap.h"
+#include "libelastio-snap.h"
 
-int assurio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
+int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
 	int fd, ret;
 	struct setup_params sp;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	sp.minor = minor;
@@ -30,11 +30,11 @@ int assurio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsig
 	return ret;
 }
 
-int assurio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
 	int fd, ret;
 	struct reload_params rp;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	rp.minor = minor;
@@ -48,11 +48,11 @@ int assurio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsi
 	return ret;
 }
 
-int assurio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int elastio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
 	int fd, ret;
 	struct reload_params rp;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	rp.minor = minor;
@@ -66,10 +66,10 @@ int assurio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, u
 	return ret;
 }
 
-int assurio_snap_destroy(unsigned int minor){
+int elastio_snap_destroy(unsigned int minor){
 	int fd, ret;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	ret = ioctl(fd, IOCTL_DESTROY, &minor);
@@ -78,10 +78,10 @@ int assurio_snap_destroy(unsigned int minor){
 	return ret;
 }
 
-int assurio_snap_transition_incremental(unsigned int minor){
+int elastio_snap_transition_incremental(unsigned int minor){
 	int fd, ret;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	ret = ioctl(fd, IOCTL_TRANSITION_INC, &minor);
@@ -90,7 +90,7 @@ int assurio_snap_transition_incremental(unsigned int minor){
 	return ret;
 }
 
-int assurio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
+int elastio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
 	int fd, ret;
 	struct transition_snap_params tp;
 
@@ -98,7 +98,7 @@ int assurio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned lon
 	tp.cow = cow;
 	tp.fallocated_space = fallocated_space;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	ret = ioctl(fd, IOCTL_TRANSITION_SNAP, &tp);
@@ -107,11 +107,11 @@ int assurio_snap_transition_snapshot(unsigned int minor, char *cow, unsigned lon
 	return ret;
 }
 
-int assurio_snap_reconfigure(unsigned int minor, unsigned long cache_size){
+int elastio_snap_reconfigure(unsigned int minor, unsigned long cache_size){
 	int fd, ret;
 	struct reconfigure_params rp;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	rp.minor = minor;
@@ -123,7 +123,7 @@ int assurio_snap_reconfigure(unsigned int minor, unsigned long cache_size){
 	return ret;
 }
 
-int assurio_snap_info(unsigned int minor, struct assurio_snap_info *info){
+int elastio_snap_info(unsigned int minor, struct elastio_snap_info *info){
 	int fd, ret;
 
 	if(!info){
@@ -131,7 +131,7 @@ int assurio_snap_info(unsigned int minor, struct assurio_snap_info *info){
 		return -1;
 	}
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	info->minor = minor;
@@ -142,10 +142,10 @@ int assurio_snap_info(unsigned int minor, struct assurio_snap_info *info){
 	return ret;
 }
 
-int assurio_snap_get_free_minor(void){
+int elastio_snap_get_free_minor(void){
 	int fd, ret, minor;
 
-	fd = open("/dev/assurio-snap-ctl", O_RDONLY);
+	fd = open("/dev/elastio-snap-ctl", O_RDONLY);
 	if(fd < 0) return -1;
 
 	ret = ioctl(fd, IOCTL_GET_FREE, &minor);

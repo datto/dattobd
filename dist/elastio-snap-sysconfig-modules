@@ -1,0 +1,5 @@
+#!/bin/sh
+
+if [ ! -c /dev/elastio-snap-ctl ] ; then
+	exec /sbin/modprobe elastio-snap >/dev/null 2>&1
+fi

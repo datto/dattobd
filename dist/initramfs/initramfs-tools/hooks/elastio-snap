@@ -16,13 +16,13 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-mkdir -p ${DESTDIR}/etc/assurio/dla/mnt
+mkdir -p ${DESTDIR}/etc/elastio/dla/mnt
 copy_exec /sbin/blkid
 copy_exec /sbin/blockdev
-copy_exec /usr/bin/aioctl
-copy_exec /var/lib/assurio/dla/reload /sbin/assurio_reload
+copy_exec /usr/bin/elioctl
+copy_exec /var/lib/elastio/dla/reload /sbin/elastio_reload
 
-manual_add_modules assurio-snap
+manual_add_modules elastio-snap
 
 exit 0
 

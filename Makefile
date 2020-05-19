@@ -51,14 +51,14 @@ pkgclean:
 
 pkgprep: pkgclean
 	$(PKGBUILDROOT_CREATE_CMD)
-	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,assurio-snap,' -czf $(BUILDDIR)/SOURCES/assurio-snap.tar.gz .
-	cp dist/assurio-snap.spec $(BUILDDIR)/SPECS/assurio-snap.spec
+	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,elastio-snap,' -czf $(BUILDDIR)/SOURCES/elastio-snap.tar.gz .
+	cp dist/elastio-snap.spec $(BUILDDIR)/SPECS/elastio-snap.spec
 
 deb: pkgprep
-	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/assurio-snap.spec
+	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/elastio-snap.spec
 
 rpm: pkgprep
-	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/assurio-snap.spec
+	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/elastio-snap.spec
 
 install:
 	$(MAKE) -C src install

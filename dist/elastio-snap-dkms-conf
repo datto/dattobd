@@ -2,13 +2,13 @@
 PACKAGE_VERSION="@MODULE_VERSION@"
 
 # Items below here should not have to change with each driver version
-PACKAGE_NAME="assurio-snap"
+PACKAGE_NAME="elastio-snap"
 PRE_BUILD="genconfig.sh ${kernelver}"
 MAKE[0]="make -C ${kernel_source_dir} M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build KVER=${kernelver} modules"
 STRIP[0]="no"
 CLEAN="make -C ${kernel_source_dir} M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build KVER=${kernelver} clean"
 
-BUILT_MODULE_NAME[0]="assurio-snap"
+BUILT_MODULE_NAME[0]="elastio-snap"
 DEST_MODULE_LOCATION[0]="/kernel/drivers/block/"
 
 NO_WEAK_MODULES="yes"

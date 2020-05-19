@@ -33,7 +33,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
       --exclude *GPG-KEY
   when:
     event: push
@@ -48,7 +48,7 @@ steps:
     - repobuild/upload.sh
       --source latest
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}
   when:
     event: push
 
@@ -85,7 +85,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
       --exclude *GPG-KEY
   when:
     event: push
@@ -123,7 +123,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/deb
       --exclude *GPG-KEY
   when:
     event: push
@@ -161,7 +161,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -198,7 +198,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -235,7 +235,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -272,7 +272,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -309,7 +309,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -346,7 +346,7 @@ steps:
     - repobuild/upload.sh
       --source repobuild/artifacts/
       --bucket artifacts.assur.io
-      --target /linux/assurio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
+      --target /linux/elastio-snap/${DRONE_SOURCE_BRANCH}/${DRONE_BUILD_NUMBER}/rpm
   when:
     event: push
 
@@ -372,7 +372,7 @@ steps:
     wait: true
     timeout: 600
     repositories:
-      - assuriosw/packaging@${DRONE_SOURCE_BRANCH}
+      - elastio/packaging@${DRONE_SOURCE_BRANCH}
   when:
     event: push
 

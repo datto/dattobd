@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv='content-type' value='text/html;charset=utf8'>
   <meta name='generator' value='Ronn/v0.7.3 (http://github.com/rtomayko/ronn/tree/0.7.3)'>
-  <title>aioctl(8)</title>
+  <title>elioctl(8)</title>
   <style type='text/css' media='all'>
   /* style: man */
   body#manpage {margin:0}
@@ -64,28 +64,28 @@
   </div>
 
   <ol class='man-decor man-head man head'>
-    <li class='tl'>aioctl(8)</li>
+    <li class='tl'>elioctl(8)</li>
     <li class='tc'></li>
-    <li class='tr'>aioctl(8)</li>
+    <li class='tr'>elioctl(8)</li>
   </ol>
 
   <h2 id="NAME">NAME</h2>
 <p class="man-name">
-  <code>aioctl</code>
+  <code>elioctl</code>
 </p>
 <h2 id="NAME">NAME</h2>
 
-<p>assurio-snap - Control the Assurio-Snap block device kernel module.</p>
+<p>elastio-snap - Control the Elastio-Snap block device kernel module.</p>
 
 <h2 id="SYNOPSIS">SYNOPSIS</h2>
 
-<p><code>aioctl &lt;sub-command> [&lt;args>]</code></p>
+<p><code>elioctl &lt;sub-command> [&lt;args>]</code></p>
 
 <h2 id="DESCRIPTION">DESCRIPTION</h2>
 
-<p><code>aioctl</code> is the userspace tool used to manage the assurio-snap kernel module. It provides an interface to create, delete, reload, transition, and configure on-disk snapshots and certain parameters of the kernel module itself.</p>
+<p><code>elioctl</code> is the userspace tool used to manage the elastio-snap kernel module. It provides an interface to create, delete, reload, transition, and configure on-disk snapshots and certain parameters of the kernel module itself.</p>
 
-<p>This manual page describes <code>aioctl</code> briefly. More detail is available in the Git repository located at https://github.com/assuriosw/assurio-snap.</p>
+<p>This manual page describes <code>elioctl</code> briefly. More detail is available in the Git repository located at https://github.com/elastio/elastio-snap.</p>
 
 <h2 id="OPTIONS">OPTIONS</h2>
 
@@ -100,73 +100,73 @@
 
 <h3 id="setup-snapshot">setup-snapshot</h3>
 
-<p><code>aioctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] &lt;block device> &lt;cow file path> &lt;minor></code></p>
+<p><code>elioctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] &lt;block device> &lt;cow file path> &lt;minor></code></p>
 
-<p>Sets up a snapshot of <code>&lt;block device></code>, saving all COW data to <code>&lt;cow file path></code>. The snapshot device will be <code>/dev/assurio-snap&lt;minor></code>. The minor number will be used as a reference number for all other <code>aioctl</code> commands. <code>&lt;cow file path></code> must be a path on the <code>&lt;block device></code>.</p>
+<p>Sets up a snapshot of <code>&lt;block device></code>, saving all COW data to <code>&lt;cow file path></code>. The snapshot device will be <code>/dev/elastio-snap&lt;minor></code>. The minor number will be used as a reference number for all other <code>elioctl</code> commands. <code>&lt;cow file path></code> must be a path on the <code>&lt;block device></code>.</p>
 
 <h3 id="reload-snapshot">reload-snapshot</h3>
 
-<p><code>aioctl reload-snapshot [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
+<p><code>elioctl reload-snapshot [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
-<p>Reloads a snapshot. This command is meant to be run before the block device is mounted, after a reboot or after the driver is unloaded. It notifies the kernel driver to expect the block device specified to come back online. This command requires that the snapshot was cleanly unmounted in snapshot mode beforehand. If this is not the case, the snapshot will be put into the failure state once it attempts to come online. The minor number will be used as a reference number for all other <code>aioctl</code> commands.</p>
+<p>Reloads a snapshot. This command is meant to be run before the block device is mounted, after a reboot or after the driver is unloaded. It notifies the kernel driver to expect the block device specified to come back online. This command requires that the snapshot was cleanly unmounted in snapshot mode beforehand. If this is not the case, the snapshot will be put into the failure state once it attempts to come online. The minor number will be used as a reference number for all other <code>elioctl</code> commands.</p>
 
 <h3 id="reload-incremental">reload-incremental</h3>
 
-<p><code>aioctl reload-incremental [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
+<p><code>elioctl reload-incremental [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
 <p>Reloads a block device that was in incremental mode. See <code>reload-snapshot</code> for restrictions.</p>
 
 <h3 id="transition-to-incremental">transition-to-incremental</h3>
 
-<p><code>aioctl transition-to-incremental &lt;minor></code></p>
+<p><code>elioctl transition-to-incremental &lt;minor></code></p>
 
 <p>Transitions a snapshot COW file to incremental mode, which only tracks which blocks have changed since a snapshot started. This will remove the associated snapshot device.</p>
 
 <h3 id="transition-to-snapshot">transition-to-snapshot</h3>
 
-<p><code>aioctl transition-to-snapshot [-f &lt;fallocate>] &lt;cow file> &lt;minor></code></p>
+<p><code>elioctl transition-to-snapshot [-f &lt;fallocate>] &lt;cow file> &lt;minor></code></p>
 
 <p>Transitions a block device in incremental mode to snapshot mode. This call ensures no writes are missed between tearing down the incremental and setting up the new snapshot. The new snapshot data will be recorded in <code>&lt;cow file></code>. The old cow file will still exist after this and can be used to efficiently copy only changed blocks using a tool succh as <code>update-img</code>.</p>
 
 <h3 id="destroy">destroy</h3>
 
-<p><code>aioctl destroy &lt;minor></code></p>
+<p><code>elioctl destroy &lt;minor></code></p>
 
 <p>Cleanly and completely removes the snapshot or incremental, unlinking the associated COW file.</p>
 
 <h3 id="reconfigure">reconfigure</h3>
 
-<p><code>aioctl reconfigure [-c &lt;cache size>] &lt;minor></code></p>
+<p><code>elioctl reconfigure [-c &lt;cache size>] &lt;minor></code></p>
 
 <p>Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.</p>
 
 <h3 id="EXAMPLES">EXAMPLES</h3>
 
-<p><code># aioctl setup-snapshot /dev/sda1 /var/backup/assurio 4</code></p>
+<p><code># elioctl setup-snapshot /dev/sda1 /var/backup/elastio 4</code></p>
 
-<p>This command will set up a new COW snapshot device tracking <code>/dev/sda1</code> at <code>/dev/assurio-snap4</code>. This block device is backed by a new file created at the path <code>/var/backup/assurio</code>.</p>
+<p>This command will set up a new COW snapshot device tracking <code>/dev/sda1</code> at <code>/dev/elastio-snap4</code>. This block device is backed by a new file created at the path <code>/var/backup/elastio</code>.</p>
 
-<p><code># aioctl transition-to-incremental 4</code></p>
+<p><code># elioctl transition-to-incremental 4</code></p>
 
 <p>Transitions the snapshot specified by the minor number to incremental mode.</p>
 
-<p><code># aioctl transition-to-snapshot /var/backup/assurio1 4</code></p>
+<p><code># elioctl transition-to-snapshot /var/backup/elastio1 4</code></p>
 
-<p>Cleanly transitions the incremental to a new snapshot, using <code>/var/backup/assurio1</code> as the new COW file. At this point a second backup can be taken, either doing a full copy with a tool like <code>dd</code> or an incremental copy using a tool such as <code>update-img</code>, if a previous snapshot backup exists.</p>
+<p>Cleanly transitions the incremental to a new snapshot, using <code>/var/backup/elastio1</code> as the new COW file. At this point a second backup can be taken, either doing a full copy with a tool like <code>dd</code> or an incremental copy using a tool such as <code>update-img</code>, if a previous snapshot backup exists.</p>
 
-<p><code># aioctl reconfigure -c 400 4</code></p>
+<p><code># elioctl reconfigure -c 400 4</code></p>
 
 <p>Reconfigures the block device to have an in-memory index cache size of 400 MB.</p>
 
-<p><code># aioctl destroy 4</code></p>
+<p><code># elioctl destroy 4</code></p>
 
-<p>This will stop tracking <code>/dev/sda1</code>, remove the associated <code>/dev/assurio-snap4</code> (since the device is in snapshot mode), delete the COW file backing it, and perform all other cleanup.</p>
+<p>This will stop tracking <code>/dev/sda1</code>, remove the associated <code>/dev/elastio-snap4</code> (since the device is in snapshot mode), delete the COW file backing it, and perform all other cleanup.</p>
 
-<p><code># aioctl reload-snapshot /dev/sda1 /var/backup/assurio1 4</code></p>
+<p><code># elioctl reload-snapshot /dev/sda1 /var/backup/elastio1 4</code></p>
 
-<p>After a reboot, this command may be performed in the early stages of boot, before the block device is mounted read-write. This will notify the driver to expect a block device <code>/dev/sda1</code> that was left in snapshot mode to come online with a COW file located at <code>/var/backup/assurio1</code> (relative to the mountpoint), and that the reloaded snapshot should come online at minor number 4. If a problem is discovered when the block device comes online, this block device will be put into the failure state, which will be reported in <code>/proc/assurio-snap-info</code></p>
+<p>After a reboot, this command may be performed in the early stages of boot, before the block device is mounted read-write. This will notify the driver to expect a block device <code>/dev/sda1</code> that was left in snapshot mode to come online with a COW file located at <code>/var/backup/elastio1</code> (relative to the mountpoint), and that the reloaded snapshot should come online at minor number 4. If a problem is discovered when the block device comes online, this block device will be put into the failure state, which will be reported in <code>/proc/elastio-snap-info</code></p>
 
-<p><code># aioctl reload-incremental /dev/sda5 /var/backup/assurio1 4</code></p>
+<p><code># elioctl reload-incremental /dev/sda5 /var/backup/elastio1 4</code></p>
 
 <p>This will act the same as <code>reload-snapshot</code>, but for a device that was left in incremental mode.</p>
 
@@ -181,7 +181,7 @@
   <ol class='man-decor man-foot man foot'>
     <li class='tl'>Datto Inc</li>
     <li class='tc'>March 2016</li>
-    <li class='tr'>aioctl(8)</li>
+    <li class='tr'>elioctl(8)</li>
   </ol>
 
   </div>

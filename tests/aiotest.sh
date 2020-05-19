@@ -3,11 +3,11 @@
 
 #
 # Copyright (C) 2019 Datto, Inc.
-# Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+# Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
 echo
-echo "assurio-snap: $(git rev-parse --short HEAD)"
+echo "elastio-snap: $(git rev-parse --short HEAD)"
 echo "kernel: $(uname -r)"
 echo "gcc: $(gcc --version | awk 'NR==1 {print $3}')"
 echo "bash: ${BASH_VERSION}"

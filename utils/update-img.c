@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2015 Datto Inc.
- * Additional contributions by Assurio Software, Inc are Copyright (C) 2019 Assurio Software Inc.
+ * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
 #define _FILE_OFFSET_BITS 64
@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "libassurio-snap.h"
+#include "libelastio-snap.h"
 
 #define INDEX_BUFFER_SIZE 8192
 
@@ -59,23 +59,23 @@ static int verify_files(FILE *cow, unsigned minor){
 	int ret;
 	size_t bytes;
 	struct cow_header ch;
-	struct assurio_snap_info *info = NULL;
+	struct elastio_snap_info *info = NULL;
 
 	//allocate a buffer for the proc data
-	info = malloc(sizeof(struct assurio_snap_info));
+	info = malloc(sizeof(struct elastio_snap_info));
 	if(!info){
 		ret = ENOMEM;
 		errno = 0;
-		fprintf(stderr, "error allocating memory for assurio-snap-info\n");
+		fprintf(stderr, "error allocating memory for elastio-snap-info\n");
 		goto error;
 	}
 
-	//read info from the assurio-snap driver
-	ret = assurio_snap_info(minor, info);
+	//read info from the elastio-snap driver
+	ret = elastio_snap_info(minor, info);
 	if(ret){
 		ret = errno;
 		errno = 0;
-		fprintf(stderr, "error reading assurio-snap-info from driver\n");
+		fprintf(stderr, "error reading elastio-snap-info from driver\n");
 		goto error;
 	}
 
@@ -167,11 +167,11 @@ int main(int argc, char **argv){
 	}
 
 	//get the minor number of the snapshot
-	ret = sscanf(snap_path, "/dev/assurio-snap%u", &minor);
+	ret = sscanf(snap_path, "/dev/elastio-snap%u", &minor);
 	if(ret != 1){
 		ret = errno;
 		errno = 0;
-		fprintf(stderr, "snapshot does not appear to be a assurio-snap snapshot device\n");
+		fprintf(stderr, "snapshot does not appear to be a elastio-snap snapshot device\n");
 		goto error;
 	}
 

@@ -24,10 +24,10 @@ if [ -z "$DRONE_BUILD_NUMBER" ]; then
 fi
 
 mkdir -p $out/Debian
-cat > $out/Debian/assurio-snap.info << INFO
+cat > $out/Debian/elastio-snap.info << INFO
 Branch:     $DRONE_SOURCE_BRANCH
 Rev:        $DRONE_COMMIT
-Version:    `grep Version: $dir/../dist/assurio-snap.spec | awk '{print $NF}'`
+Version:    `grep Version: $dir/../dist/elastio-snap.spec | awk '{print $NF}'`
 Build:      $DRONE_BUILD_NUMBER
 INFO
 }

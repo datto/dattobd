@@ -1,9 +1,9 @@
 #!/bin/bash
 
-inst_hook pre-mount 01 "$moddir/assurio-snap.sh"
-inst_dir /etc/assurio/dla/mnt
+inst_hook pre-mount 01 "$moddir/elastio-snap.sh"
+inst_dir /etc/elastio/dla/mnt
 inst /sbin/blkid
 inst /sbin/blockdev
 inst /usr/bin/udevadm
-inst /usr/bin/aioctl
-inst_simple /var/lib/assurio/dla/reload /sbin/assurio_reload
+inst /usr/bin/elioctl
+inst_simple /var/lib/elastio/dla/reload /sbin/elastio_reload

@@ -1,5 +1,0 @@
-#!/bin/sh
-
-if [ ! -c /dev/assurio-snap-ctl ] ; then
-	exec /sbin/modprobe assurio-snap >/dev/null 2>&1
-fi
