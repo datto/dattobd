@@ -4786,6 +4786,10 @@ static asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name, 
 	buff_dev_name = kmalloc(PATH_MAX, GFP_ATOMIC);
 	buff_dir_name = kmalloc(PATH_MAX, GFP_ATOMIC);
 	if(!buff_dev_name || !buff_dir_name) {
+		if(buff_dev_name)
+			kfree(buff_dev_name);
+		if(buff_dir_name)
+			kfree(buff_dir_name);
 		return -ENOMEM;
 	}
 	ret_dev=copy_from_user(buff_dev_name,dev_name,PATH_MAX);
