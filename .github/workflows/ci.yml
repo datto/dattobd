@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Make manifest
-        run: echo ${GITHUB_RUN_NUMBER} >> latest
+        run: echo ${GITHUB_RUN_NUMBER} > latest
 
       - name: Upload manifest
         run: repobuild/upload.sh
