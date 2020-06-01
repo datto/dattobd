@@ -1,0 +1,85 @@
+---
+name: ci
+on: 
+  - push
+
+env:
+  AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION:    ${{ secrets.AWS_REGION }}
+
+jobs:
+  build-packages:
+    name: Build Packages
+    runs-on:
+      - build
+      - self-hosted
+      - ${{ matrix.distro }}
+      - ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        distro: [
+          debian8, debian9, debian10,
+          centos7, centos8,
+          amazon2,
+          fedora31, fedora32
+        ]
+        arch: [ amd64 ]
+
+    steps:
+      - name: Checkout sources 
+        uses: actions/checkout@v2
+
+      - name: Set ENV
+        run: |
+          pkg_type=rpm
+          [ -f "/etc/debian_version" ] && pkg_type=deb
+          echo ::set-env name=PKG_TYPE::$(echo $pkg_type)
+          echo ::set-env name=SOURCE_BRANCH::$(git rev-parse --abbrev-ref HEAD)
+
+      - name: Build packages
+        run: make ${PKG_TYPE}
+
+      - name: Collect artifacts
+        run: repobuild/collect_artifacts.sh
+
+      - name: Upload artifacts
+        run: repobuild/upload.sh
+          --source repobuild/artifacts/
+          --bucket artifacts.assur.io
+          --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE}
+          --exclude *GPG-KEY
+
+  manifest:
+    name: Artifacts manifest
+    needs: build-packages
+    runs-on:
+      - build
+      - Linux
+
+    steps:
+      - name: Make manifest
+        run: echo ${GITHUB_RUN_NUMBER} >> latest
+
+      - name: Upload manifest
+        run: repobuild/upload.sh
+          --source latest
+          --bucket artifacts.assur.io
+          --target /linux/elastio-snap/$(git rev-parse --abbrev-ref HEAD)
+
+  dispatch-packaging-repo:
+    name: Trigger repo upload
+    needs: manifest 
+    runs-on:
+      - build
+      - Linux
+
+    steps:
+      - name: Dispatch packaging repo
+        run: |
+          SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+          curl -XPOST -u "${{ secrets.REPO_HOOK_TOKEN }}" \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            -H "Content-Type: application/json" https://api.github.com/repos/elastio/packaging/dispatches \
+            --data '{ "event_type": "trigger_packages_repo", "client_payload": { "branch": "$SOURCE_BRANCH" } }'

@@ -17,18 +17,19 @@ declare -a RELEASE_FILES=("centos-release" "fedora-release" "debian_version" "sy
 
 # Make 'info' file with the artifacts details
 make_info () {
-if [ -z "$DRONE_BUILD_NUMBER" ]; then
-    DRONE_BUILD_NUMBER='local_build'
-    DRONE_SOURCE_BRANCH=`git rev-parse --abbrev-ref HEAD`
-    DRONE_COMMIT=`git rev-parse --short HEAD`
-fi
+BUILD_NUMBER='local_build'
+[ -n "$GITHUB_RUN_NUMBER" ] && BUILD_NUMBER=$GITHUB_RUN_NUMBER
+[ -n "$DRONE_BILD_NUMBER" ] && BUILD_NUMBER=$DRONE_BILD_NUMBER
+
+SOURCE_BRANCH=`git rev-parse --abbrev-ref HEAD`
+COMMIT_SHA=`git rev-parse --short HEAD`
 
 mkdir -p $out/Debian
 cat > $out/Debian/elastio-snap.info << INFO
-Branch:     $DRONE_SOURCE_BRANCH
-Rev:        $DRONE_COMMIT
+Branch:     $SOURCE_BRANCH
+Rev:        $COMMIT_SHA
 Version:    `grep Version: $dir/../dist/elastio-snap.spec | awk '{print $NF}'`
-Build:      $DRONE_BUILD_NUMBER
+Build:      $BUILD_NUMBER
 INFO
 }
 
