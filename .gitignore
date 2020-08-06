@@ -19,3 +19,6 @@ __pycache__/
 
 # Project directories
 pkgbuild/
+
+# Vagrant hidden dirs
+.github/vagrantfiles/**/.vagrant

@@ -12,10 +12,7 @@ jobs:
   build-packages:
     name: Build Packages
     runs-on:
-      - build
-      - self-hosted
-      - ${{ matrix.distro }}
-      - ${{ matrix.arch }}
+      - baremetal
 
     strategy:
       matrix:
@@ -33,30 +30,103 @@ jobs:
 
       - name: Set ENV
         run: |
-          pkg_type=rpm
-          [ -f "/etc/debian_version" ] && pkg_type=deb
-          echo ::set-env name=PKG_TYPE::$(echo $pkg_type)
-          echo ::set-env name=SOURCE_BRANCH::$(git rev-parse --abbrev-ref HEAD)
+          set -x
+          source_branch=$(git rev-parse --abbrev-ref HEAD)
+          echo source_branch:     $source_branch
+          echo ::set-env name=SOURCE_BRANCH::$(echo $source_branch)
+
+          dist_name=$(echo ${{ matrix.distro }} | grep -o -E '[a-z]+')
+          dist_name=$(d=${dist_name^} && echo ${d//os/OS})
+          dist_ver=$(echo ${{ matrix.distro }} | grep -o -E '[0-9]+')
+          case $dist_name in
+            Debian|Ubuntu) pkg_type=deb ;;
+            *)             pkg_type=rpm ;;
+          esac
+          runner_num=$(echo $GITHUB_WORKSPACE | grep -o -E '[0-9]+' | head -1)
+          echo ::set-env name=PKG_TYPE::$pkg_type
+          echo ::set-env name=DIST_NAME::$dist_name
+          echo ::set-env name=DIST_VER::$dist_ver
+          echo ::set-env name=RUNNER_NUM::$runner_num
+          echo ::set-env name=BOX_NAME::$(echo ${{ matrix.distro }}-${{ matrix.arch }}-build)
+          echo ::set-env name=INSTANCE_NAME::$(echo ${{ matrix.distro }}-${{ matrix.arch }}-build-$runner_num)
+
+      - name: Check ENV
+        run: |
+          set -eu
+          echo "The environment variables are set:"
+          echo SOURCE_BRANCH:       $SOURCE_BRANCH
+          echo PKG_TYPE:            $PKG_TYPE
+          echo DIST_NAME:           $DIST_NAME
+          echo DIST_VER:            $DIST_VER
+          echo RUNNER_NUM:          $RUNNER_NUM
+          echo BOX_NAME:            $BOX_NAME
+          echo INSTANCE_NAME:       $INSTANCE_NAME
+          echo LIBVIRT_DEFAULT_URI: $LIBVIRT_DEFAULT_URI
+
+      - name: Start a box
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          cd .github/vagrantfiles/$BOX_NAME
+          sed -i '/config.vm.define/c \    config.vm.define "'$INSTANCE_NAME'"' Vagrantfile
+
+          vm_id=$(vagrant global-status --prune | grep $INSTANCE_NAME | cut -d' ' -f1)
+          # it should never happen, but just in case...
+          [ ! -z "$vm_id" ] && vagrant destroy $vm_id --force
+          vagrant up
 
       - name: Build packages
-        run: make ${PKG_TYPE}
+        run: |
+          cd .github/vagrantfiles/$BOX_NAME
+          vagrant ssh -c 'cd elastio-snap && make ${PKG_TYPE}'
 
       - name: Collect artifacts
-        run: repobuild/collect_artifacts.sh
+        run: | 
+          cd .github/vagrantfiles/$BOX_NAME
+          vagrant ssh -c 'cd elastio-snap && repobuild/collect_artifacts.sh'
 
       - name: Upload artifacts
-        run: repobuild/upload.sh
-          --source repobuild/artifacts/
-          --bucket artifacts.assur.io
-          --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE}
-          --exclude *GPG-KEY
+        run: |
+          cd .github/vagrantfiles/$BOX_NAME
+          vagrant ssh -c 'cd elastio-snap && AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh \
+            --source repobuild/artifacts/ \
+            --bucket artifacts.assur.io \
+            --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE} \
+            --exclude *GPG-KEY'
+
+      - name: Destroy a box
+        if: always()
+        run: |
+          cd .github/vagrantfiles/$BOX_NAME
+
+          # 'vagrant halt' hungs on Debian 8. Thus, just destroy. It's a bit brutal, but even faster...
+          vagrant destroy --force
+
+          # This should never happen, but as a "last-ditch foul"
+          # in the football, use virsh commands to find and remove lasts of the vagrant image. And then fail a build
+          # to notice this problem (get a red card and go away from the field, yeah).
+          res=0
+          if virsh list --all | grep -q ${BOX_NAME}_${INSTANCE_NAME} ; then
+              virsh destroy ${BOX_NAME}_${INSTANCE_NAME}
+              virsh undefine ${BOX_NAME}_${INSTANCE_NAME}
+              echo "The vagrant box ${BOX_NAME}_${INSTANCE_NAME} was not removed by the 'vagrant destroy --force' and now removed by virsh."
+              res=1
+          fi
+
+          if virsh vol-list default | grep -q ${BOX_NAME}_${INSTANCE_NAME}.img ; then
+              virsh vol-delete --pool default ${BOX_NAME}_${INSTANCE_NAME}.img
+              echo "${BOX_NAME}_${INSTANCE_NAME}.img was not removed by the 'vagrant destroy --force' and now removed by virsh."
+              res=2
+          fi
+
+          exit $res
 
   manifest:
     name: Artifacts manifest
     needs: build-packages
     runs-on:
-      - build
-      - Linux
+      - baremetal
 
     steps:
       - name: Make manifest
@@ -72,8 +142,7 @@ jobs:
     name: Trigger repo upload
     needs: manifest 
     runs-on:
-      - build
-      - Linux
+      - baremetal
 
     steps:
       - name: Dispatch packaging repo
