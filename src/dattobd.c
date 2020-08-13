@@ -934,6 +934,7 @@ static const struct seq_operations dattobd_seq_proc_ops = {
 	.show = dattobd_proc_show,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static const struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = dattobd_proc_open,
@@ -941,6 +942,22 @@ static const struct file_operations dattobd_proc_fops = {
 	.llseek = seq_lseek,
 	.release = dattobd_proc_release,
 };
+#else
+static const struct proc_ops dattobd_proc_fops = {
+	.proc_open = dattobd_proc_open,
+	.proc_read = seq_read,
+	//.proc_write ,
+	.proc_lseek = seq_lseek,
+	.proc_release = dattobd_proc_release,
+	//.__poll_t,
+	///proc_ioctl,
+#ifdef CONFIG_COMPAT
+	//.proc_compat_ioctl,
+#endif
+	//.proc_mmap,
+	//.proc_get_unmapped_area,
+};
+#endif
 
 static int major;
 static struct mutex ioctl_mutex;
@@ -3208,6 +3225,12 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	struct snap_device *dev;
 	struct request_queue *q = bdev_get_queue(bdev);
 
+	//since kernel 5.8 make_request_fn can be null.
+	if(q->make_request_fn == NULL){
+		LOG_ERROR(-EINVAL, "make_request_fn is null");
+		return -EINVAL;
+	}
+
 	if(q->make_request_fn != tracing_mrf){
 		*mrf = q->make_request_fn;
 		return 0;
@@ -3610,7 +3633,11 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//allocate request queue
 	LOG_DEBUG("allocating queue");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
 	dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
+#else
+	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
+#endif	
 	if(!dev->sd_queue){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating request queue");
@@ -3619,8 +3646,9 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//register request handler
 	LOG_DEBUG("setting up make request function");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)	
 	blk_queue_make_request(dev->sd_queue, snap_mrf);
-
+#endif
 	//give our request queue the same properties as the base device's
 	LOG_DEBUG("setting queue limits");
 	blk_set_stacking_limits(&dev->sd_queue->limits);
