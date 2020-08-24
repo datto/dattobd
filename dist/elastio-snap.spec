@@ -34,7 +34,6 @@
 # and we need it to be /bin/bash, so we set it here.
 %if "%{_vendor}" == "debbuild"
 %global _buildshell /bin/bash
-%global ___build_args %{nil}
 %endif
 
 # Set up the correct DKMS module name, per Debian convention for Debian/Ubuntu,
@@ -395,7 +394,7 @@ if [ $1 -eq 0 ]; then
 %endif
     lsmod | grep %{name} >& /dev/null
     if [ $? -eq 0 ]; then
-        modprobe -r %{name}
+        modprobe -r %{name} || :
     fi
 fi
 
@@ -406,7 +405,7 @@ fi
 
 %post -n %{dkmsname}
 
-rmmod %{name} &> /dev/null
+rmmod %{name} &> /dev/null || :
 
 %if "%{_vendor}" == "debbuild"
 if [ "$1" = "configure" ]; then
@@ -425,15 +424,15 @@ fi
 # Generate initramfs
 if type "dracut" &> /dev/null; then
     echo "Configuring dracut, please wait..."
-    dracut -f
+    dracut -f || :
 elif type "mkinitrd" &> /dev/null; then
     echo "Configuring initrd, please wait..."
-    mkinitrd
+    mkinitrd || :
 elif type "update-initramfs" &> /dev/null; then
     echo "Configuring initramfs, please wait..."
-    update-initramfs -u
+    update-initramfs -u || :
 fi
-sleep 1
+sleep 1 || :
 %endif
 
 
@@ -447,13 +446,13 @@ if [ $1 -eq 0 ]; then
 
         if type "dracut" &> /dev/null; then
                 echo "Configuring dracut, please wait..."
-                dracut -f
+                dracut -f || :
         elif type "mkinitrd" &> /dev/null; then
                 echo "Configuring initrd, please wait..."
-                mkinitrd
+                mkinitrd || :
         elif type "update-initramfs" &> /dev/null; then
                 echo "Configuring initramfs, please wait..."
-                update-initramfs -u
+                update-initramfs -u || :
         fi
 fi
 %endif
