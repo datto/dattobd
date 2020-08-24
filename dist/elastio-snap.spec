@@ -1,5 +1,5 @@
 # debbuild doesn't define _usrsrc yet
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %global _usrsrc %{_prefix}/src
 %endif
 
@@ -32,14 +32,14 @@
 
 # On Debian/Ubuntu systems, /bin/sh usually points to /bin/dash,
 # and we need it to be /bin/bash, so we set it here.
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %global _buildshell /bin/bash
 %global ___build_args %{nil}
 %endif
 
 # Set up the correct DKMS module name, per Debian convention for Debian/Ubuntu,
 # and use the other name, per convention on all other distros.
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %global dkmsname %{name}-dkms
 %else
 %global dkmsname dkms-%{name}
@@ -47,7 +47,7 @@
 
 # SUSE Linux does not define the dist tag,
 # so we must define it manually
-%if %{_vendor} == "suse"
+%if "%{_vendor}" == "suse"
 %global dist .suse%{?suse_version}
 
 # If SLE 11, redefine it to use SLE prefix
@@ -75,12 +75,12 @@
 
 %endif
 
-%if %{_vendor} != "debbuild"
+%if "%{_vendor}" != "debbuild"
 %global rpm_dkms_opt 1
 %endif
 
 # Set the libdir correctly for Debian/Ubuntu systems
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %global _libdir %{_prefix}/lib/%(%{__dpkg_architecture} -qDEB_HOST_MULTIARCH)
 %endif
 
@@ -88,7 +88,7 @@
 %global libprefix libelastio-snap
 %global libsover 1
 
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %global devsuffix dev
 %else
 %global devsuffix devel
@@ -111,7 +111,7 @@ Version:         0.10.13
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 Packager:        Elastio Software Packagers <packages@elastio.com>
 Group:           kernel
 License:         GPL-2.0
@@ -145,7 +145,7 @@ live image snapshots through block devices.
 
 %package -n %{libname}
 Summary:         Library for communicating with %{name} kernel module
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 Group:           libs
 License:         LGPL-2.1+
 %else
@@ -164,7 +164,7 @@ The library for communicating with the %{name} kernel module.
 
 %package -n %{devname}
 Summary:         Files for developing applications to use %{name}.
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 Group:           libdevel
 License:         LGPL-2.1+
 %else
@@ -185,7 +185,7 @@ to use %{name}.
 
 %package utils
 Summary:         Utilities for using %{name} kernel module
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 Group:           admin
 %else
 %if 0%{?suse_version}
@@ -206,7 +206,7 @@ Utilities for %{name} to use the kernel module.
 
 %package -n %{dkmsname}
 Summary:         Kernel module source for %{name} managed by DKMS
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 Group:           kernel
 %else
 %if 0%{?suse_version}
@@ -241,7 +241,7 @@ Requires:        perl
 # Dependencies for actually building the kmod
 Requires:        make
 
-%if %{_vendor} != "debbuild"
+%if "%{_vendor}" != "debbuild"
 %if 0%{?rhel} >= 6 || 0%{?suse_version} >= 1210 || 0%{?fedora}
 # With RPM 4.9.0 and newer, it's possible to give transaction
 # hints to ensure some kind of ordering for transactions using
@@ -314,7 +314,7 @@ sed -e "s:@prefix@:%{_prefix}:g" \
 
 
 # Generate symbols for library package (Debian/Ubuntu only)
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 mkdir -p %{buildroot}/%{libname}/DEBIAN
 dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover}.* -O%{buildroot}/%{libname}/DEBIAN/symbols
 %endif
@@ -388,7 +388,7 @@ find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
 
 %preun -n %{dkmsname}
 
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 %else
 if [ $1 -eq 0 ]; then
@@ -408,7 +408,7 @@ fi
 
 rmmod %{name} &> /dev/null
 
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 if [ "$1" = "configure" ]; then
 %else
 if [ "$1" -ge "1" ]; then
@@ -499,11 +499,11 @@ rm -rf %{buildroot}
 %endif
 %endif
 %doc README.md doc/STRUCTURE.md
-%if %{_vendor} == "redhat"
+%if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
 %else
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %license dist/copyright
 %else
 %doc COPYING* LICENSING.md
@@ -515,11 +515,11 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %endif
 %{_libdir}/libelastio-snap.so.%{libsover}
-%if %{_vendor} == "redhat"
+%if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
 %else
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %license dist/copyright
 %else
 %doc COPYING* LICENSING.md
@@ -533,11 +533,11 @@ rm -rf %{buildroot}
 %{_libdir}/libelastio-snap.so
 %{_libdir}/pkgconfig/libelastio-snap.pc
 %{_includedir}/elastio-snap/
-%if %{_vendor} == "redhat"
+%if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
 %else
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %license dist/copyright
 %else
 %doc COPYING* LICENSING.md
@@ -570,11 +570,11 @@ rm -rf %{buildroot}
 %{_sysconfdir}/kernel/postinst.d/50-elastio-snap
 %endif
 %doc README.md
-%if %{_vendor} == "redhat"
+%if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
 %license COPYING* LICENSING.md
 %else
-%if %{_vendor} == "debbuild"
+%if "%{_vendor}" == "debbuild"
 %license dist/copyright
 %else
 %doc COPYING* LICENSING.md
