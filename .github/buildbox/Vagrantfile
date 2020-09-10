@@ -1,4 +1,11 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
 Vagrant.require_version ">= 1.6.2"
+
+$box_version=">= 20.9.9"
+
+pid = Process.pid
 
 $set_environment_variables = <<ENV_VARS_SCRIPT
 gpg_pub_key_file="/tmp/gpg_pub.key"
@@ -24,13 +31,45 @@ ENV_VARS_SCRIPT
 
 DISTROS = [ "debian8", "debian9", "debian10", "amazon2", "centos6", "centos7", "centos8", "fedora31", "fedora32" ]
 
+# NOTE: This environment variable should be set to enable triggers of the type "action".
+# The actions are used to make a lock around Vagrant::Action::Builtin::BoxAdd to avoid 
+# a problem, when 2 instances of the same box are "uping" and downloading new box (or version) image.
+# Vagrant uses same temporary file for all concurrent downloads. As result, it's corrupted.
+# Setting it just for the 'vagrnat up'. 
+ENV['VAGRANT_EXPERIMENTAL']='typed_triggers' if ARGV.include?('up')
+
 Vagrant.configure("2") do |config|
 
   DISTROS.each do |distro|
     box = "#{distro}-amd64-build"
     config.vm.define "#{box}-#{ENV['RUNNER_NUM']}", autostart: false do |b|
       b.vm.box = "#{box}"
-      b.vm.box_url = [ "https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/devboxes/master/#{box}/#{box}.box" ]
+      b.vm.box_url = [ "https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/devboxes/master/#{box}.json" ]
+      b.vm.box_version = $box_version
+    end
+
+    config.trigger.before :"Vagrant::Action::Builtin::BoxAdd", type: :action do |trigger|
+      trigger.name = "Lock box add"
+      trigger.info = "Locking 'box add' action for the box '#{box}'!"
+      trigger.run = { inline: <<-LOCK_SCRIPT
+        bash -c 'touch /tmp/#{box}.#{pid}
+                 pids=$(ls /tmp/#{box}.* | grep -v #{pid} | cut -d'.' -f2)
+                 for pid in ${pids[@]}; do
+                   if ps -A -o pid | grep -q $pid ; then
+                     echo "Waiting for vagrant box add with PID: $pid"
+                     tail --pid=$pid -f /dev/null
+                   else
+                     rm -f /tmp/#{box}.$pid
+                   fi
+                 done'
+        LOCK_SCRIPT
+      }
+    end
+
+    config.trigger.after :"Vagrant::Action::Builtin::BoxAdd", type: :action do |trigger|
+      trigger.name = "Unlock box add"
+      trigger.info = "Unlocking 'box add' action for the box '#{box}'!"
+      trigger.run = {inline: "rm /tmp/#{box}.#{pid}" }
     end
   end
 
