@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set ENV
+        if: always()
         run: |
           set -x
           source_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -66,6 +67,7 @@ jobs:
           echo LIBVIRT_DEFAULT_URI: $LIBVIRT_DEFAULT_URI
 
       - name: Start a box
+        if: always()
         env:
           AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
