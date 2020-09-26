@@ -5,9 +5,12 @@
  * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
+// 2.6.25 <= kernel_version < 5.6
+
 #include "includes.h"
 
 static inline void dummy(void){
-	struct proc_dir_entry *ent = proc_create("file", 0, NULL, NULL);
+ 	static const struct file_operations file_ops;
+	struct proc_dir_entry *ent = proc_create("file", 0, NULL, &file_ops);
 	(void)ent;
 }

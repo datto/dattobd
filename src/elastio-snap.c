@@ -580,7 +580,7 @@ static inline void elastio_snap_inode_unlock(struct inode *inode){
 	#define elastio_snap_inode_unlock inode_unlock
 #endif
 
-#ifndef HAVE_PROC_CREATE
+#if !defined HAVE_PROC_CREATE_FN_FILE_OPERATIONS && !defined HAVE_PROC_CREATE_FN_PROC_OPS
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 static inline struct proc_dir_entry *proc_create(const char *name, mode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops){
 	struct proc_dir_entry *ent;
@@ -919,6 +919,14 @@ static const struct seq_operations elastio_snap_seq_proc_ops = {
 	.show = elastio_snap_proc_show,
 };
 
+#ifdef HAVE_PROC_CREATE_FN_PROC_OPS
+static const struct proc_ops elastio_snap_proc_fops = {
+	.proc_open = elastio_snap_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = elastio_snap_proc_release,
+};
+#else
 static const struct file_operations elastio_snap_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = elastio_snap_proc_open,
@@ -926,6 +934,7 @@ static const struct file_operations elastio_snap_proc_fops = {
 	.llseek = seq_lseek,
 	.release = elastio_snap_proc_release,
 };
+#endif
 
 static int major;
 static struct mutex ioctl_mutex;
