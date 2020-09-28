@@ -19,7 +19,7 @@ The repository install package `elastio-repo` is available for Amazon Linux 2.
 
 ```bash
 # Install repo package
-sudo yum localinstall https://repo.assur.io/master/linux/rpm/Amazon/$(rpm -E %%amzn)/x86_64/Packages/elastio-repo-0.0.2-1.amzn$(rpm -E %amzn).noarch.rpm
+sudo yum localinstall https://repo.assur.io/master/linux/rpm/Amazon/$(rpm -E %amzn)/x86_64/Packages/elastio-repo-0.0.2-1.amzn$(rpm -E %amzn).noarch.rpm
 ```
 
 #### Fedora
