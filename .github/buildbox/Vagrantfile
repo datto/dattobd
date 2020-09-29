@@ -15,7 +15,7 @@ echo "#{ENV['GPG_PUB_KEY']}" > $gpg_pub_key_file
 tee /etc/profile.d/set_build_env.sh > /dev/null <<EOF
 export AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']}
 export AWS_DEFAULT_REGION=#{ENV['AWS_DEFAULT_REGION']}
-export SOURCE_BRANCH=#{ENV['SOURCE_BRANCH']}
+export SOURCE_BRANCH=\"#{ENV['SOURCE_BRANCH']}\"
 export REPO_PATH=#{ENV['REPO_PATH']}
 export PKG_TYPE=#{ENV['PKG_TYPE']}
 export DIST_NAME=#{ENV['DIST_NAME']}

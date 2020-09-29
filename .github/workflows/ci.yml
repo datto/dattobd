@@ -30,53 +30,20 @@ jobs:
 
       - name: Set ENV
         if: always()
-        run: |
-          set -x
-          source_branch=$(git rev-parse --abbrev-ref HEAD)
-          echo source_branch:     $source_branch
-          echo ::set-env name=SOURCE_BRANCH::$(echo $source_branch)
-
-          dist_name=$(echo ${{ matrix.distro }} | grep -o -E '[a-z]+')
-          dist_name=$(d=${dist_name^} && echo ${d//os/OS})
-          dist_ver=$(echo ${{ matrix.distro }} | grep -o -E '[0-9]+')
-          case $dist_name in
-            Debian|Ubuntu) pkg_type=deb ;;
-            *)             pkg_type=rpm ;;
-          esac
-          runner_num=$(echo $GITHUB_WORKSPACE | grep -o -E '[0-9]+' | head -1)
-          echo ::set-env name=PKG_TYPE::$pkg_type
-          echo ::set-env name=DIST_NAME::$dist_name
-          echo ::set-env name=DIST_VER::$dist_ver
-          echo ::set-env name=RUNNER_NUM::$runner_num
-          echo ::set-env name=BOX_DIR::".github/buildbox"
-          echo ::set-env name=BOX_NAME::$(echo ${{ matrix.distro }}-${{ matrix.arch }}-build)
-          echo ::set-env name=INSTANCE_NAME::$(echo ${{ matrix.distro }}-${{ matrix.arch }}-build-$runner_num)
+        env:
+          DISTRO: ${{ matrix.distro }}
+          ARCH:   ${{ matrix.arch }}
+        run: .github/scripts/set_env.sh
 
       - name: Check ENV
-        run: |
-          set -eu
-          echo "The environment variables are set:"
-          echo SOURCE_BRANCH:       $SOURCE_BRANCH
-          echo PKG_TYPE:            $PKG_TYPE
-          echo DIST_NAME:           $DIST_NAME
-          echo DIST_VER:            $DIST_VER
-          echo RUNNER_NUM:          $RUNNER_NUM
-          echo BOX_DIR:             $BOX_DIR
-          echo BOX_NAME:            $BOX_NAME
-          echo INSTANCE_NAME:       $INSTANCE_NAME
-          echo LIBVIRT_DEFAULT_URI: $LIBVIRT_DEFAULT_URI
+        run: .github/scripts/check_env.sh
 
       - name: Start a box
         if: always()
         env:
           AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          cd $BOX_DIR
-          vm_id=$(vagrant global-status --prune | grep $INSTANCE_NAME | cut -d' ' -f1)
-          # it should never happen, but just in case...
-          [ ! -z "$vm_id" ] && vagrant destroy $vm_id --force
-          vagrant up $INSTANCE_NAME
+        run: .github/scripts/start_box.sh
 
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
@@ -96,33 +63,7 @@ jobs:
 
       - name: Destroy a box
         if: always()
-        run: |
-          cd $BOX_DIR
-
-          # 'vagrant halt' hungs on Debian 8. Thus, just destroy. It's a bit brutal, but even faster...
-          vagrant destroy $INSTANCE_NAME --force && exit 0
-          echo "Failed to destroy box $INSTANCE_NAME by the 'vagrant destroy'."
-
-          # This should never happen, but as a "last-ditch foul"
-          # in the football, use virsh commands to find and remove lasts of the vagrant image. And then fail a build
-          # to notice this problem (get a red card and go away from the field, yeah).
-          res=0
-          # Name of the dir with the Vagrantfile is the prefix for the VM name.
-          dir=${BOX_DIR##*/}
-          if virsh list --all | grep -q ${dir}_${INSTANCE_NAME} ; then
-              virsh destroy ${dir}_${INSTANCE_NAME}
-              virsh undefine ${dir}_${INSTANCE_NAME}
-              echo "The vagrant box ${dir}_${INSTANCE_NAME} was not removed by the 'vagrant destroy --force' and now removed by virsh."
-              res=1
-          fi
-
-          if virsh vol-list default | grep -q ${dir}_${INSTANCE_NAME}.img ; then
-              virsh vol-delete --pool default ${dir}_${INSTANCE_NAME}.img
-              echo "${dir}_${INSTANCE_NAME}.img was not removed by the 'vagrant destroy --force' and now removed by virsh."
-              res=2
-          fi
-
-          exit $res
+        run: .github/scripts/destroy_box.sh
 
   manifest:
     name: Artifacts manifest
@@ -132,13 +73,13 @@ jobs:
 
     steps:
       - name: Make manifest
-        run: echo ${GITHUB_RUN_NUMBER} > latest
+        run: echo ${{env.GITHUB_RUN_NUMBER}} > latest
 
       - name: Upload manifest
         run: repobuild/upload.sh
           --source latest
           --bucket artifacts.assur.io
-          --target /linux/elastio-snap/$(git rev-parse --abbrev-ref HEAD)
+          --target /linux/elastio-snap/$(.github/scripts/detect_branch.sh)
 
   dispatch-packaging-repo:
     name: Trigger repo upload
@@ -148,13 +89,6 @@ jobs:
 
     steps:
       - name: Dispatch packaging repo
-        run: |
-          SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-          echo "Trigger repo build for the branch $SOURCE_BRANCH"
-          where_from="from"
-          [ "$GITHUB_EVENT_NAME" == "push" ] && where_from="to"
-          set -x
-          curl -XPOST -u "${{ secrets.REPO_HOOK_TOKEN }}" \
-            -H "Accept: application/vnd.github.everest-preview+json" \
-            -H "Content-Type: application/json" https://api.github.com/repos/elastio/packaging/dispatches \
-            --data '{ "event_type": "elastio-snap #'$GITHUB_RUN_NUMBER': '$GITHUB_EVENT_NAME' '$where_from' '$SOURCE_BRANCH'", "client_payload": { "branch": "'$SOURCE_BRANCH'" } }'
+        env:
+          REPO_HOOK_TOKEN: ${{ secrets.REPO_HOOK_TOKEN }}
+        run: .github/scripts/dispatch_packaging.sh
