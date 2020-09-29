@@ -5,8 +5,8 @@ dist_name=$(echo $DISTRO | grep -o -E '[a-z]+')
 dist_name=$(d=${dist_name^} && echo ${d//os/OS})
 dist_ver=$(echo $DISTRO | grep -o -E '[0-9]+')
 case $dist_name in
-  Debian|Ubuntu) pkg_type=deb ;;
-  *)             pkg_type=rpm ;;
+    Debian|Ubuntu) pkg_type=deb ;;
+    *)             pkg_type=rpm ;;
 esac
 runner_num=$(echo $GITHUB_WORKSPACE | grep -o -E '[0-9]+' | head -1)
 echo ::set-env name=PKG_TYPE::$pkg_type
