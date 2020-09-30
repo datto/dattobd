@@ -10,7 +10,7 @@ import errno
 import os
 import unittest
 
-import elastio-snap
+import elastio_snap
 import util
 from devicetestcase import DeviceTestCase
 
@@ -25,56 +25,56 @@ class TestSetup(DeviceTestCase):
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
 
     def test_setup_invalid_minor(self):
-        self.assertEqual(elastio-snap.setup(1000, self.device, self.cow_full_path), errno.EINVAL)
+        self.assertEqual(elastio_snap.setup(1000, self.device, self.cow_full_path), errno.EINVAL)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_volume_path_is_dir(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.mount, self.cow_full_path), errno.ENOTBLK)
+        self.assertEqual(elastio_snap.setup(self.minor, self.mount, self.cow_full_path), errno.ENOTBLK)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_cow_file_path_is_dir(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.mount), errno.EISDIR)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.mount), errno.EISDIR)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_cow_file_on_wrong_device(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, "/tmp/{}".format(self.cow_file)), errno.EINVAL)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, "/tmp/{}".format(self.cow_file)), errno.EINVAL)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_unmounted_volume(self):
         util.unmount(self.mount)
         self.addCleanup(util.mount, self.device, self.mount)
 
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), errno.EINVAL)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), errno.EINVAL)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_readonly_volume(self):
         util.mount(self.device, self.mount, opts="remount,ro")
         self.addCleanup(util.mount, self.device, self.mount, opts="remount,rw")
 
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), errno.EINVAL)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), errno.EINVAL)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_setup_already_tracked_volume(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.addCleanup(elastio-snap.destroy, self.minor)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
 
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), errno.EBUSY)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), errno.EBUSY)
         self.assertTrue(os.path.exists(self.snap_device))
-        self.assertIsNotNone(elastio-snap.info(self.minor))
+        self.assertIsNotNone(elastio_snap.info(self.minor))
 
     def test_setup_volume(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.addCleanup(elastio-snap.destroy, self.minor)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
 
         self.assertTrue(os.path.exists(self.snap_device))
 
-        snapdev = elastio-snap.info(self.minor)
+        snapdev = elastio_snap.info(self.minor)
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], 0)

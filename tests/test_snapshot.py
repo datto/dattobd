@@ -10,7 +10,7 @@ import errno
 import os
 import unittest
 
-import elastio-snap
+import elastio_snap
 import util
 from devicetestcase import DeviceTestCase
 
@@ -37,8 +37,8 @@ class TestSnapshot(DeviceTestCase):
         os.sync()
         md5_orig = util.md5sum(testfile)
 
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.addCleanup(elastio-snap.destroy, self.minor)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
 
         with open(testfile, "w") as f:
             f.write("jumps over the lazy dog")
@@ -54,11 +54,11 @@ class TestSnapshot(DeviceTestCase):
     def test_track_writes(self):
         testfile = "{}/testfile".format(self.mount)
 
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.addCleanup(elastio-snap.destroy, self.minor)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
 
         os.sync()
-        info = elastio-snap.info(self.minor)
+        info = elastio_snap.info(self.minor)
         start_nr = info["nr_changed_blocks"]
         self.assertNotEqual(start_nr, 0)
 
@@ -68,18 +68,18 @@ class TestSnapshot(DeviceTestCase):
         self.addCleanup(os.remove, testfile)
         os.sync()
 
-        info = elastio-snap.info(self.minor)
+        info = elastio_snap.info(self.minor)
         end_nr = info["nr_changed_blocks"]
         self.assertGreater(end_nr, start_nr)
 
     def test_next_available_minor(self):
-        self.assertEqual(elastio-snap.get_free_minor(), 0)
+        self.assertEqual(elastio_snap.get_free_minor(), 0)
 
         # Explicitly use a minor of 0 for testing this function
-        self.assertEqual(elastio-snap.setup(0, self.device, self.cow_full_path), 0)
-        self.addCleanup(elastio-snap.destroy, 0)
+        self.assertEqual(elastio_snap.setup(0, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, 0)
 
-        self.assertEqual(elastio-snap.get_free_minor(), 1)
+        self.assertEqual(elastio_snap.get_free_minor(), 1)
 
 
 if __name__ == "__main__":

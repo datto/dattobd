@@ -10,7 +10,7 @@ import errno
 import os
 import unittest
 
-import elastio-snap
+import elastio_snap
 import util
 from devicetestcase import DeviceTestCase
 
@@ -26,65 +26,65 @@ class TestDestroy(DeviceTestCase):
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
 
     def test_destroy_nonexistent_device(self):
-        self.assertEqual(elastio-snap.destroy(self.minor), errno.ENOENT)
+        self.assertEqual(elastio_snap.destroy(self.minor), errno.ENOENT)
 
     def test_destroy_active_snapshot(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_destroy_active_incremental(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.assertEqual(elastio-snap.transition_to_incremental(self.minor), 0)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     @unittest.skip("Broken since 4.17 (see #144)")
     def test_destroy_dormant_snapshot(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
 
         util.unmount(self.mount)
         self.addCleanup(os.remove, self.cow_full_path)
         self.addCleanup(util.mount, self.device, self.mount)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     @unittest.skip("Broken since 4.17 (see #144)")
     def test_destroy_dormant_incremental(self):
-        self.assertEqual(elastio-snap.setup(self.minor, self.device, self.cow_full_path), 0)
-        self.assertEqual(elastio-snap.transition_to_incremental(self.minor), 0)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
 
         util.unmount(self.mount)
         self.addCleanup(os.remove, self.cow_full_path)
         self.addCleanup(util.mount, self.device, self.mount)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_destroy_unverified_snapshot(self):
         util.unmount(self.mount)
         self.addCleanup(util.mount, self.device, self.mount)
-        self.assertEqual(elastio-snap.reload_snapshot(self.minor, self.device, self.cow_reload_path), 0)
+        self.assertEqual(elastio_snap.reload_snapshot(self.minor, self.device, self.cow_reload_path), 0)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
     def test_destroy_unverified_incremental(self):
         util.unmount(self.mount)
         self.addCleanup(util.mount, self.device, self.mount)
-        self.assertEqual(elastio-snap.reload_incremental(self.minor, self.device, self.cow_reload_path), 0)
+        self.assertEqual(elastio_snap.reload_incremental(self.minor, self.device, self.cow_reload_path), 0)
 
-        self.assertEqual(elastio-snap.destroy(self.minor), 0)
+        self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio-snap.info(self.minor))
+        self.assertIsNone(elastio_snap.info(self.minor))
 
 
 if __name__ == "__main__":
