@@ -20,7 +20,8 @@ jobs:
           debian8, debian9, debian10,
           centos7, centos8,
           amazon2,
-          fedora31, fedora32
+          # TODO: Bring back Fedora when issue https://github.com/elastio/elastio-snap/issues/44 is fixed
+          # fedora31, fedora32
         ]
         arch: [ amd64 ]
 
@@ -52,6 +53,24 @@ jobs:
       - name: Collect artifacts
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'repobuild/collect_artifacts.sh'
         working-directory: ${{env.BOX_DIR}}
+
+      - name: Build kernel module
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make'
+        working-directory: ${{env.BOX_DIR}}
+
+      - name: Install kernel module
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make install'
+        working-directory: ${{env.BOX_DIR}}
+
+      - name: Run tests
+        # TODO: Bring back tests for Debian 9 when issue https://github.com/elastio/elastio-snap/issues/50
+        # is fixed
+        if: ${{ matrix.distro != 'debian9' }}
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'cd tests && sudo ./elio-test.sh'
+        working-directory: ${{env.BOX_DIR}}
+        # For now tests are taking 10-20 seconds. But they can hang.
+        # 5 minutes seems to be reasonable timeout.
+        timeout-minutes: 5
 
       - name: Upload artifacts
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh
