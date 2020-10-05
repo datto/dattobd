@@ -17,12 +17,9 @@ from devicetestcase import DeviceTestCase
 
 class TestDestroy(DeviceTestCase):
     def setUp(self):
-        self.device = "/dev/loop0"
-        self.mount = "/tmp/elastio-snap"
         self.cow_file = "cow.snap"
         self.cow_full_path = "{}/{}".format(self.mount, self.cow_file)
         self.cow_reload_path = "/{}".format(self.cow_file)
-        self.minor = 1
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
 
     def test_destroy_nonexistent_device(self):

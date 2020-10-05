@@ -17,11 +17,8 @@ from devicetestcase import DeviceTestCase
 
 class TestTransitionToIncremental(DeviceTestCase):
     def setUp(self):
-        self.device = "/dev/loop0"
-        self.mount = "/tmp/elastio-snap"
         self.cow_file = "cow.snap"
         self.cow_full_path = "{}/{}".format(self.mount, self.cow_file)
-        self.minor = 1
 
     def test_transition_nonexistent_snapshot(self):
         self.assertIsNone(elastio_snap.info(self.minor))

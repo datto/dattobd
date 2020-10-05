@@ -11,20 +11,23 @@ import unittest
 import kmod
 import util
 
+from random import randint
 
 @unittest.skipUnless(os.geteuid() == 0, "Must be run as root")
 class DeviceTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.backing_store = "/tmp/disk.img"
-        cls.device = "/dev/loop0"
-        cls.mount = "/tmp/elastio-snap"
+        cls.minor = randint(0, 23)
+        r =  randint(0, 999)
+        cls.backing_store = "/tmp/disk_{0:03d}.img".format(r)
+        cls.mount = "/tmp/elastio-snap_{0:03d}".format(r)
 
         cls.kmod = kmod.Module("../src/elastio-snap.ko")
         cls.kmod.load(debug=1)
 
         util.dd("/dev/zero", cls.backing_store, 256, bs="1M")
-        util.loop_create(cls.device, cls.backing_store)
+        cls.device = util.loop_create(cls.backing_store)
+
         util.mkfs(cls.device)
         os.makedirs(cls.mount, exist_ok=True)
         util.mount(cls.device, cls.mount)

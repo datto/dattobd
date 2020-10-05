@@ -45,9 +45,9 @@ def settle(timeout=20):
     subprocess.check_call(cmd, timeout=(timeout + 10))
 
 
-def loop_create(loop, path):
-    cmd = ["losetup", loop, path]
-    subprocess.check_call(cmd, timeout=10)
+def loop_create(path):
+    cmd = ["losetup", "--find", "--show", path]
+    return subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
 
 
 def loop_destroy(loop):

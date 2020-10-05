@@ -17,11 +17,8 @@ from devicetestcase import DeviceTestCase
 
 class TestSnapshot(DeviceTestCase):
     def setUp(self):
-        self.device = "/dev/loop0"
-        self.mount = "/tmp/elastio-snap"
         self.cow_file = "cow.snap"
         self.cow_full_path = "{}/{}".format(self.mount, self.cow_file)
-        self.minor = 1
 
         self.snap_mount = "/mnt"
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
