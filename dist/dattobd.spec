@@ -106,7 +106,7 @@
 
 
 Name:            dattobd
-Version:         0.10.13
+Version:         0.10.14
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -572,6 +572,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Oct 16 2020 Dakota Williams <drwilliams@datto.com> - 0.10.14
+- Fix for error message during kernel module installation
+- Fix for userspace pointer leak
+- Fix for deb9 SCSI drives
+- Fix for bare words comparison in rpm spec
+- Additional fix for multipage bios in kernel 5.4
+
 * Wed Feb 5 2020 Dakota Williams <drwilliams@datto.com> - 0.10.13
 - Fix for -Wframe-larger-than
 
