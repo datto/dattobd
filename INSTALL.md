@@ -31,11 +31,20 @@ sudo yum install https://repo.assur.io/master/linux/rpm/Fedora/$(rpm -E %fedora)
 
 ### Elastio Snap installation
 
-We are ready to install Elastio Snap packages after the repository package has been installed:
+We are ready to install Elastio Snap packages after the repository package has been installed. If you did `yum update` and your system is running the newest kernel available for `yum`, here we go:
 
 ```bash
 sudo yum install dkms-elastio-snap elastio-snap-utils
 ```
+
+***NOTE!!!*** **This is exactly the case for *Amazon Linux 2 EC2 instance* and may apply to other RPM based systems!**  
+If your machine is running **NOT** the most recent Linux kernel availeble by yum. And you aren't going to do `yum update` and **reboot** machine to the fresh kernel before Elastio Snap installation. Or you are just not sure about freshness of the kernel. Please install `kernel-devel-$(uname -r)` package in addition to the `dkms-elastio-snap` package. If you are going to update packages and kernel some time later, then add both `kernel-devel-$(uname -r)` for the current kernel and `kernel-devel` for all newer kernels. Proceed with the installation of Elastio Snap using this command instead of the previous example:
+
+```bash
+sudo yum install kernel-devel-$(uname -r) kernel-devel dkms-elastio-snap elastio-snap-utils
+```
+...  
+<sup>For more details about this installation behavior please see issues [#12](https://github.com/elastio/elastio-snap/issues/12) and [#55](https://github.com/elastio/elastio-snap/issues/55) and comments there.</sup>
 
 ### Repository package installation for DEB-based systems
 
