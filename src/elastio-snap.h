@@ -5,8 +5,8 @@
  * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
-#ifndef ASSURIO_SNAP_H_
-#define ASSURIO_SNAP_H_
+#ifndef ELASTIO_SNAP_H_
+#define ELASTIO_SNAP_H_
 
 #ifndef __KERNEL__
 #include <stdint.h>
@@ -15,8 +15,8 @@
 #include <linux/ioctl.h>
 #include <linux/limits.h>
 
-#define ASSURIO_SNAP_VERSION "0.10.13"
-#define ASSURIO_IOCTL_MAGIC 'A' // 0x41
+#define ELASTIO_SNAP_VERSION "0.10.13"
+#define ELASTIO_IOCTL_MAGIC 'A' // 0x41
 
 struct setup_params{
 	char *bdev; //name of block device to snapshot
@@ -81,14 +81,14 @@ struct elastio_snap_info{
 	unsigned long long nr_changed_blocks;
 };
 
-#define IOCTL_SETUP_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
-#define IOCTL_RELOAD_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 2, struct reload_params) //in: see above
-#define IOCTL_RELOAD_INC _IOW(ASSURIO_IOCTL_MAGIC, 3, struct reload_params) //in: see above
-#define IOCTL_DESTROY _IOW(ASSURIO_IOCTL_MAGIC, 4, unsigned int) //in: minor
-#define IOCTL_TRANSITION_INC _IOW(ASSURIO_IOCTL_MAGIC, 5, unsigned int) //in: minor
-#define IOCTL_TRANSITION_SNAP _IOW(ASSURIO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
-#define IOCTL_RECONFIGURE _IOW(ASSURIO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
-#define IOCTL_ASSURIO_SNAP_INFO _IOR(ASSURIO_IOCTL_MAGIC, 8, struct elastio_snap_info) //in: see above
-#define IOCTL_GET_FREE _IOR(ASSURIO_IOCTL_MAGIC, 9, int)
+#define IOCTL_SETUP_SNAP _IOW(ELASTIO_IOCTL_MAGIC, 1, struct setup_params) //in: see above
+#define IOCTL_RELOAD_SNAP _IOW(ELASTIO_IOCTL_MAGIC, 2, struct reload_params) //in: see above
+#define IOCTL_RELOAD_INC _IOW(ELASTIO_IOCTL_MAGIC, 3, struct reload_params) //in: see above
+#define IOCTL_DESTROY _IOW(ELASTIO_IOCTL_MAGIC, 4, unsigned int) //in: minor
+#define IOCTL_TRANSITION_INC _IOW(ELASTIO_IOCTL_MAGIC, 5, unsigned int) //in: minor
+#define IOCTL_TRANSITION_SNAP _IOW(ELASTIO_IOCTL_MAGIC, 6, struct transition_snap_params) //in: see above
+#define IOCTL_RECONFIGURE _IOW(ELASTIO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
+#define IOCTL_ELASTIO_SNAP_INFO _IOR(ELASTIO_IOCTL_MAGIC, 8, struct elastio_snap_info) //in: see above
+#define IOCTL_GET_FREE _IOR(ELASTIO_IOCTL_MAGIC, 9, int)
 
-#endif /* ASSURIO_SNAP_H_ */
+#endif /* ELASTIO_SNAP_H_ */

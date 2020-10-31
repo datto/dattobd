@@ -5,8 +5,8 @@
  * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
-#ifndef LIBASSURIO_SNAP_H_
-#define LIBASSURIO_SNAP_H_
+#ifndef LIBELASTIO_SNAP_H_
+#define LIBELASTIO_SNAP_H_
 
 #include "elastio-snap.h"
 
@@ -41,4 +41,4 @@ int elastio_snap_get_free_minor(void);
 }
 #endif
 
-#endif /* LIBASSURIO_SNAP_H_ */
+#endif /* LIBELASTIO_SNAP_H_ */

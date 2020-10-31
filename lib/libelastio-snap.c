@@ -136,7 +136,7 @@ int elastio_snap_info(unsigned int minor, struct elastio_snap_info *info){
 
 	info->minor = minor;
 
-	ret = ioctl(fd, IOCTL_ASSURIO_SNAP_INFO, info);
+	ret = ioctl(fd, IOCTL_ELASTIO_SNAP_INFO, info);
 
 	close(fd);
 	return ret;

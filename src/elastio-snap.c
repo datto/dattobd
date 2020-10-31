@@ -15,7 +15,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tom Caputi");
 MODULE_DESCRIPTION("Kernel module for supporting block device snapshots and incremental backups.");
-MODULE_VERSION(ASSURIO_SNAP_VERSION);
+MODULE_VERSION(ELASTIO_SNAP_VERSION);
 
 //printing macros
 #define LOG_DEBUG(fmt, args...) \
@@ -739,17 +739,17 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
 
 // As of Linux 5.2, __REQ_NR_BITS == 26
-#define __ASSURIO_SNAP_PASSTHROUGH 30    /* don't perform COW operation */
-#define ASSURIO_SNAP_PASSTHROUGH (1ULL << __ASSURIO_SNAP_PASSTHROUGH)
+#define __ELASTIO_SNAP_PASSTHROUGH 30    /* don't perform COW operation */
+#define ELASTIO_SNAP_PASSTHROUGH (1ULL << __ELASTIO_SNAP_PASSTHROUGH)
 
-#define ASSURIO_SNAP_DEFAULT_SNAP_DEVICES 24
-#define ASSURIO_SNAP_MAX_SNAP_DEVICES 255
+#define ELASTIO_SNAP_DEFAULT_SNAP_DEVICES 24
+#define ELASTIO_SNAP_MAX_SNAP_DEVICES 255
 
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 1;
 static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
-static unsigned int elastio_snap_max_snap_devices = ASSURIO_SNAP_DEFAULT_SNAP_DEVICES;
+static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
@@ -2744,7 +2744,7 @@ static int snap_mrf_thread(void *data){
 		bio = bio_queue_dequeue(bq);
 
 		//submit the original bio to the block IO layer
-		elastio_snap_bio_op_set_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
+		elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
 
 		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
@@ -3097,8 +3097,8 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
-		if(elastio_snap_bio_op_flagged(bio, ASSURIO_SNAP_PASSTHROUGH)){
-			elastio_snap_bio_op_clear_flag(bio, ASSURIO_SNAP_PASSTHROUGH);
+		if(elastio_snap_bio_op_flagged(bio, ELASTIO_SNAP_PASSTHROUGH)){
+			elastio_snap_bio_op_clear_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
 			goto call_orig;
 		}
 
@@ -4358,7 +4358,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		if(ret) break;
 
 		break;
-	case IOCTL_ASSURIO_SNAP_INFO:
+	case IOCTL_ELASTIO_SNAP_INFO:
 		//get params from user space
 		info = kmalloc(sizeof(struct elastio_snap_info), GFP_KERNEL);
 		if(!info){
@@ -5021,7 +5021,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 	//print the header if the "pointer" really an indication to do so
 	if(dev_ptr == SEQ_START_TOKEN){
 		seq_printf(m, "{\n");
-		seq_printf(m, "\t\"version\": \"%s\",\n", ASSURIO_SNAP_VERSION);
+		seq_printf(m, "\t\"version\": \"%s\",\n", ELASTIO_SNAP_VERSION);
 		seq_printf(m, "\t\"devices\": [\n");
 	}
 
@@ -5147,8 +5147,8 @@ static int __init agent_init(void){
 	mutex_init(&ioctl_mutex);
 
 	//init minor range
-	if(elastio_snap_max_snap_devices == 0 || elastio_snap_max_snap_devices > ASSURIO_SNAP_MAX_SNAP_DEVICES){
-		const unsigned int nr_devices = elastio_snap_max_snap_devices == 0 ? ASSURIO_SNAP_DEFAULT_SNAP_DEVICES : ASSURIO_SNAP_MAX_SNAP_DEVICES;
+	if(elastio_snap_max_snap_devices == 0 || elastio_snap_max_snap_devices > ELASTIO_SNAP_MAX_SNAP_DEVICES){
+		const unsigned int nr_devices = elastio_snap_max_snap_devices == 0 ? ELASTIO_SNAP_DEFAULT_SNAP_DEVICES : ELASTIO_SNAP_MAX_SNAP_DEVICES;
 		LOG_WARN("invalid number of snapshot devices (%u), setting to %u", elastio_snap_max_snap_devices, nr_devices);
 		elastio_snap_max_snap_devices = nr_devices;
 	}

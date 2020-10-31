@@ -5,8 +5,8 @@
  * Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
  */
 
-#ifndef ASSURIO_SNAP_INCLUDES_H_
-#define ASSURIO_SNAP_INCLUDES_H_
+#ifndef ELASTIO_SNAP_INCLUDES_H_
+#define ELASTIO_SNAP_INCLUDES_H_
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
