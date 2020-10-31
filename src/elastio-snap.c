@@ -3580,17 +3580,25 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	}
 
 	//allocate request queue
+#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+	LOG_DEBUG("allocating queue and setting up make request function");
+	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
+#else // HAVE_BLK_ALLOC_QUEUE_GFP_T
 	LOG_DEBUG("allocating queue");
 	dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
+#endif
+
 	if(!dev->sd_queue){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating request queue");
 		goto error;
 	}
 
+#ifdef HAVE_BLK_ALLOC_QUEUE_GFP_T 
 	//register request handler
 	LOG_DEBUG("setting up make request function");
 	blk_queue_make_request(dev->sd_queue, snap_mrf);
+#endif
 
 	//give our request queue the same properties as the base device's
 	LOG_DEBUG("setting queue limits");
