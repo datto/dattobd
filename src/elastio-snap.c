@@ -3218,7 +3218,9 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
+#ifndef HAVE_FREEZE_SUPER
 	struct super_block *sb = NULL;
+#endif
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
 
@@ -3227,6 +3229,15 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
+#ifdef HAVE_FREEZE_SUPER
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34)
+		ret = freeze_super(origsb);
+		if (ret){
+			LOG_ERROR((ret), "error freezing super for '%s': error", bdev_name);
+			elastio_snap_drop_super(origsb);
+			return ret;
+		}
+#else
 		sb = freeze_bdev(bdev);
 		if(!sb){
 			LOG_ERROR(-EFAULT, "error freezing '%s': null", bdev_name);
@@ -3237,6 +3248,10 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 			elastio_snap_drop_super(origsb);
 			return (int)PTR_ERR(sb);
 		}
+#endif
+	}
+	else{
+		LOG_WARN("warning: no super found for device '%s', unable to freeze it", bdev_name);
 	}
 
 	smp_wmb();
@@ -3260,7 +3275,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 		thaw_bdev(bdev, sb);
 #else
+#ifdef HAVE_FREEZE_SUPER
+		ret = thaw_super(origsb);
+#else
 		ret = thaw_bdev(bdev, sb);
+#endif
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.
