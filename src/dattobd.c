@@ -723,6 +723,9 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
 
+//maximum number of clones per traced bio
+#define MAX_CLONES_PER_BIO 10
+
 //macros for compilation
 #define MAYBE_UNUSED(x) (void)(x)
 
@@ -805,19 +808,13 @@ struct bio_sector_map{
 	struct bio *bio;
 	sector_t sect;
 	unsigned int size;
-	struct bio_sector_map *next;
-};
-
-struct bsector_list {
-	struct bio_sector_map* head;
-	struct bio_sector_map* tail;
 };
 
 struct tracing_params{
 	struct bio *orig_bio;
 	struct snap_device *dev;
 	atomic_t refs;
-	struct bsector_list bio_sects;
+	struct bio_sector_map bio_sects[MAX_CLONES_PER_BIO];
 };
 
 struct cow_section{
@@ -2402,8 +2399,6 @@ static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_par
 
 	tp->dev = dev;
 	tp->orig_bio = bio;
-	tp->bio_sects.head = NULL;
-	tp->bio_sects.tail = NULL;
 	atomic_set(&tp->refs, 1);
 
 	*tp_out = tp;
@@ -2417,42 +2412,10 @@ static void tp_get(struct tracing_params *tp){
 static void tp_put(struct tracing_params *tp){
 	//drop a reference to the tp
 	if(atomic_dec_and_test(&tp->refs)){
-		struct bio_sector_map *next, *curr = NULL;
-
 		//if there are no references left, its safe to release the orig_bio
 		bio_queue_add(&tp->dev->sd_orig_bios, tp->orig_bio);
-
-		// free nodes in the sector map list
-		for (curr = tp->bio_sects.head; curr != NULL; curr = next)
-		{
-			next = curr->next;
-			kfree(curr);
-		}
 		kfree(tp);
 	}
-}
-
-static int tp_add(struct tracing_params* tp, struct bio* bio) {
-	struct bio_sector_map* map;
-	map = kzalloc(1 * sizeof(struct bio_sector_map), GFP_NOIO);
-	if (!map) {
-		LOG_ERROR(-ENOMEM, "error allocating new bio_sector_map struct");
-		return -ENOMEM;
-	}
-
-	map->bio = bio;
-	map->sect = bio_sector(bio);
-	map->size = bio_size(bio);
-	map->next = NULL;
-	if (tp->bio_sects.head == NULL) {
-		tp->bio_sects.head = map;
-		tp->bio_sects.tail = map;
-	}
-	else {
-		tp->bio_sects.tail->next = map;
-		tp->bio_sects.tail = map;
-	}
-	return 0;
 }
 
 /****************************BIO HELPER FUNCTIONS*****************************/
@@ -2903,12 +2866,9 @@ static int inc_sset_thread(void *data){
 
 static void __on_bio_read_complete(struct bio *bio, int err){
 	int ret;
+	unsigned short i;
 	struct tracing_params *tp = bio->bi_private;
 	struct snap_device *dev = tp->dev;
-	struct bio_sector_map* map = NULL;
-#ifndef HAVE_BVEC_ITER
-	unsigned short i = 0;
-#endif
 
 	//check for read errors
 	if(err){
@@ -2921,13 +2881,19 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	dattobd_set_bio_ops(bio, REQ_OP_WRITE, 0);
 
 	//reset the bio iterator to its original state
-	for(map = tp->bio_sects.head; map != NULL && map->bio != NULL; map = map->next) {
-		if(bio == map->bio){
-			bio_sector(bio) = map->sect - dev->sd_sect_off;
-			bio_size(bio) = map->size;
+	for(i = 0; i < MAX_CLONES_PER_BIO && tp->bio_sects[i].bio != NULL; i++){
+		if(bio == tp->bio_sects[i].bio){
+			bio_sector(bio) = tp->bio_sects[i].sect - dev->sd_sect_off;
+			bio_size(bio) = tp->bio_sects[i].size;
 			bio_idx(bio) = 0;
 			break;
 		}
+	}
+
+	if(i == MAX_CLONES_PER_BIO){
+		ret = -EIO;
+		LOG_ERROR(ret, "clone not found in tp struct");
+		goto error;
 	}
 
 	/*
@@ -2994,7 +2960,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	struct bio *new_bio = NULL;
 	struct tracing_params *tp = NULL;
 	sector_t start_sect, end_sect;
-	unsigned int bytes, pages;
+	unsigned int bytes, pages, i = 0;
 
 	//if we don't need to cow this bio just call the real mrf normally
 	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
@@ -3013,9 +2979,16 @@ retry:
 	ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto error;
 
+	//make sure we don't excede the max number of bio clones that tp can hold
+	if(i >= MAX_CLONES_PER_BIO){
+		ret = -EFAULT;
+		goto error;
+	}
+
 	//set pointers for read clone
-	ret = tp_add(tp, bio);
-	if (ret) goto error;
+	tp->bio_sects[i].bio = new_bio;
+	tp->bio_sects[i].sect = bio_sector(new_bio);
+	tp->bio_sects[i].size = bio_size(new_bio);
 
 	atomic64_inc(&dev->sd_submitted_cnt);
 	smp_wmb();
@@ -3027,6 +3000,7 @@ retry:
 	if(bytes / PAGE_SIZE < pages){
 		start_sect += bytes / SECTOR_SIZE;
 		pages -= bytes / PAGE_SIZE;
+		i++;
 		goto retry;
 	}
 
