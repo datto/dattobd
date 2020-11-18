@@ -106,7 +106,7 @@
 
 
 Name:            dattobd
-Version:         0.10.14
+Version:         0.10.15
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -572,6 +572,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 18 2020 Neal Gompa <ngompa@datto.com> - 0.10.15
+- Revert "Fix for userspace pointer leak"
+- Revert "Fix for deb9 SCSI drives"
+- Revert "Additional fix for multipage bios in kernel 5.4"
+
 * Fri Oct 16 2020 Dakota Williams <drwilliams@datto.com> - 0.10.14
 - Fix for error message during kernel module installation
 - Fix for userspace pointer leak
