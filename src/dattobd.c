@@ -3014,7 +3014,7 @@ retry:
 	if(ret) goto error;
 
 	//set pointers for read clone
-	ret = tp_add(tp, bio);
+	ret = tp_add(tp, new_bio);
 	if (ret) goto error;
 
 	atomic64_inc(&dev->sd_submitted_cnt);
