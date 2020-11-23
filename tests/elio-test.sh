@@ -15,7 +15,7 @@ packman="apt-get"
 which yum >/dev/null && packman=yum
 which pip3 >/dev/null || $packman install -y python3-pip
 
-if ! pip3 list | grep -q cffi ; then
+if ! pip3 list --format=legacy 2>/dev/null | grep -q cffi ; then
     echo "Python module CFFI is not installed. Installing it..."
     pip3 install cffi
 fi

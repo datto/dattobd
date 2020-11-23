@@ -63,9 +63,6 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Run tests
-        # TODO: Bring back tests for Debian 9 when issue https://github.com/elastio/elastio-snap/issues/50
-        # is fixed
-        if: ${{ matrix.distro != 'debian9' }}
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'cd tests && sudo ./elio-test.sh'
         working-directory: ${{env.BOX_DIR}}
         # For now tests are taking 10-20 seconds. But they can hang.
