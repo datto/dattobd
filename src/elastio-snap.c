@@ -740,12 +740,16 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
 
 /* don't perform COW operation */
-#ifdef HAVE_ENUM_REQ_OP
+#if defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0) && LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
 /* special case for deb9's 4.9 train
  * Bit 30 conflicts with struct bio's bi_opf opcode bitfield, which occupies the top 3 bits of the member. If we set
  * that bit, it will mutate the operation that the bio is representing. Setting this to 28 puts this in an unused flag
  * for bi_opf (that flag means something in struct request's cmd_flags, but we're not setting that).
+ *
+ * Note: CentOS 7 has enum req_op starting from the version 7.4, kernel 3.10.0-693. But this enum has just 4 values
+ * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
+ * could be defined and equal to the 2 bits.
  */
 #define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
 #else
