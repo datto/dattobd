@@ -392,14 +392,12 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 %else
 if [ $1 -eq 0 ]; then
 %endif
-    lsmod | grep %{name} >& /dev/null
-    if [ $? -eq 0 ]; then
+    if lsmod | grep -q $(echo %{name} | tr '-' '_') ; then
         modprobe -r %{name} || :
     fi
 fi
 
-dkms status -m %{name} -v %{version} | grep %{name} >& /dev/null
-if [ $? -eq 0 ]; then
+if dkms status -m %{name} -v %{version} | grep -q %{name} ; then
     dkms remove -m %{name} -v %{version} --all %{?rpm_dkms_opt:--rpm_safe_upgrade}
 fi
 
