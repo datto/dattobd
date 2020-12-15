@@ -411,9 +411,11 @@ if [ "$1" = "configure" ]; then
 if [ "$1" -ge "1" ]; then
 %endif
     if [ -f /usr/lib/dkms/common.postinst ]; then
-        /usr/lib/dkms/common.postinst %{name} %{version}
-        exit $?
+        /usr/lib/dkms/common.postinst %{name} %{version} || exit $?
     fi
+%if "%{_vendor}" == "debbuild"
+    modinfo %{name} &> /dev/null && modprobe %{name} || :
+%endif
 fi
 
 
