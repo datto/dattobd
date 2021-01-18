@@ -120,7 +120,7 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size,0);
+	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size, 0);
 
 error:
 	perror("error interpreting setup snapshot parameters");
