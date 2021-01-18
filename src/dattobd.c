@@ -929,7 +929,7 @@ static const struct file_operations dattobd_proc_fops = {
 static int major;
 static struct mutex ioctl_mutex;
 static unsigned int highest_minor, lowest_minor;
-static struct snap_device **snap_devices;
+static struct snap_device **snap_devices, **should_wake_up_snap_devices;
 static struct proc_dir_entry *info_proc;
 static void **system_call_table = NULL;
 
@@ -978,7 +978,7 @@ error:
 	return ret;
 }
 
-static int get_setup_params(const struct setup_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *fallocated_space, unsigned long *cache_size){
+static int get_setup_params(const struct setup_params __user *in, unsigned int *minor, char **bdev_name, char **cow_path, unsigned long *fallocated_space, unsigned long *cache_size, unsigned int *should_wake_up){
 	int ret;
 	struct setup_params params;
 
@@ -1011,6 +1011,7 @@ static int get_setup_params(const struct setup_params __user *in, unsigned int *
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
 	*cache_size = params.cache_size;
+    *should_wake_up = params.should_wake_up;
 	return 0;
 
 error:
@@ -1023,6 +1024,7 @@ error:
 	*minor = 0;
 	*fallocated_space = 0;
 	*cache_size = 0;
+	*should_wake_up = 0;
 	return ret;
 }
 
@@ -3765,38 +3767,47 @@ static void tracer_destroy(struct snap_device *dev){
 	__tracer_destroy_base_dev(dev);
 }
 
-static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size){
+static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int ret;
 
-	set_bit(SNAPSHOT, &dev->sd_state);
-	set_bit(ACTIVE, &dev->sd_state);
-	clear_bit(UNVERIFIED, &dev->sd_state);
+    if(should_wake_up == 1 || should_wake_up == 2){
+        set_bit(SNAPSHOT, &dev->sd_state);
+        set_bit(ACTIVE, &dev->sd_state);
+        clear_bit(UNVERIFIED, &dev->sd_state);
 
-	//setup base device
-	ret = __tracer_setup_base_dev(dev, bdev_path);
-	if(ret) goto error;
+        //setup base device
+        ret = __tracer_setup_base_dev(dev, bdev_path);
+        if(ret) goto error;
 
-	//setup the cow manager
-	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, NULL, 1);
-	if(ret) goto error;
+        //setup the cow manager
+        ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, NULL, 1);
+        if(ret) goto error;
 
-	//setup the cow path
-	ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-	if(ret) goto error;
+        //setup the cow path
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        if(ret) goto error;
 
-	//setup the snapshot values
-	ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
-	if(ret) goto error;
-
-	//setup the cow thread and run it
-	ret = __tracer_setup_snap_cow_thread(dev, minor);
-	if(ret) goto error;
-
-	wake_up_process(dev->sd_cow_thread);
-
-	//inject the tracing function
-	ret = __tracer_setup_tracing(dev, minor);
-	if(ret) goto error;
+        //setup the snapshot values
+        ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
+        if(ret) goto error;
+        //setup the cow thread and run it
+        ret = __tracer_setup_snap_cow_thread(dev, minor);
+        if(ret) goto error;
+        if(should_wake_up == 1){
+            wake_up_process(dev->sd_cow_thread);
+            //inject the tracing function
+            ret = __tracer_setup_tracing(dev, minor);
+            if(ret) goto error;
+        }
+        else
+            should_wake_up_snap_devices[minor] = dev;
+    }
+    else if(should_wake_up == 3){
+        wake_up_process(dev->sd_cow_thread);
+        //inject the tracing function
+        ret = __tracer_setup_tracing(dev, minor);
+        if(ret) goto error;
+    }
 
 	return 0;
 
@@ -3915,52 +3926,67 @@ error:
 	return ret;
 }
 
-static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path, unsigned long fallocated_space){
+static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path, unsigned long fallocated_space, unsigned int should_wake_up){
 	int ret;
 	struct snap_device *dev;
+    if(should_wake_up == 1|| should_wake_up == 2){
+        //allocate new tracer
+        ret = tracer_alloc(&dev);
+        if(ret) return ret;
 
-	//allocate new tracer
-	ret = tracer_alloc(&dev);
-	if(ret) return ret;
+        set_bit(SNAPSHOT, &dev->sd_state);
+        set_bit(ACTIVE, &dev->sd_state);
+        clear_bit(UNVERIFIED, &dev->sd_state);
 
-	set_bit(SNAPSHOT, &dev->sd_state);
-	set_bit(ACTIVE, &dev->sd_state);
-	clear_bit(UNVERIFIED, &dev->sd_state);
+        fallocated_space = (fallocated_space)? fallocated_space : old_dev->sd_falloc_size;
 
-	fallocated_space = (fallocated_space)? fallocated_space : old_dev->sd_falloc_size;
+        //copy / set fields we need
+        __tracer_copy_base_dev(old_dev, dev);
 
-	//copy / set fields we need
-	__tracer_copy_base_dev(old_dev, dev);
+        //setup the cow manager
+        ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size, old_dev->sd_cow->uuid, old_dev->sd_cow->seqid + 1);
+        if(ret) goto error;
 
-	//setup the cow manager
-	ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size, old_dev->sd_cow->uuid, old_dev->sd_cow->seqid + 1);
-	if(ret) goto error;
+        //setup the cow path
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        if(ret) goto error;
 
-	//setup the cow path
-	ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-	if(ret) goto error;
+        //setup the snapshot values
+        ret = __tracer_setup_snap(dev, old_dev->sd_minor, dev->sd_base_dev, dev->sd_size);
+        if(ret) goto error;
 
-	//setup the snapshot values
-	ret = __tracer_setup_snap(dev, old_dev->sd_minor, dev->sd_base_dev, dev->sd_size);
-	if(ret) goto error;
+        //setup the cow thread
+        ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
+        if(ret) goto error;
+        if(should_wake_up == 1){
+                //start tracing (overwrites old_dev's tracing)
+                ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
+                if(ret) goto error;
 
-	//setup the cow thread
-	ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
-	if(ret) goto error;
+                //stop the old cow thread and start the new one
+                __tracer_destroy_cow_thread(old_dev);
+                wake_up_process(dev->sd_cow_thread);
 
-	//start tracing (overwrites old_dev's tracing)
-	ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
-	if(ret) goto error;
+                //destroy the unneeded fields of the old_dev and the old_dev itself
+                __tracer_destroy_cow_path(old_dev);
+                __tracer_destroy_cow_sync_and_free(old_dev);
+                kfree(old_dev);
+        }
+    }
+    else if (should_wake_up == 3){
+        //start tracing (overwrites old_dev's tracing)
+        ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
+        if(ret) goto error;
 
-	//stop the old cow thread and start the new one
-	__tracer_destroy_cow_thread(old_dev);
-	wake_up_process(dev->sd_cow_thread);
+        //stop the old cow thread and start the new one
+        __tracer_destroy_cow_thread(old_dev);
+        wake_up_process(dev->sd_cow_thread);
 
-	//destroy the unneeded fields of the old_dev and the old_dev itself
-	__tracer_destroy_cow_path(old_dev);
-	__tracer_destroy_cow_sync_and_free(old_dev);
-	kfree(old_dev);
-
+        //destroy the unneeded fields of the old_dev and the old_dev itself
+        __tracer_destroy_cow_path(old_dev);
+        __tracer_destroy_cow_sync_and_free(old_dev);
+        kfree(old_dev);
+    }
 	return 0;
 
 error:
@@ -4059,7 +4085,7 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	return 0;
 }
 
-static int __ioctl_setup(unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, int is_snap, int is_reload){
+static int __ioctl_setup(unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up, int is_snap, int is_reload){
 	int ret, is_mounted;
 	struct snap_device *dev = NULL;
 
@@ -4090,7 +4116,7 @@ static int __ioctl_setup(unsigned int minor, const char *bdev_path, const char *
 
 	//route to the appropriate setup function
 	if(is_snap){
-		if(is_mounted) ret = tracer_setup_active_snap(dev, minor, bdev_path, cow_path, fallocated_space, cache_size);
+		if(is_mounted) ret = tracer_setup_active_snap(dev, minor, bdev_path, cow_path, fallocated_space, cache_size, should_wake_up);
 		else ret = tracer_setup_unverified_snap(dev, minor, bdev_path, cow_path, cache_size);
 	}else{
 		if(!is_mounted) ret = tracer_setup_unverified_inc(dev, minor, bdev_path, cow_path, cache_size);
@@ -4110,9 +4136,9 @@ error:
 	if(dev) kfree(dev);
 	return ret;
 }
-#define ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size) __ioctl_setup(minor, bdev_path, cow_path, fallocated_space, cache_size, 1, 0)
-#define ioctl_reload_snap(minor, bdev_path, cow_path, cache_size) __ioctl_setup(minor, bdev_path, cow_path, 0, cache_size, 1, 1)
-#define ioctl_reload_inc(minor, bdev_path, cow_path, cache_size) __ioctl_setup(minor, bdev_path, cow_path, 0, cache_size, 0, 1)
+#define ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size, should_wake_up) __ioctl_setup(minor, bdev_path, cow_path, fallocated_space, cache_size, should_wake_up, 1, 0)
+#define ioctl_reload_snap(minor, bdev_path, cow_path, cache_size) __ioctl_setup(minor, bdev_path, cow_path, 0, cache_size, 1, 1, 1)
+#define ioctl_reload_inc(minor, bdev_path, cow_path, cache_size) __ioctl_setup(minor, bdev_path, cow_path, 0, cache_size, 1, 0, 1)
 
 static int ioctl_destroy(unsigned int minor){
 	int ret;
@@ -4196,7 +4222,7 @@ static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsig
 		goto error;
 	}
 
-	ret = tracer_active_inc_to_snap(dev, cow_path, fallocated_space);
+	ret = tracer_active_inc_to_snap(dev, cow_path, fallocated_space, 1);
 	if(ret) goto error;
 
 	return 0;
@@ -4267,12 +4293,58 @@ static int get_free_minor(void)
 	return -ENOENT;
 }
 
+static int wake_up_group(unsigned int wake_up_bit)
+{
+    int ret;
+	struct snap_device *dev;
+    int i;
+
+    /*dattobd_max_snap_devices = 24;*/
+    for(i = 0; i < 25; i++){
+        if(wake_up_bit & (1 << i)){
+            dev = should_wake_up_snap_devices[i];
+            ret = tracer_setup_active_snap(dev, i, 0, 0, 0, 0, 3);
+            if(ret) goto error;
+        }
+    }
+
+	return 0;
+
+error:
+	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
+	tracer_destroy(dev);
+	return ret;
+}
+
+static int wake_up_transition_group(unsigned int wake_up_bit)
+{
+    int ret;
+	struct snap_device *dev;
+    int i;
+
+    /*dattobd_max_snap_devices = 24;*/
+    for(i = 0; i < 25; i++){
+        if(wake_up_bit & (1 << i)){
+            dev = snap_devices[i];
+            ret = tracer_active_inc_to_snap(dev, dev->sd_cow_path, 0, 3);
+            if(ret) goto error;
+        }
+    }
+
+	return 0;
+
+error:
+	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
+	tracer_destroy(dev);
+	return ret;
+}
+
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	int ret, idx;
 	char *bdev_path = NULL;
 	char *cow_path = NULL;
 	struct dattobd_info *info = NULL;
-	unsigned int minor = 0;
+	unsigned int minor = 0, should_wake_up = 1, wake_up_bit = 0;
 	unsigned long fallocated_space = 0, cache_size = 0;
 
 	LOG_DEBUG("ioctl command received: %d", cmd);
@@ -4281,10 +4353,10 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	switch(cmd){
 	case IOCTL_SETUP_SNAP:
 		//get params from user space
-		ret = get_setup_params((struct setup_params __user *)arg, &minor, &bdev_path, &cow_path, &fallocated_space, &cache_size);
+		ret = get_setup_params((struct setup_params __user *)arg, &minor, &bdev_path, &cow_path, &fallocated_space, &cache_size, &should_wake_up);
 		if(ret) break;
 
-		ret = ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size);
+		ret = ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size, should_wake_up);
 		if(ret) break;
 
 		break;
@@ -4391,6 +4463,28 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		}
 
 		break;
+    case IOCTL_WAKE_UP_GROUP:
+		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
+		if(ret){
+			ret = -EFAULT;
+			LOG_ERROR(ret, "error copying wake_up_bit from user space");
+			break;
+		}
+
+        ret = wake_up_group(wake_up_bit);
+
+        break;
+    case IOCTL_WAKE_UP_TRANSITION_GROUP:
+		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
+		if(ret){
+			ret = -EFAULT;
+			LOG_ERROR(ret, "error copying wake_up_bit from user space");
+			break;
+		}
+
+        ret = wake_up_group(wake_up_bit);
+
+        break;
 	default:
 		ret = -EINVAL;
 		LOG_ERROR(ret, "invalid ioctl called");
@@ -5155,6 +5249,15 @@ static int __init agent_init(void){
 	LOG_DEBUG("allocate global device array");
 	snap_devices = kzalloc(dattobd_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
 	if(!snap_devices){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating global device array");
+		goto error;
+	}
+
+	//allocate global should_wake_up device array
+	LOG_DEBUG("allocate should_wake_up global device array");
+	should_wake_up_snap_devices = kzalloc(dattobd_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
+	if(!should_wake_up_snap_devices){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating global device array");
 		goto error;
