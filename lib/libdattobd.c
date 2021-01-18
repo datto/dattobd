@@ -22,6 +22,7 @@ int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned l
 	sp.cow = cow;
 	sp.fallocated_space = fallocated_space;
     sp.should_wake_up = should_wake_up;
+    
 	ret = ioctl(fd, IOCTL_SETUP_SNAP, &sp);
 
 	close(fd);
