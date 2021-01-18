@@ -120,7 +120,7 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
+	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size,0);
 
 error:
 	perror("error interpreting setup snapshot parameters");
@@ -273,7 +273,7 @@ static int handle_transition_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto error;
 
-	return dattobd_transition_snapshot(minor, cow, fallocated_space);
+	return dattobd_transition_snapshot(minor, cow, fallocated_space, 0);
 
 error:
 	perror("error interpreting transition to snapshot parameters");

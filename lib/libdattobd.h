@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, unsigned long wake_up);
 
 int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
 
@@ -23,7 +23,7 @@ int dattobd_destroy(unsigned int minor);
 
 int dattobd_transition_incremental(unsigned int minor);
 
-int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space, unsigned long wake_up);
 
 int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
