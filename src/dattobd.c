@@ -692,6 +692,9 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
 #define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
+//macro for iterating over snap_devices (requires a null check on dev)
+#define wake_up_tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(should_wake_up_snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(should_wake_up_snap_devices[i]))
+
 //returns true if tracing struct's base device queue matches that of bio
 #define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == dattobd_bio_get_queue(bio))
 
@@ -4482,7 +4485,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
-        ret = wake_up_group(wake_up_bit);
+        ret = wake_up_transition_group(wake_up_bit);
 
         break;
 	default:
@@ -5209,6 +5212,19 @@ static void agent_exit(void){
 			}
 		}
 		kfree(snap_devices);
+		snap_devices = NULL;
+	}
+
+	//destroy our snap devices
+	LOG_DEBUG("destroying snap devices");
+	if(should_wake_up_snap_devices){
+		wake_up_tracer_for_each(dev, i){
+			if(dev){
+				LOG_DEBUG("destroying minor - %d(wake_up)", i);
+				tracer_destroy(dev);
+			}
+		}
+		kfree(should_wake_up_snap_devices);
 		snap_devices = NULL;
 	}
 
