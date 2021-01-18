@@ -10,7 +10,7 @@
 #include <sys/ioctl.h>
 #include "libdattobd.h"
 
-int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, unsigned long wake_up){
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int fd, ret;
 	struct setup_params sp;
 
@@ -21,7 +21,7 @@ int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned l
 	sp.bdev = bdev;
 	sp.cow = cow;
 	sp.fallocated_space = fallocated_space;
-    sp.should_wake_up = wake_up;
+    sp.should_wake_up = should_wake_up;
 	ret = ioctl(fd, IOCTL_SETUP_SNAP, &sp);
 
 	close(fd);
@@ -88,7 +88,7 @@ int dattobd_transition_incremental(unsigned int minor){
 	return ret;
 }
 
-int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space, unsigned long wake_up){
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space, unsigned int should_wake_up){
 	int fd, ret;
 	struct transition_snap_params tp;
 
