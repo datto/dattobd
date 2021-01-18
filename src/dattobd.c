@@ -3975,6 +3975,8 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
                 __tracer_destroy_cow_sync_and_free(old_dev);
                 kfree(old_dev);
         }
+        else
+            should_wake_up_snap_devices[minor] = dev;
     }
     else if (should_wake_up == 3){
         //start tracing (overwrites old_dev's tracing)
