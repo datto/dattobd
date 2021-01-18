@@ -5227,7 +5227,7 @@ static void agent_exit(void){
 			}
 		}
 		kfree(should_wake_up_snap_devices);
-		snap_devices = NULL;
+		should_wake_up_snap_devices = NULL;
 	}
 
 	//unregister our block device driver
