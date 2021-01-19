@@ -1011,7 +1011,7 @@ static int get_setup_params(const struct setup_params __user *in, unsigned int *
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
 	*cache_size = params.cache_size;
-    *should_wake_up = params.should_wake_up;
+	*should_wake_up = params.should_wake_up;
 	return 0;
 
 error:
