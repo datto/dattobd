@@ -3926,54 +3926,54 @@ error:
 static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path, unsigned long fallocated_space, unsigned int should_wake_up){
 	int ret;
 	struct snap_device *dev;
-    if(should_wake_up == 1|| should_wake_up == 2){
-        //allocate new tracer
-        ret = tracer_alloc(&dev);
-        if(ret) return ret;
+	if(should_wake_up == 1|| should_wake_up == 2){
+		//allocate new tracer
+		ret = tracer_alloc(&dev);
+		if(ret) return ret;
 
-        set_bit(SNAPSHOT, &dev->sd_state);
-        set_bit(ACTIVE, &dev->sd_state);
-        clear_bit(UNVERIFIED, &dev->sd_state);
+		set_bit(SNAPSHOT, &dev->sd_state);
+		set_bit(ACTIVE, &dev->sd_state);
+		clear_bit(UNVERIFIED, &dev->sd_state);
 
-        fallocated_space = (fallocated_space)? fallocated_space : old_dev->sd_falloc_size;
+		fallocated_space = (fallocated_space)? fallocated_space : old_dev->sd_falloc_size;
 
-        //copy / set fields we need
-        __tracer_copy_base_dev(old_dev, dev);
+		//copy / set fields we need
+		__tracer_copy_base_dev(old_dev, dev);
 
-        //setup the cow manager
-        ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size, old_dev->sd_cow->uuid, old_dev->sd_cow->seqid + 1);
-        if(ret) goto error;
+		//setup the cow manager
+		ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, dev->sd_cache_size, old_dev->sd_cow->uuid, old_dev->sd_cow->seqid + 1);
+		if(ret) goto error;
 
-        //setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-        if(ret) goto error;
+		//setup the cow path
+		ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+		if(ret) goto error;
 
-        //setup the snapshot values
-        ret = __tracer_setup_snap(dev, old_dev->sd_minor, dev->sd_base_dev, dev->sd_size);
-        if(ret) goto error;
+		//setup the snapshot values
+		ret = __tracer_setup_snap(dev, old_dev->sd_minor, dev->sd_base_dev, dev->sd_size);
+		if(ret) goto error;
 
-        //setup the cow thread
-        ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
-        if(ret) goto error;
-    }
-    if (should_wake_up == 3|| should_wake_up == 1){
-        //start tracing (overwrites old_dev's tracing)
-        ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
-        if(ret) goto error;
+		//setup the cow thread
+		ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
+		if(ret) goto error;
+	}
+	if (should_wake_up == 3|| should_wake_up == 1){
+		//start tracing (overwrites old_dev's tracing)
+		ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
+		if(ret) goto error;
 
-        //stop the old cow thread and start the new one
-        __tracer_destroy_cow_thread(old_dev);
-        wake_up_process(dev->sd_cow_thread);
+		//stop the old cow thread and start the new one
+		__tracer_destroy_cow_thread(old_dev);
+		wake_up_process(dev->sd_cow_thread);
 
-        //destroy the unneeded fields of the old_dev and the old_dev itself
-        __tracer_destroy_cow_path(old_dev);
-        __tracer_destroy_cow_sync_and_free(old_dev);
-        kfree(old_dev);
-        if(should_wake_up == 3)
-            should_wake_up_snap_devices[old_dev->sd_minor] = NULL;
-    }
-    else if(should_wake_up == 2)
-        should_wake_up_snap_devices[old_dev->sd_minor] = dev;
+		//destroy the unneeded fields of the old_dev and the old_dev itself
+		__tracer_destroy_cow_path(old_dev);
+		__tracer_destroy_cow_sync_and_free(old_dev);
+		kfree(old_dev);
+		if(should_wake_up == 3)
+			should_wake_up_snap_devices[old_dev->sd_minor] = NULL;
+	}
+	else if(should_wake_up == 2)
+		should_wake_up_snap_devices[old_dev->sd_minor] = dev;
     
 	return 0;
 
