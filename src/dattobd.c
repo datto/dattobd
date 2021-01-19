@@ -4451,7 +4451,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		}
 
 		break;
-    case IOCTL_WAKE_UP_GROUP:
+	case IOCTL_WAKE_UP_GROUP:
 		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
 		if(ret){
 			ret = -EFAULT;
@@ -4459,10 +4459,10 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
-        ret = wake_up_group(wake_up_bit);
+		ret = wake_up_group(wake_up_bit);
 
-        break;
-    case IOCTL_WAKE_UP_TRANSITION_GROUP:
+		break;
+	case IOCTL_WAKE_UP_TRANSITION_GROUP:
 		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
 		if(ret){
 			ret = -EFAULT;
@@ -4470,9 +4470,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
-        ret = wake_up_transition_group(wake_up_bit);
+		ret = wake_up_transition_group(wake_up_bit);
 
-        break;
+		break;
 	default:
 		ret = -EINVAL;
 		LOG_ERROR(ret, "invalid ioctl called");
@@ -4487,11 +4487,11 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	if(info) kfree(info);
 
 	return ret;
-}
+	}
 
-/************************AUTOMATIC TRANSITION FUNCTIONS************************/
+	/************************AUTOMATIC TRANSITION FUNCTIONS************************/
 
-static void __tracer_active_to_dormant(struct snap_device *dev){
+	static void __tracer_active_to_dormant(struct snap_device *dev){
 	int ret;
 
 	//stop the cow thread
