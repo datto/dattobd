@@ -4283,22 +4283,22 @@ static int get_free_minor(void)
 
 static int wake_up_group(unsigned int wake_up_bit)
 {
-    int ret;
+	int ret;
 	struct snap_device *dev;
-    int i;
+	int i;
 
-    /*dattobd_max_snap_devices = 24;*/
-    for(i = 0; i < 25; i++){
-        if(wake_up_bit & (1 << i)){
-            dev = should_wake_up_snap_devices[i];
-            ret = tracer_setup_active_snap(dev, i, 0, 0, 0, 0, 3);
-            if(ret) goto error;
-        }
-    }
+	/*dattobd_max_snap_devices = 24;*/
+	for(i = 0; i < 25; i++){
+		if(wake_up_bit & (1 << i)){
+			dev = should_wake_up_snap_devices[i];
+			ret = tracer_setup_active_snap(dev, i, 0, 0, 0, 0, 3);
+			if(ret) goto error;
+		}
+	}
 
 	return 0;
 
-error:
+	error:
 	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
 	tracer_destroy(dev);
 	return ret;
@@ -4306,22 +4306,22 @@ error:
 
 static int wake_up_transition_group(unsigned int wake_up_bit)
 {
-    int ret;
+	int ret;
 	struct snap_device *dev;
-    int i;
+	int i;
 
-    /*dattobd_max_snap_devices = 24;*/
-    for(i = 0; i < 25; i++){
-        if(wake_up_bit & (1 << i)){
-            dev = snap_devices[i];
-            ret = tracer_active_inc_to_snap(dev, dev->sd_cow_path, 0, 3);
-            if(ret) goto error;
-        }
-    }
+	/*dattobd_max_snap_devices = 24;*/
+	for(i = 0; i < 25; i++){
+		if(wake_up_bit & (1 << i)){
+			dev = snap_devices[i];
+			ret = tracer_active_inc_to_snap(dev, dev->sd_cow_path, 0, 3);
+			if(ret) goto error;
+		}
+	}
 
 	return 0;
 
-error:
+	error:
 	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
 	tracer_destroy(dev);
 	return ret;
