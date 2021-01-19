@@ -692,9 +692,6 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 #define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
 #define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < dattobd_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
-//macro for iterating over snap_devices (requires a null check on dev)
-#define wake_up_tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(should_wake_up_snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(should_wake_up_snap_devices[i]))
-
 //returns true if tracing struct's base device queue matches that of bio
 #define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == dattobd_bio_get_queue(bio))
 
@@ -3773,7 +3770,7 @@ static void tracer_destroy(struct snap_device *dev){
 static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int ret;
 
-    if(should_wake_up == 1 || should_wake_up == 2){
+    if(should_wake_up == 1|| should_wake_up == 2){
         set_bit(SNAPSHOT, &dev->sd_state);
         set_bit(ACTIVE, &dev->sd_state);
         clear_bit(UNVERIFIED, &dev->sd_state);
@@ -3796,21 +3793,17 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
         //setup the cow thread and run it
         ret = __tracer_setup_snap_cow_thread(dev, minor);
         if(ret) goto error;
-        if(should_wake_up == 1){
-            wake_up_process(dev->sd_cow_thread);
-            //inject the tracing function
-            ret = __tracer_setup_tracing(dev, minor);
-            if(ret) goto error;
-        }
-        else
-            should_wake_up_snap_devices[minor] = dev;
     }
-    else if(should_wake_up == 3){
+    if(should_wake_up == 3|| should_wake_up == 1){
         wake_up_process(dev->sd_cow_thread);
         //inject the tracing function
         ret = __tracer_setup_tracing(dev, minor);
         if(ret) goto error;
+        if(should_wake_up == 3)
+            should_wake_up_snap_devices[minor] = NULL;
     }
+    else if(should_wake_up == 2)
+        should_wake_up_snap_devices[minor] = dev;
 
 	return 0;
 
@@ -3961,24 +3954,8 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
         //setup the cow thread
         ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
         if(ret) goto error;
-        if(should_wake_up == 1){
-                //start tracing (overwrites old_dev's tracing)
-                ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
-                if(ret) goto error;
-
-                //stop the old cow thread and start the new one
-                __tracer_destroy_cow_thread(old_dev);
-                wake_up_process(dev->sd_cow_thread);
-
-                //destroy the unneeded fields of the old_dev and the old_dev itself
-                __tracer_destroy_cow_path(old_dev);
-                __tracer_destroy_cow_sync_and_free(old_dev);
-                kfree(old_dev);
-        }
-        else
-            should_wake_up_snap_devices[minor] = dev;
     }
-    else if (should_wake_up == 3){
+    if (should_wake_up == 3|| should_wake_up == 1){
         //start tracing (overwrites old_dev's tracing)
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
         if(ret) goto error;
@@ -3991,7 +3968,12 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
         __tracer_destroy_cow_path(old_dev);
         __tracer_destroy_cow_sync_and_free(old_dev);
         kfree(old_dev);
+        if(should_wake_up == 3)
+            should_wake_up_snap_devices[old_dev->sd_minor] = NULL;
     }
+    else if(should_wake_up == 2)
+        should_wake_up_snap_devices[old_dev->sd_minor] = dev;
+    
 	return 0;
 
 error:
@@ -5217,15 +5199,9 @@ static void agent_exit(void){
 		snap_devices = NULL;
 	}
 
-	//destroy our snap devices
-	LOG_DEBUG("destroying snap devices");
+	//destroy our snap wake up devices
+	LOG_DEBUG("destroying snap wake up devices");
 	if(should_wake_up_snap_devices){
-		wake_up_tracer_for_each(dev, i){
-			if(dev){
-				LOG_DEBUG("destroying minor - %d(wake_up)", i);
-				tracer_destroy(dev);
-			}
-		}
 		kfree(should_wake_up_snap_devices);
 		should_wake_up_snap_devices = NULL;
 	}
