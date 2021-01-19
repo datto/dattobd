@@ -4487,11 +4487,11 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	if(info) kfree(info);
 
 	return ret;
-	}
+}
 
-	/************************AUTOMATIC TRANSITION FUNCTIONS************************/
+/************************AUTOMATIC TRANSITION FUNCTIONS************************/
 
-	static void __tracer_active_to_dormant(struct snap_device *dev){
+static void __tracer_active_to_dormant(struct snap_device *dev){
 	int ret;
 
 	//stop the cow thread
