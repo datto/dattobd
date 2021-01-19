@@ -3770,40 +3770,40 @@ static void tracer_destroy(struct snap_device *dev){
 static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int ret;
 
-    if(should_wake_up == 1|| should_wake_up == 2){
-        set_bit(SNAPSHOT, &dev->sd_state);
-        set_bit(ACTIVE, &dev->sd_state);
-        clear_bit(UNVERIFIED, &dev->sd_state);
+	if(should_wake_up == 1|| should_wake_up == 2){
+		set_bit(SNAPSHOT, &dev->sd_state);
+		set_bit(ACTIVE, &dev->sd_state);
+		clear_bit(UNVERIFIED, &dev->sd_state);
 
-        //setup base device
-        ret = __tracer_setup_base_dev(dev, bdev_path);
-        if(ret) goto error;
+		//setup base device
+		ret = __tracer_setup_base_dev(dev, bdev_path);
+		if(ret) goto error;
 
-        //setup the cow manager
-        ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, NULL, 1);
-        if(ret) goto error;
+		//setup the cow manager
+		ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path, dev->sd_size, fallocated_space, cache_size, NULL, 1);
+		if(ret) goto error;
 
-        //setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
-        if(ret) goto error;
+		//setup the cow path
+		ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+		if(ret) goto error;
 
-        //setup the snapshot values
-        ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
-        if(ret) goto error;
-        //setup the cow thread and run it
-        ret = __tracer_setup_snap_cow_thread(dev, minor);
-        if(ret) goto error;
-    }
-    if(should_wake_up == 3|| should_wake_up == 1){
-        wake_up_process(dev->sd_cow_thread);
-        //inject the tracing function
-        ret = __tracer_setup_tracing(dev, minor);
-        if(ret) goto error;
-        if(should_wake_up == 3)
-            should_wake_up_snap_devices[minor] = NULL;
-    }
-    else if(should_wake_up == 2)
-        should_wake_up_snap_devices[minor] = dev;
+		//setup the snapshot values
+		ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
+		if(ret) goto error;
+		//setup the cow thread and run it
+		ret = __tracer_setup_snap_cow_thread(dev, minor);
+		if(ret) goto error;
+	}
+	if(should_wake_up == 3|| should_wake_up == 1){
+		wake_up_process(dev->sd_cow_thread);
+		//inject the tracing function
+		ret = __tracer_setup_tracing(dev, minor);
+		if(ret) goto error;
+		if(should_wake_up == 3)
+			should_wake_up_snap_devices[minor] = NULL;
+	}
+	else if(should_wake_up == 2)
+		should_wake_up_snap_devices[minor] = dev;
 
 	return 0;
 
