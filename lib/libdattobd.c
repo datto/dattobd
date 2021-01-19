@@ -97,7 +97,7 @@ int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fal
 	tp.minor = minor;
 	tp.cow = cow;
 	tp.fallocated_space = fallocated_space;
-    tp.should_wake_up = should_wake_up;
+	tp.should_wake_up = should_wake_up;
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
 	if(fd < 0) return -1;
