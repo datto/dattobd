@@ -3771,7 +3771,7 @@ static void tracer_destroy(struct snap_device *dev){
 static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int ret;
 
-	if(should_wake_up == 1|| should_wake_up == 2){
+	if(should_wake_up == 1 || should_wake_up == 2){
 		set_bit(SNAPSHOT, &dev->sd_state);
 		set_bit(ACTIVE, &dev->sd_state);
 		clear_bit(UNVERIFIED, &dev->sd_state);
@@ -3795,7 +3795,7 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 		ret = __tracer_setup_snap_cow_thread(dev, minor);
 		if(ret) goto error;
 	}
-	if(should_wake_up == 3|| should_wake_up == 1){
+	if(should_wake_up == 1 || should_wake_up == 3){
 		wake_up_process(dev->sd_cow_thread);
 		//inject the tracing function
 		ret = __tracer_setup_tracing(dev, minor);
@@ -3956,7 +3956,7 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
 		ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
 		if(ret) goto error;
 	}
-	if (should_wake_up == 3|| should_wake_up == 1){
+	if (should_wake_up == 1 || should_wake_up == 3){
 		//start tracing (overwrites old_dev's tracing)
 		ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
 		if(ret) goto error;
