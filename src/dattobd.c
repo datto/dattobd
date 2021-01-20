@@ -5251,7 +5251,7 @@ static int __init agent_init(void){
 
 	//allocate global should_wake_up device array
 	LOG_DEBUG("allocate should_wake_up global device array");
-	should_wake_up_snap_devices = kzalloc(dattobd_max_snap_devices * sizeof(struct snap_device*), GFP_KERNEL);
+	should_wake_up_snap_devices = kzalloc(dattobd_max_snap_devices * sizeof(struct should_wake_up_snap_devices*), GFP_KERNEL);
 	if(!should_wake_up_snap_devices){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating global device array");
