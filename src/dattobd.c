@@ -4031,7 +4031,7 @@ static int __verify_minor(unsigned int minor, int mode){
 			return -EBUSY;
 		}
 	}else{
-		if(!snap_devices[minor]){
+		if(!snap_devices[minor] || should_wake_up_snap_devices[minor]){
 			LOG_ERROR(-ENOENT, "device specified does not exist");
 			return -ENOENT;
 		}
