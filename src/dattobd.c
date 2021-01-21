@@ -4026,7 +4026,7 @@ static int __verify_minor(unsigned int minor, int mode){
 
 	//check if the device is in use
 	if(mode == 0){
-		if(snap_devices[minor]){
+		if(snap_devices[minor] || should_wake_up_snap_devices[minor]){
 			LOG_ERROR(-EBUSY, "device specified already exists");
 			return -EBUSY;
 		}
