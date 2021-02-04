@@ -23,8 +23,8 @@ static void print_help(int status){
 	printf("\tdbdctl transition-to-incremental <minor>\n");
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
-	printf("\tdbdctl wake_up\n");
-	printf("\tdbdctl wake_up_transition\n");
+	printf("\tdbdctl wake-up\n");
+	printf("\tdbdctl wake-up-transition\n");
 	printf("\tdbdctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
