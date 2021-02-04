@@ -16,13 +16,15 @@
 
 static void print_help(int status){
 	printf("Usage:\n");
-	printf("\tdbdctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor>\n");
+	printf("\tdbdctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor> <option>\n");
 	printf("\tdbdctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl destroy <minor>\n");
 	printf("\tdbdctl transition-to-incremental <minor>\n");
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
+	printf("\tdbdctl wake_up\n");
+	printf("\tdbdctl wake_up_transition\n");
 	printf("\tdbdctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
@@ -88,7 +90,7 @@ error:
 
 static int handle_setup_snap(int argc, char **argv){
 	int ret, c;
-	unsigned int minor;
+	unsigned int minor, option;
 	unsigned long cache_size = 0, fallocated_space = 0;
 	char *bdev, *cow;
 
@@ -109,7 +111,7 @@ static int handle_setup_snap(int argc, char **argv){
 		}
 	}
 
-	if(argc - optind != 3){
+	if(argc - optind != 4){
 		errno = EINVAL;
 		goto error;
 	}
@@ -120,7 +122,10 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size, 1);
+	ret = parse_ui(argv[optind + 3], &option);
+	if(ret) goto error;
+
+	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size, option);
 
 error:
 	perror("error interpreting setup snapshot parameters");
@@ -315,6 +320,14 @@ error:
 	return 0;
 }
 
+static int wake_up(){
+	return dattobd_wake_up_group();	
+}
+
+static int wake_up_transition(){
+	return dattobd_wake_up_transition_group();
+}
+
 int main(int argc, char **argv){
 	int ret = 0;
 
@@ -335,6 +348,8 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "transition-to-incremental")) ret = handle_transition_inc(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "transition-to-snapshot")) ret = handle_transition_snap(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
+	else if(!strcmp(argv[1], "wake-up")) ret = wake_up();
+	else if(!strcmp(argv[1], "wake-up-transition")) ret = wake_up_transition();
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
 

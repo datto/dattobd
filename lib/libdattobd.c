@@ -156,3 +156,29 @@ int dattobd_get_free_minor(void){
 	if(!ret) return minor;
 	return ret;
 }
+
+int dattobd_wake_up_group(void){
+	int fd, ret, minor;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_WAKE_UP_GROUP, &minor);
+
+	close(fd);
+
+	return ret;
+}
+
+int dattobd_wake_up_transition_group(void){
+	int fd, ret, minor;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_WAKE_UP_TRANSITION_GROUP, &minor);
+
+	close(fd);
+
+	return ret;
+}
