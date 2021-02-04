@@ -1075,7 +1075,7 @@ error:
 	return ret;
 }
 
-static int get_transition_snap_params(const struct transition_snap_params __user *in, unsigned int *minor, char **cow_path, unsigned long *fallocated_space){
+static int get_transition_snap_params(const struct transition_snap_params __user *in, unsigned int *minor, char **cow_path, unsigned long *fallocated_space, unsigned int *should_wake_up){
 	int ret;
 	struct transition_snap_params params;
 
@@ -1098,6 +1098,7 @@ static int get_transition_snap_params(const struct transition_snap_params __user
 
 	*minor = params.minor;
 	*fallocated_space = params.fallocated_space;
+	*should_wake_up = params.should_wake_up;
 	return 0;
 
 error:
@@ -1107,6 +1108,7 @@ error:
 	*cow_path = NULL;
 	*minor = 0;
 	*fallocated_space = 0;
+	*should_wake_up = 0;
 	return ret;
 }
 
@@ -3956,7 +3958,7 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
 		ret = __tracer_setup_snap_cow_thread(dev, old_dev->sd_minor);
 		if(ret) goto error;
 	}
-	if (should_wake_up == 1 || should_wake_up == 3){
+	if (should_wake_up == 1){
 		//start tracing (overwrites old_dev's tracing)
 		ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
 		if(ret) goto error;
@@ -3969,16 +3971,32 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
 		__tracer_destroy_cow_path(old_dev);
 		__tracer_destroy_cow_sync_and_free(old_dev);
 		kfree(old_dev);
-		if(should_wake_up == 3)
-			should_wake_up_snap_devices[old_dev->sd_minor] = NULL;
 	}
-	else if(should_wake_up == 2)
+	else if(should_wake_up == 2){
 		should_wake_up_snap_devices[old_dev->sd_minor] = dev;
+	}
+	else if(should_wake_up == 3 && should_wake_up_snap_devices[old_dev->sd_minor]){
+		//start tracing (overwrites old_dev's tracing)
+		dev =  should_wake_up_snap_devices[old_dev->sd_minor];
+		ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
+		if(ret) goto error;
+
+		//stop the old cow thread and start the new one
+		__tracer_destroy_cow_thread(old_dev);
+		wake_up_process(dev->sd_cow_thread);
+
+		//destroy the unneeded fields of the old_dev and the old_dev itself
+		__tracer_destroy_cow_path(old_dev);
+		__tracer_destroy_cow_sync_and_free(old_dev);
+		kfree(old_dev);
+		should_wake_up_snap_devices[dev->sd_minor] = NULL;
+	}
     
 	return 0;
 
 error:
 	LOG_ERROR(ret, "error transitioning tracer to snapshot mode");
+	if(should_wake_up == 3 && old_dev) dev = old_dev;
 	__tracer_destroy_cow_thread(dev);
 	__tracer_destroy_snap(dev);
 	__tracer_destroy_cow_path(dev);
@@ -4184,7 +4202,7 @@ error:
 	return ret;
 }
 
-static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsigned long fallocated_space){
+static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsigned long fallocated_space, unsigned int should_wake_up){
 	int ret;
 	struct snap_device *dev;
 
@@ -4210,7 +4228,7 @@ static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsig
 		goto error;
 	}
 
-	ret = tracer_active_inc_to_snap(dev, cow_path, fallocated_space, 1);
+	ret = tracer_active_inc_to_snap(dev, cow_path, fallocated_space, should_wake_up);
 	if(ret) goto error;
 
 	return 0;
@@ -4392,10 +4410,10 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 		break;
 	case IOCTL_TRANSITION_SNAP:
 		//get params from user space
-		ret = get_transition_snap_params((struct transition_snap_params __user *)arg, &minor, &cow_path, &fallocated_space);
+		ret = get_transition_snap_params((struct transition_snap_params __user *)arg, &minor, &cow_path, &fallocated_space, &should_wake_up);
 		if(ret) break;
 
-		ret = ioctl_transition_snap(minor, cow_path, fallocated_space);
+		ret = ioctl_transition_snap(minor, cow_path, fallocated_space, should_wake_up);
 		if(ret) break;
 
 		break;

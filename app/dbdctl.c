@@ -21,7 +21,7 @@ static void print_help(int status){
 	printf("\tdbdctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl destroy <minor>\n");
 	printf("\tdbdctl transition-to-incremental <minor>\n");
-	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
+	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor> <option>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
 	printf("\tdbdctl wake-up\n");
 	printf("\tdbdctl wake-up-transition\n");
@@ -251,7 +251,7 @@ error:
 
 static int handle_transition_snap(int argc, char **argv){
 	int ret, c;
-	unsigned int minor;
+	unsigned int minor, option;
 	unsigned long fallocated_space = 0;
 	char *cow;
 
@@ -268,7 +268,7 @@ static int handle_transition_snap(int argc, char **argv){
 		}
 	}
 
-	if(argc - optind != 2){
+	if(argc - optind != 3){
 		errno = EINVAL;
 		goto error;
 	}
@@ -278,7 +278,10 @@ static int handle_transition_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto error;
 
-	return dattobd_transition_snapshot(minor, cow, fallocated_space, 1);
+        ret = parse_ui(argv[optind + 2], &option);
+        if(ret) goto error;
+
+	return dattobd_transition_snapshot(minor, cow, fallocated_space, option);
 
 error:
 	perror("error interpreting transition to snapshot parameters");
