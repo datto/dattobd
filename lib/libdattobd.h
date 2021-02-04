@@ -29,6 +29,9 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
+int dattobd_wake_up_group(void);
+
+int dattobd_wake_up_transition_group(void);
 /**
  * Get the first available minor.
  *

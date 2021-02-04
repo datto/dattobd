@@ -4281,15 +4281,15 @@ static int get_free_minor(void)
 	return -ENOENT;
 }
 
-static int wake_up_group(unsigned int wake_up_bit)
+static int wake_up_group(void)
 {
 	int ret;
 	struct snap_device *dev;
 	int i;
 
 	/*dattobd_max_snap_devices = 24;*/
-	for(i = 0; i < 25; i++){
-		if(wake_up_bit & (1 << i)){
+	for(i = 0; i < 24; i++){
+		if(should_wake_up_snap_devices[i]){
 			dev = should_wake_up_snap_devices[i];
 			ret = tracer_setup_active_snap(dev, i, 0, 0, 0, 0, 3);
 			if(ret) goto error;
@@ -4298,21 +4298,21 @@ static int wake_up_group(unsigned int wake_up_bit)
 
 	return 0;
 
-	error:
-	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
+error:
+	LOG_ERROR(ret, "error waking up %d tracer as active snapshot", i);
 	tracer_destroy(dev);
 	return ret;
 }
 
-static int wake_up_transition_group(unsigned int wake_up_bit)
+static int wake_up_transition_group(void)
 {
 	int ret;
 	struct snap_device *dev;
 	int i;
 
 	/*dattobd_max_snap_devices = 24;*/
-	for(i = 0; i < 25; i++){
-		if(wake_up_bit & (1 << i)){
+	for(i = 0; i < 24; i++){
+		if(snap_devices[i]){
 			dev = snap_devices[i];
 			ret = tracer_active_inc_to_snap(dev, dev->sd_cow_path, 0, 3);
 			if(ret) goto error;
@@ -4321,7 +4321,7 @@ static int wake_up_transition_group(unsigned int wake_up_bit)
 
 	return 0;
 
-	error:
+error:
 	LOG_ERROR(ret, "error setting up %d tracer as active snapshot", i);
 	tracer_destroy(dev);
 	return ret;
@@ -4332,7 +4332,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	char *bdev_path = NULL;
 	char *cow_path = NULL;
 	struct dattobd_info *info = NULL;
-	unsigned int minor = 0, should_wake_up = 1, wake_up_bit = 0;
+	unsigned int minor = 0, should_wake_up = 1;
 	unsigned long fallocated_space = 0, cache_size = 0;
 
 	LOG_DEBUG("ioctl command received: %d", cmd);
@@ -4452,25 +4452,11 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
 		break;
 	case IOCTL_WAKE_UP_GROUP:
-		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
-		if(ret){
-			ret = -EFAULT;
-			LOG_ERROR(ret, "error copying wake_up_bit from user space");
-			break;
-		}
-
-		ret = wake_up_group(wake_up_bit);
+		ret = wake_up_group();
 
 		break;
 	case IOCTL_WAKE_UP_TRANSITION_GROUP:
-		ret = copy_from_user((int __user *)arg, &wake_up_bit, sizeof(wake_up_bit));
-		if(ret){
-			ret = -EFAULT;
-			LOG_ERROR(ret, "error copying wake_up_bit from user space");
-			break;
-		}
-
-		ret = wake_up_transition_group(wake_up_bit);
+		ret = wake_up_transition_group();
 
 		break;
 	default:
