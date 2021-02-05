@@ -49,7 +49,7 @@ def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, should_wake
         cow_file.encode("utf-8"),
         fallocated_space,
         cache_size,
-	should_wake_up
+		should_wake_up
     )
 
     if ret != 0:
@@ -112,7 +112,7 @@ def transition_to_snapshot(minor, cow_file, fallocated_space=0, should_wake_up=1
         minor,
         cow_file.encode("utf-8"),
         fallocated_space,
-	should_wake_up
+		should_wake_up
     )
 
     if ret != 0:
