@@ -28,12 +28,12 @@ struct dattobd_info {
     unsigned long long nr_changed_blocks;
 };
 
-int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size);
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up);
 int dattobd_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
 int dattobd_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size);
 int dattobd_destroy(unsigned int minor);
 int dattobd_transition_incremental(unsigned int minor);
-int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space);
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space, unsigned int should_wake_up);
 int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 int dattobd_get_free_minor(void);
@@ -42,13 +42,14 @@ int dattobd_get_free_minor(void);
 lib = ffi.dlopen("../lib/libdattobd.so")
 
 
-def setup(minor, device, cow_file, fallocated_space=0, cache_size=0):
+def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, should_wake_up=1):
     ret = lib.dattobd_setup_snapshot(
         minor,
         device.encode("utf-8"),
         cow_file.encode("utf-8"),
         fallocated_space,
-        cache_size
+        cache_size,
+	should_wake_up
     )
 
     if ret != 0:
@@ -106,11 +107,12 @@ def transition_to_incremental(minor):
     return 0
 
 
-def transition_to_snapshot(minor, cow_file, fallocated_space=0):
+def transition_to_snapshot(minor, cow_file, fallocated_space=0, should_wake_up=1):
     ret = lib.dattobd_transition_snapshot(
         minor,
         cow_file.encode("utf-8"),
-        fallocated_space
+        fallocated_space,
+	should_wake_up
     )
 
     if ret != 0:
