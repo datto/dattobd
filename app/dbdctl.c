@@ -16,12 +16,12 @@
 
 static void print_help(int status){
 	printf("Usage:\n");
-	printf("\tdbdctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor> <option>\n");
+	printf("\tdbdctl setup-snapshot [-c <cache size>] [-f fallocate] [-o option] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
 	printf("\tdbdctl destroy <minor>\n");
 	printf("\tdbdctl transition-to-incremental <minor>\n");
-	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor> <option>\n");
+	printf("\tdbdctl transition-to-snapshot [-f fallocate] [-o option] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
 	printf("\tdbdctl wake-up\n");
 	printf("\tdbdctl wake-up-transition\n");
@@ -90,12 +90,12 @@ error:
 
 static int handle_setup_snap(int argc, char **argv){
 	int ret, c;
-	unsigned int minor, option;
-	unsigned long cache_size = 0, fallocated_space = 0;
+	unsigned int minor;
+	unsigned long cache_size = 0, fallocated_space = 0, option = 1;
 	char *bdev, *cow;
 
 	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "c:f:")) != -1){
+	while((c = getopt(argc, argv, "c:f:o:")) != -1){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
@@ -105,13 +105,17 @@ static int handle_setup_snap(int argc, char **argv){
 			ret = parse_ul(optarg, &fallocated_space);
 			if(ret) goto error;
 			break;
+		case 'o':
+			ret = parse_ul(optarg, &option);
+			if(ret) goto error;
+			break;
 		default:
 			errno = EINVAL;
 			goto error;
 		}
 	}
 
-	if(argc - optind != 4){
+	if(argc - optind != 3){
 		errno = EINVAL;
 		goto error;
 	}
@@ -122,8 +126,6 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	ret = parse_ui(argv[optind + 3], &option);
-	if(ret) goto error;
 
 	return dattobd_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size, option);
 
@@ -251,15 +253,19 @@ error:
 
 static int handle_transition_snap(int argc, char **argv){
 	int ret, c;
-	unsigned int minor, option;
-	unsigned long fallocated_space = 0;
+	unsigned int minor;
+	unsigned long fallocated_space = 0, option = 1;
 	char *cow;
 
 	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "f:")) != -1){
+	while((c = getopt(argc, argv, "f:o:")) != -1){
 		switch(c){
 		case 'f':
 			ret = parse_ul(optarg, &fallocated_space);
+			if(ret) goto error;
+			break;
+		case 'o':
+			ret = parse_ul(optarg, &option);
 			if(ret) goto error;
 			break;
 		default:
@@ -268,7 +274,7 @@ static int handle_transition_snap(int argc, char **argv){
 		}
 	}
 
-	if(argc - optind != 3){
+	if(argc - optind != 2){
 		errno = EINVAL;
 		goto error;
 	}
@@ -277,9 +283,6 @@ static int handle_transition_snap(int argc, char **argv){
 
 	ret = parse_ui(argv[optind + 1], &minor);
 	if(ret) goto error;
-
-        ret = parse_ui(argv[optind + 2], &option);
-        if(ret) goto error;
 
 	return dattobd_transition_snapshot(minor, cow, fallocated_space, option);
 
