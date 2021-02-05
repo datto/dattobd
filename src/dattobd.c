@@ -4305,8 +4305,7 @@ static int wake_up_group(void)
 	struct snap_device *dev;
 	int i;
 
-	/*dattobd_max_snap_devices = 24;*/
-	for(i = 0; i < 24; i++){
+	for(i = 0; i < dattobd_max_snap_devices; i++){
 		if(should_wake_up_snap_devices[i]){
 			dev = should_wake_up_snap_devices[i];
 			ret = tracer_setup_active_snap(dev, i, 0, 0, 0, 0, 3);
@@ -4328,8 +4327,7 @@ static int wake_up_transition_group(void)
 	struct snap_device *dev;
 	int i;
 
-	/*dattobd_max_snap_devices = 24;*/
-	for(i = 0; i < 24; i++){
+	for(i = 0; i < dattobd_max_snap_devices; i++){
 		if(snap_devices[i]){
 			dev = snap_devices[i];
 			ret = tracer_active_inc_to_snap(dev, dev->sd_cow_path, 0, 3);
