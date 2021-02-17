@@ -30,6 +30,13 @@ echo
 
 dmesg -c &> /dev/null
 >| dmesg.log
+
+[ ! -z "$1" ] && export TEST_DEVICE="$1"
+if ! lsblk $TEST_DEVICE >/dev/null 2>&1; then
+    echo "The script's argumet $TEST_DEVICE seems to be not a block device."
+    exit 1
+fi
+
 python3 -m unittest -v
 ret=$?
 dmesg > dmesg.log

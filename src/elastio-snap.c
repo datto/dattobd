@@ -37,6 +37,10 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #include <uapi/linux/mount.h>
 #endif
 
+#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+#include "linux/blk-mq.h"
+#endif
+
 #ifndef HAVE_BIO_LIST
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
 struct bio_list {
@@ -544,6 +548,13 @@ static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queu
 	#define MRF_RETURN_TYPE blk_qc_t
 	#define MRF_RETURN(ret) return BLK_QC_T_NONE
 
+#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+static MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, struct bio *bio){
+	smp_wmb();
+	return blk_mq_make_request(q, bio);
+}
+#endif
+
 static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
@@ -749,7 +760,7 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
  *
  * Note: CentOS 7 has enum req_op starting from the version 7.4, kernel 3.10.0-693. But this enum has just 4 values
  * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
- * could be defined and equal to the 2 bits.
+ * be defined and equal to the 2 bits.
  */
 #define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
 #else
@@ -3127,9 +3138,12 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 call_orig:
+#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
-
+#else
+	ret = elastio_snap_call_mrf(orig_mrf, q, bio);
+#endif
 out:
 	MRF_RETURN(ret);
 }
@@ -3197,7 +3211,15 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	struct request_queue *q = bdev_get_queue(bdev);
 
 	if(q->make_request_fn != tracing_mrf){
+#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 		*mrf = q->make_request_fn;
+#else
+		if (q->make_request_fn) *mrf = q->make_request_fn;
+		else{
+			*mrf = elastio_snap_null_mrf;
+			LOG_DEBUG("original mrf is empty, set to elastio_snap_null_mrf");
+		}
+#endif
 		return 0;
 	}
 
@@ -3427,7 +3449,7 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 	dev->sd_cache_size = 0;
 
 	if(dev->sd_cow){
-		LOG_DEBUG("destroying cow manager");
+		LOG_DEBUG("destroying cow manager. close method: %d", close_method);
 
 		if(close_method == 0){
 			cow_free(dev->sd_cow);
@@ -3630,7 +3652,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		goto error;
 	}
 
-#ifdef HAVE_BLK_ALLOC_QUEUE_GFP_T 
+#ifdef HAVE_BLK_ALLOC_QUEUE_GFP_T
 	//register request handler
 	LOG_DEBUG("setting up make request function");
 	blk_queue_make_request(dev->sd_queue, snap_mrf);

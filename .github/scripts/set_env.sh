@@ -19,3 +19,4 @@ echo "RUNNER_NUM=$runner_num"                           >> $GITHUB_ENV
 echo "BOX_DIR=.github/buildbox"                         >> $GITHUB_ENV
 echo "BOX_NAME=$DISTRO-$ARCH-build"                     >> $GITHUB_ENV
 echo "INSTANCE_NAME=$DISTRO-$ARCH-build-$runner_num"    >> $GITHUB_ENV
+echo "TEST_IMAGE=$PWD/$DISTRO-test_image.qcow2"         >> $GITHUB_ENV

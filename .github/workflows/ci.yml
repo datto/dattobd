@@ -1,6 +1,6 @@
 ---
 name: ci
-on: 
+on:
   - push
 
 env:
@@ -20,13 +20,16 @@ jobs:
           debian8, debian9, debian10,
           centos7, centos8,
           amazon2,
-          # TODO: Bring back Fedora when issue https://github.com/elastio/elastio-snap/issues/44 is fixed
-          # fedora31, fedora32
+          fedora31
+          # TODO: Bring back
+          # - Fedora 32 when kernel 5.9  is supported (issue https://github.com/elastio/elastio-snap/issues/57 is fixed)
+          # - Fedora 33 when kernel 5.10 is supported.
+          # fedora32, fedora33
         ]
         arch: [ amd64 ]
 
     steps:
-      - name: Checkout sources 
+      - name: Checkout sources
         uses: actions/checkout@v2
 
       - name: Set ENV
@@ -62,12 +65,31 @@ jobs:
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make install'
         working-directory: ${{env.BOX_DIR}}
 
+        # NOTE: This special logic with the real block device instead of the loop device is used especially for Fedora 31
+        # due to issue https://github.com/elastio/elastio-snap/issues/71. It can be simplified back after the issue is fixed.
+      - name: Attach external drive
+        if: ${{ matrix.distro == 'fedora31' }}
+        run: |
+          qemu-img create -f qcow2 ${TEST_IMAGE} 1G
+          virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGE} --target vdb --driver qemu --subdriver qcow2 --targetbus virtio
+          cd $BOX_DIR && vagrant ssh ${{env.INSTANCE_NAME}} -c 'echo -e "n\np\n\n\n\nw" | sudo fdisk /dev/vdb'
+
       - name: Run tests
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'cd tests && sudo ./elio-test.sh'
+        run: |
+          [[ $INSTANCE_NAME == fedora31* ]] && device=/dev/vdb1
+          vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh $device"
         working-directory: ${{env.BOX_DIR}}
         # For now tests are taking 10-20 seconds. But they can hang.
         # 5 minutes seems to be reasonable timeout.
         timeout-minutes: 5
+
+      - name: Detach external drive
+        if: always()
+        run: |
+          if virsh domblklist ${BOX_DIR##*/}_${INSTANCE_NAME} --details | grep "file" | awk '{ print $NF }' | grep ${TEST_IMAGE} ; then
+              virsh detach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} ${TEST_IMAGE}
+          fi
+          rm -f ${TEST_IMAGE}
 
       - name: Upload artifacts
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh
@@ -88,7 +110,7 @@ jobs:
       - baremetal
 
     steps:
-      - name: Checkout sources 
+      - name: Checkout sources
         uses: actions/checkout@v2
 
       - name: Make manifest
@@ -102,12 +124,12 @@ jobs:
 
   dispatch-packaging-repo:
     name: Trigger repo upload
-    needs: manifest 
+    needs: manifest
     runs-on:
       - baremetal
 
     steps:
-      - name: Checkout sources 
+      - name: Checkout sources
         uses: actions/checkout@v2
 
       - name: Dispatch packaging repo
