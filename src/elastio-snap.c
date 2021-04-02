@@ -38,7 +38,8 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #endif
 
 #ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
-#include "linux/blk-mq.h"
+#include <linux/blk-mq.h>
+#include <linux/percpu-refcount.h>
 #endif
 
 #ifndef HAVE_BIO_LIST
@@ -550,7 +551,7 @@ static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queu
 
 #ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 static MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, struct bio *bio){
-	smp_wmb();
+	percpu_ref_get(&q->q_usage_counter);
 	return blk_mq_make_request(q, bio);
 }
 #endif
@@ -3138,12 +3139,8 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 call_orig:
-#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
-#else
-	ret = elastio_snap_call_mrf(orig_mrf, q, bio);
-#endif
 out:
 	MRF_RETURN(ret);
 }
@@ -3301,7 +3298,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
 	}else{
 		LOG_DEBUG("ending tracing");
+#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf == elastio_snap_null_mrf ? NULL : new_mrf;
+#else
 		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
+#endif
 		smp_wmb();
 		*dev_ptr = dev;
 	}

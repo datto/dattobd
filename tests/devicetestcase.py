@@ -26,7 +26,7 @@ class DeviceTestCase(unittest.TestCase):
         cls.kmod.load(debug=1)
         if os.getenv('TEST_DEVICE'):
             cls.device = os.getenv('TEST_DEVICE')
-            dev_size = int(subprocess.check_output("blockdev --getsize64 %s" % cls.device, shell=True, text=True))//1024**2
+            dev_size = int(subprocess.check_output("blockdev --getsize64 %s" % cls.device, shell=True))//1024**2
             util.dd("/dev/zero", cls.device, dev_size, bs="1M")
         else:
             cls.backing_store = "/tmp/disk_{0:03d}.img".format(r)
