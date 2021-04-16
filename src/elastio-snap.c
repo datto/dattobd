@@ -37,7 +37,7 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #include <uapi/linux/mount.h>
 #endif
 
-#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+#if defined HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID || defined USE_BDOPS_SUBMIT_BIO
 #include <linux/blk-mq.h>
 #include <linux/percpu-refcount.h>
 #endif
@@ -530,34 +530,113 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
 #endif
 
+#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO
+	// Linux kernel version 5.9+
+	// make_request_fn has been moved from the request queue structure to the
+	// block_device_operations as submit_bio function.
+	// See https://github.com/torvalds/linux/commit/c62b37d96b6eb3ec5ae4cbe00db107bf15aebc93
+	#define USE_BDOPS_SUBMIT_BIO
+
+	// Prototype bdev->fops->submit_bio but with the name already used in the code
+	typedef blk_qc_t (make_request_fn) (struct bio *bio);
+#endif
+
+static inline unsigned long disable_page_protection(void);
+static inline void reenable_page_protection(unsigned long cr0);
+
+#ifndef USE_BDOPS_SUBMIT_BIO
+static inline make_request_fn* elastio_snap_get_bd_mrf(struct block_device *bdev){
+	return bdev->bd_disk->queue->make_request_fn;
+}
+
+static inline void elastio_snap_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf){
+	bdev->bd_disk->queue->make_request_fn = mrf;
+}
+#else
+static inline make_request_fn* elastio_snap_get_bd_mrf(struct block_device *bdev){
+	return bdev->bd_disk->fops->submit_bio;
+}
+
+static inline void elastio_snap_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf){
+	unsigned long cr0;
+
+	preempt_disable();
+	cr0 = disable_page_protection();
+	((struct block_device_operations *)bdev->bd_disk->fops)->submit_bio = mrf;
+	reenable_page_protection(cr0);
+	preempt_enable();
+}
+#endif
+
+static inline struct request_queue *elastio_snap_bio_get_queue(struct bio *bio);
+
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 	#define MRF_RETURN_TYPE int
 	#define MRF_RETURN(ret) return ret
 
-static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int __elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
 }
+
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
+	return __elastio_snap_call_mrf(fn, elastio_snap_bio_get_queue(bio), bio);
+}
+
 #elif defined HAVE_MAKE_REQUEST_FN_VOID
 	#define MRF_RETURN_TYPE void
 	#define MRF_RETURN(ret) return
 
-static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+static inline int __elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	fn(q, bio);
+	return 0;
+}
+
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
+	__elastio_snap_call_mrf(fn, elastio_snap_bio_get_queue(bio), bio);
 	return 0;
 }
 #else
 	#define MRF_RETURN_TYPE blk_qc_t
 	#define MRF_RETURN(ret) return BLK_QC_T_NONE
 
+#ifndef USE_BDOPS_SUBMIT_BIO
+static inline int __elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
+	return fn(q, bio);
+}
+
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
+	return __elastio_snap_call_mrf(fn, elastio_snap_bio_get_queue(bio), bio);
+}
+#endif
+
 #ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
-static MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, struct bio *bio){
+// Linux version 5.8
+static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, struct bio *bio){
 	percpu_ref_get(&q->q_usage_counter);
 	return blk_mq_make_request(q, bio);
 }
 #endif
+#endif
 
-static inline int elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
-	return fn(q, bio);
+#ifdef USE_BDOPS_SUBMIT_BIO
+// Linux version 5.9+
+
+#ifdef HAVE_BLK_MQ_SUBMIT_BIO
+// Use real blk_mq_submit_bio for kernels 5.9.0 - 5.9.1 where it was exported and add compat HAVE_BLK_MQ_SUBMIT_BIO
+static inline blk_qc_t elastio_blk_mq_submit_bio(struct bio *bio){
+	return blk_mq_submit_bio(struct bio *bio);
+}
+#else
+blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR));
+#endif
+
+static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct bio *bio){
+	percpu_ref_get(&bio->bi_disk->queue->q_usage_counter);
+	return elastio_blk_mq_submit_bio(bio);
+}
+
+static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
+	return fn(bio);
 }
 #endif
 
@@ -921,10 +1000,19 @@ static void elastio_snap_proc_stop(struct seq_file *m, void *v);
 static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
 static int elastio_snap_proc_release(struct inode *inode, struct file *file);
 
+#ifdef USE_BDOPS_SUBMIT_BIO
+// Linux version 5.9+
+static MRF_RETURN_TYPE snap_mrf(struct bio *bio);
+#endif
+
 static const struct block_device_operations snap_ops = {
 	.owner = THIS_MODULE,
 	.open = snap_open,
 	.release = snap_release,
+#ifdef USE_BDOPS_SUBMIT_BIO
+// Linux version 5.9+
+	.submit_bio = snap_mrf,
+#endif
 };
 
 static const struct file_operations snap_control_fops = {
@@ -2775,7 +2863,7 @@ static int snap_mrf_thread(void *data){
 		//submit the original bio to the block IO layer
 		elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
 
-		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
+		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
 #endif
@@ -2989,7 +3077,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages, i = 0;
 
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
+	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -3109,12 +3197,17 @@ out:
 	}
 
 	//call the original mrf
-	ret = elastio_snap_call_mrf(dev->sd_orig_mrf, elastio_snap_bio_get_queue(bio), bio);
+	ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 
 	return ret;
 }
 
+#ifdef USE_BDOPS_SUBMIT_BIO
+// Linux version 5.9+
+static asmlinkage MRF_RETURN_TYPE tracing_mrf(struct bio *bio){
+#else
 static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
+#endif
 	int i, ret = 0;
 	struct snap_device *dev;
 	make_request_fn *orig_mrf = NULL;
@@ -3139,15 +3232,37 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	}
 
 call_orig:
-	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, q, bio);
+#ifdef USE_BDOPS_SUBMIT_BIO
+	// Linux version 5.9+
+	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, bio);
+	else if (bio->bi_disk->fops->submit_bio == tracing_mrf){
+		//original_mrf is not found, however bio's submit_bio is tracing_mrf. so, usual way is applicable
+		LOG_WARN("error finding original_mrf for the traced bio");
+		ret = elastio_snap_null_mrf(bio);
+	}else if(bio->bi_disk->fops->submit_bio){
+		LOG_WARN("error finding original_mrf, but bio's submit_bio is not empty");
+		ret = bio->bi_disk->fops->submit_bio(bio);
+	}else{
+		LOG_WARN("error finding original_mrf. all are empty");
+		ret = submit_bio_noacct(bio);
+	}
+#else
+	if(orig_mrf) ret = __elastio_snap_call_mrf(orig_mrf, q, bio);
 	else LOG_ERROR(-EFAULT, "error finding original_mrf");
+#endif
 out:
 	MRF_RETURN(ret);
 }
 
+#ifndef USE_BDOPS_SUBMIT_BIO
+// Linux version < 5.9
 static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 	struct snap_device *dev = q->queuedata;
-
+#else
+// Linux version >= 5.9
+static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
+	struct snap_device *dev = bio->bi_disk->queue->queuedata;
+#endif
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
 		elastio_snap_bio_endio(bio, -EOPNOTSUPP);
@@ -3207,10 +3322,26 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	struct snap_device *dev;
 	struct request_queue *q = bdev_get_queue(bdev);
 
-	if(q->make_request_fn != tracing_mrf){
+	if(elastio_snap_get_bd_mrf(bdev) != tracing_mrf){
 #ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
-		*mrf = q->make_request_fn;
+#ifdef USE_BDOPS_SUBMIT_BIO
+		// Linux version 5.9+
+		*mrf = elastio_snap_get_bd_mrf(bdev);
+		if (!*mrf){
+			if (elastio_blk_mq_submit_bio){
+				*mrf = elastio_snap_null_mrf;
+				LOG_DEBUG("original submit_bio is empty, set to elastio_snap_null_mrf");
+			}else{
+				LOG_ERROR(-EFAULT, "error finding original mrf, original submit_bio and elastio_snap_null_mrf both are empty");
+				return -EFAULT;
+			}
+		}
 #else
+		// Linux versions older than 5.8
+		*mrf = q->make_request_fn;
+#endif
+#else
+		// Linux version 5.8
 		if (q->make_request_fn) *mrf = q->make_request_fn;
 		else{
 			*mrf = elastio_snap_null_mrf;
@@ -3237,7 +3368,7 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 	struct snap_device *cur_dev;
 	struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
 
-	if(q->make_request_fn != tracing_mrf) return 0;
+	if(elastio_snap_get_bd_mrf(dev->sd_base_dev) != tracing_mrf) return 0;
 	if(dev != snap_devices[dev->sd_minor]) return 0;
 
 	//return 0 if there is another device tracing the same queue as dev.
@@ -3295,13 +3426,14 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		LOG_DEBUG("starting tracing");
 		*dev_ptr = dev;
 		smp_wmb();
-		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
+		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 	}else{
 		LOG_DEBUG("ending tracing");
-#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
-		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf == elastio_snap_null_mrf ? NULL : new_mrf;
+#if defined HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID || defined USE_BDOPS_SUBMIT_BIO
+// Linux version 5.8
+		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf == elastio_snap_null_mrf ? NULL : new_mrf);
 #else
-		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
+		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 #endif
 		smp_wmb();
 		*dev_ptr = dev;
@@ -3654,9 +3786,17 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	}
 
 #ifdef HAVE_BLK_ALLOC_QUEUE_GFP_T
-	//register request handler
 	LOG_DEBUG("setting up make request function");
+
+// For the Linux kernel version 5.9+:
+// The snap_mrf function is already set in the block_device_operations snap_ops struct
+// as submit_bio func. So, the request handler is already registered.
+// See a line below "dev->sd_gd->fops = &snap_ops;"
+#ifndef USE_BDOPS_SUBMIT_BIO
+	// Linux kernel version <= 5.6
+	// register request handler
 	blk_queue_make_request(dev->sd_queue, snap_mrf);
+#endif
 #endif
 
 	//give our request queue the same properties as the base device's
@@ -4956,13 +5096,28 @@ static asmlinkage long oldumount_hook(char __user *name){
 #define X86_CR0_WP (1UL << 16)
 #endif
 
-static inline void disable_page_protection(unsigned long *cr0) {
-	*cr0 = read_cr0();
-	write_cr0(*cr0 & ~X86_CR0_WP);
+static inline void wp_cr0(unsigned long cr0) {
+#ifdef USE_BDOPS_SUBMIT_BIO
+	// Enabling/disabling approach with usage of the write_cr0 function stopped to work somewhere starting from the kernels 5.X (maybe 5.3)
+	// after this patch https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8dbec27a242cd3e2816eeb98d3237b9f57cf6232
+	// Hence there is a workaround.
+	// The USE_BDOPS_SUBMIT_BIO have to be replaced with something else if this workaround is necessary for some other 5.X kernels.
+	// Now it's used just for the 5.9+ kernels.
+	__asm__ __volatile__ ("mov %0, %%cr0": "+r" (cr0));
+#else
+	write_cr0(cr0);
+#endif
 }
 
-static inline void reenable_page_protection(unsigned long *cr0) {
-	write_cr0(*cr0);
+static inline unsigned long disable_page_protection() {
+	unsigned long cr0;
+	cr0 = read_cr0();
+	wp_cr0(cr0 & ~X86_CR0_WP);
+	return cr0;
+}
+
+static inline void reenable_page_protection(unsigned long cr0) {
+	wp_cr0(cr0);
 }
 
 static void **find_sys_call_table(void){
@@ -4998,13 +5153,13 @@ static void restore_system_call_table(void){
 		LOG_DEBUG("restoring system call table");
 		//break back into the syscall table and replace the hooks we stole
 		preempt_disable();
-		disable_page_protection(&cr0);
+		cr0 = disable_page_protection();
 		restore_syscall(__NR_mount, orig_mount);
 		restore_syscall(__NR_umount2, orig_umount);
 #ifdef HAVE_SYS_OLDUMOUNT
 		restore_syscall(__NR_umount, orig_oldumount);
 #endif
-		reenable_page_protection(&cr0);
+		reenable_page_protection(cr0);
 		preempt_enable();
 	}
 }
@@ -5022,13 +5177,13 @@ static int hook_system_call_table(void){
 
 	//break into the syscall table and steal the hooks we need
 	preempt_disable();
-	disable_page_protection(&cr0);
+	cr0 = disable_page_protection();
 	set_syscall(__NR_mount, orig_mount, mount_hook);
 	set_syscall(__NR_umount2, orig_umount, umount_hook);
 #ifdef HAVE_SYS_OLDUMOUNT
 	set_syscall(__NR_umount, orig_oldumount, oldumount_hook);
 #endif
-	reenable_page_protection(&cr0);
+	reenable_page_protection(cr0);
 	preempt_enable();
 	return 0;
 }

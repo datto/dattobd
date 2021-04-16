@@ -20,11 +20,9 @@ jobs:
           debian8, debian9, debian10,
           centos7, centos8,
           amazon2,
-          fedora31
-          # TODO: Bring back
-          # - Fedora 32 when kernel 5.9  is supported (issue https://github.com/elastio/elastio-snap/issues/57 is fixed)
-          # - Fedora 33 when kernel 5.10 is supported.
-          # fedora32, fedora33
+          fedora31, fedora32
+          # - Fedora 33 when kernel 5.11 is supported.
+          # fedora33
         ]
         arch: [ amd64 ]
 
@@ -49,6 +47,18 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: .github/scripts/start_box.sh
 
+      - name: Boot Fedora 32 into kernel 5.9
+        if: "${{ matrix.distro == 'fedora32' }}"
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-core-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-modules-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-devel-5.9.16-100.fc32.x86_64.rpm
+            sudo reboot now' || true
+          sleep 5
+        working-directory: ${{env.BOX_DIR}}
+
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
         working-directory: ${{env.BOX_DIR}}
@@ -58,7 +68,7 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Build kernel module
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make'
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make'
         working-directory: ${{env.BOX_DIR}}
 
       - name: Install kernel module
@@ -79,7 +89,7 @@ jobs:
           cd $BOX_DIR && vagrant ssh ${{env.INSTANCE_NAME}} -c 'echo -e "n\np\n\n\n\nw" | sudo fdisk /dev/vdb'
 
       - name: Run tests (qcow2 disk)
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh /dev/vdb"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh /dev/vdb1"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 5
 

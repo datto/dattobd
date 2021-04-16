@@ -11,5 +11,5 @@ static inline void dummy(void){
 	struct block_device bd;
 	struct super_block sb;
 
-	if(thaw_bdev(&bd, &sb)) bd.bd_private = 0;
+	if(thaw_bdev(&bd, &sb)) bd.bd_disk = 0;
 }
