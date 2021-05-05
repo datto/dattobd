@@ -7,11 +7,11 @@ We recommend that you install the kernel module from Elastio's repositories.
 ### Repository package installation for RPM-based systems
 
 #### RHEL/CentOS
-The repository install package `elastio-repo` is available for CentOS/RHEL 6.10 and newer.
+The repository install package `elastio-repo` is available for CentOS/RHEL 7 and newer.
 
 ```bash
 # Install repo package
-sudo yum localinstall https://repo.assur.io/master/linux/rpm/CentOS/$(rpm -E %rhel)/x86_64/Packages/elastio-repo-0.0.2-1.el$(rpm -E %rhel).noarch.rpm
+sudo yum localinstall https://repo.assur.io/master/linux/rpm/CentOS/$(rpm -E %rhel)/noarch/Packages/elastio-repo-0.0.2-1.el$(rpm -E %rhel).noarch.rpm
 ```
 
 #### Amazon Linux
@@ -19,14 +19,14 @@ The repository install package `elastio-repo` is available for Amazon Linux 2.
 
 ```bash
 # Install repo package
-sudo yum localinstall https://repo.assur.io/master/linux/rpm/Amazon/$(rpm -E %amzn)/x86_64/Packages/elastio-repo-0.0.2-1.amzn$(rpm -E %amzn).noarch.rpm
+sudo yum localinstall https://repo.assur.io/master/linux/rpm/Amazon/$(rpm -E %amzn)/noarch/Packages/elastio-repo-0.0.2-1.amzn$(rpm -E %amzn).noarch.rpm
 ```
 
 #### Fedora
 The repository install package `elastio-repo` is available for Fedora 31 and newer.
 ```bash
 # Install repo package
-sudo yum install https://repo.assur.io/master/linux/rpm/Fedora/$(rpm -E %fedora)/x86_64/Packages/elastio-repo-0.0.2-1.fc$(rpm -E %fedora).noarch.rpm
+sudo yum localinstall https://repo.assur.io/master/linux/rpm/Fedora/$(rpm -E %fedora)/noarch/Packages/elastio-repo-0.0.2-1.fc$(rpm -E %fedora).noarch.rpm
 ```
 
 ### Elastio Snap installation
