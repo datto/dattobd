@@ -10,7 +10,7 @@
 #include <sys/ioctl.h>
 #include "libdattobd.h"
 
-int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
+int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, unsigned int should_wake_up){
 	int fd, ret;
 	struct setup_params sp;
 
@@ -22,7 +22,8 @@ int dattobd_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned l
 	sp.cow = cow;
 	sp.fallocated_space = fallocated_space;
 	sp.cache_size = cache_size;
-
+	sp.should_wake_up = should_wake_up;
+    
 	ret = ioctl(fd, IOCTL_SETUP_SNAP, &sp);
 
 	close(fd);
@@ -89,13 +90,14 @@ int dattobd_transition_incremental(unsigned int minor){
 	return ret;
 }
 
-int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space){
+int dattobd_transition_snapshot(unsigned int minor, char *cow, unsigned long fallocated_space, unsigned int should_wake_up){
 	int fd, ret;
 	struct transition_snap_params tp;
 
 	tp.minor = minor;
 	tp.cow = cow;
 	tp.fallocated_space = fallocated_space;
+	tp.should_wake_up = should_wake_up;
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
 	if(fd < 0) return -1;
@@ -152,5 +154,31 @@ int dattobd_get_free_minor(void){
 	close(fd);
 
 	if(!ret) return minor;
+	return ret;
+}
+
+int dattobd_wake_up_group(void){
+	int fd, ret, minor;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_WAKE_UP_GROUP, &minor);
+
+	close(fd);
+
+	return ret;
+}
+
+int dattobd_wake_up_transition_group(void){
+	int fd, ret, minor;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_WAKE_UP_TRANSITION_GROUP, &minor);
+
+	close(fd);
+
 	return ret;
 }

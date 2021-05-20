@@ -23,6 +23,7 @@ struct setup_params{
 	unsigned long fallocated_space; //space allocated to the cow file (in megabytes)
 	unsigned long cache_size; //maximum cache size (in bytes)
 	unsigned int minor; //requested minor number of the device
+	unsigned int should_wake_up;
 };
 
 struct reload_params{
@@ -36,6 +37,7 @@ struct transition_snap_params{
 	char *cow; //name of cow file for snapshot
 	unsigned long fallocated_space; //space allocated to the cow file (in bytes)
 	unsigned int minor; //requested minor
+	unsigned int should_wake_up;
 };
 
 struct reconfigure_params{
@@ -89,5 +91,7 @@ struct dattobd_info{
 #define IOCTL_RECONFIGURE _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) //in: see above
 #define IOCTL_DATTOBD_INFO _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) //in: see above
 #define IOCTL_GET_FREE _IOR(DATTO_IOCTL_MAGIC, 9, int)
+#define IOCTL_WAKE_UP_GROUP _IOR(DATTO_IOCTL_MAGIC, 10, int)
+#define IOCTL_WAKE_UP_TRANSITION_GROUP _IOR(DATTO_IOCTL_MAGIC, 11, int)
 
 #endif /* DATTOBD_H_ */
