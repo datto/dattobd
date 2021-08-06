@@ -28,6 +28,7 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #define PRINT_BIO(text, bio) LOG_DEBUG(text ": sect = %llu size = %u", (unsigned long long)bio_sector(bio), bio_size(bio) / 512)
 
 /*********************************REDEFINED FUNCTIONS*******************************/
+#include <linux/delay.h>
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
@@ -1002,6 +1003,11 @@ static void *elastio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos);
 static void elastio_snap_proc_stop(struct seq_file *m, void *v);
 static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
 static int elastio_snap_proc_release(struct inode *inode, struct file *file);
+
+// wait msec value to be at least 100 msec as wait loop uses it by msleep of (100) timeout pieces
+#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MSEC              500
+#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT   100
+static void elastio_snap_wait_for_release(struct snap_device *dev);
 
 #ifdef USE_BDOPS_SUBMIT_BIO
 // Linux version 5.9+
@@ -4529,7 +4535,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
 		ret = ioctl_setup_snap(minor, bdev_path, cow_path, fallocated_space, cache_size);
 		if(ret) break;
-
+        
+		elastio_snap_wait_for_release(snap_devices[minor]);
+        
 		break;
 	case IOCTL_RELOAD_SNAP:
 		//get params from user space
@@ -5347,6 +5355,18 @@ static int elastio_snap_proc_release(struct inode *inode, struct file *file){
 	seq_release(inode, file);
 	mutex_unlock(&ioctl_mutex);
 	return 0;
+}
+
+static void elastio_snap_wait_for_release(struct snap_device *dev)
+{
+	int prev_state = current->state;
+	int i = 0;
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (atomic_read(&dev->sd_refs) && i < ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT) {
+		msleep(ELASTIO_SNAP_WAIT_FOR_RELEASE_MSEC / ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT);
+		++i;
+	}
+	set_current_state(prev_state);
 }
 
 /************************MODULE SETUP AND DESTROY************************/
