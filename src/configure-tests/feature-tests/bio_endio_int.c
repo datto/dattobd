@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static int dummy_endio(struct bio *bio, unsigned int bytes, int err){
 	return 0;

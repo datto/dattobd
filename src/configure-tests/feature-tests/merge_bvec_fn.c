@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static int dummy_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec){
 	return 0;

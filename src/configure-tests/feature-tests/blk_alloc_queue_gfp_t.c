@@ -7,6 +7,7 @@
 // 2.6.23 <= kernel_version < 5.7
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
     struct request_queue *queue = blk_alloc_queue(GFP_KERNEL);

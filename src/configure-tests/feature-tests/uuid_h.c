@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 #include <linux/uuid.h>
 
 static inline void dummy(void){

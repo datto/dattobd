@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
 	enum req_op n = 0;

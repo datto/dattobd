@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
 	blk_status_t b = BLK_STS_OK;

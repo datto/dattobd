@@ -8,6 +8,6 @@
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-	struct bio b;
-	blk_mq_submit_bio(&b);
+	struct block_device bdev;
+	bdev_is_partition(&bdev);
 }

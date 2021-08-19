@@ -7,6 +7,7 @@
 // 5.7 <= kernel_version
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
     make_request_fn *mk_rq_fn;

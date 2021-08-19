@@ -520,11 +520,21 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
-#ifndef HAVE_PART_NR_SECTS_READ
+#ifdef HAVE_BDEV_NR_SECTORS
+	#define elastio_snap_bdev_size(bdev) bdev_nr_sectors(bdev)
+#elif defined HAVE_PART_NR_SECTS_READ
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
+	#define elastio_snap_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
+#else
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
 	#define elastio_snap_bdev_size(bdev) ((bdev)->bd_part->nr_sects)
+#endif
+
+#ifndef HAVE_BDEV_IS_PARTITION
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
+	#define elastio_snap_bdev_is_partition(bdev) (bdev->bd_contains != bdev)
 #else
-	#define elastio_snap_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
+	#define elastio_snap_bdev_is_partition(bdev) bdev_is_partition(bdev)
 #endif
 
 #ifndef HAVE_VZALLOC
@@ -3475,12 +3485,13 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
+
+#ifdef HAVE_FREEZE_SUPER
+		ret = thaw_super(origsb);
+#else
 #ifndef HAVE_THAW_BDEV_INT
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 		thaw_bdev(bdev, sb);
-#else
-#ifdef HAVE_FREEZE_SUPER
-		ret = thaw_super(origsb);
 #else
 		ret = thaw_bdev(bdev, sb);
 #endif
@@ -3581,8 +3592,8 @@ static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_pat
 
 	//check if device represents a partition, calculate size and offset
 	LOG_DEBUG("calculating block device size and offset");
-	if(dev->sd_base_dev->bd_contains != dev->sd_base_dev){
-		dev->sd_sect_off = dev->sd_base_dev->bd_part->start_sect;
+	if(elastio_snap_bdev_is_partition(dev->sd_base_dev)){
+		dev->sd_sect_off = get_start_sect(dev->sd_base_dev);
 		dev->sd_size = elastio_snap_bdev_size(dev->sd_base_dev);
 	}else{
 		dev->sd_sect_off = 0;

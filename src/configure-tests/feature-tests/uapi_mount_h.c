@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 #include <uapi/linux/mount.h>
 
 static inline void dummy(void){

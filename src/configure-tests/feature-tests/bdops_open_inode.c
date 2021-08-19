@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static int snap_open(struct inode *inode, struct file *filp){
 	return 0;

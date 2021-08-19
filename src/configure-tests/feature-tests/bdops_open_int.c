@@ -6,6 +6,7 @@
  */
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static int snap_open(struct block_device *bdev, fmode_t mode){
 	return 0;

@@ -7,6 +7,7 @@
 // 2.6.34 < kernel_version
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
 	struct super_block sb;

@@ -8,6 +8,7 @@
 // 2.6.25 <= kernel_version < 5.6
 
 #include "includes.h"
+MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
  	static const struct file_operations file_ops;
