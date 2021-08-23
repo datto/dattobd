@@ -60,20 +60,6 @@ jobs:
           sleep 5
         working-directory: ${{env.BOX_DIR}}
 
-      # TODO: Remove this step when https://github.com/elastio/elastio-snap/issues/78 is fixed
-      # Here we are downgrading kernel from the 4.18.0-305 to the older one, because the driver hangs on the most recent kernel version
-      - name: Boot CentOS 8 into kernel 4.18.0-240
-        if: "${{ matrix.distro == 'centos8' }}"
-        run: |
-          vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            sudo yum localinstall -y https://vault.centos.org/8.3.2011/BaseOS/x86_64/os/Packages/kernel-core-4.18.0-240.22.1.el8_3.x86_64.rpm
-            sudo yum localinstall -y https://vault.centos.org/8.3.2011/BaseOS/x86_64/os/Packages/kernel-modules-4.18.0-240.22.1.el8_3.x86_64.rpm
-            sudo yum localinstall -y https://vault.centos.org/8.3.2011/BaseOS/x86_64/os/Packages/kernel-4.18.0-240.22.1.el8_3.x86_64.rpm
-            sudo yum localinstall -y https://vault.centos.org/8.3.2011/BaseOS/x86_64/os/Packages/kernel-devel-4.18.0-240.22.1.el8_3.x86_64.rpm
-            sudo reboot now' || true
-          sleep 5
-        working-directory: ${{env.BOX_DIR}}
-
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
         working-directory: ${{env.BOX_DIR}}

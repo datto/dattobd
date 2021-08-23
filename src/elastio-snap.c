@@ -38,7 +38,7 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #include <uapi/linux/mount.h>
 #endif
 
-#if defined HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID || defined USE_BDOPS_SUBMIT_BIO
+#if defined HAVE_BLK_MQ_MAKE_REQUEST || defined USE_BDOPS_SUBMIT_BIO
 #include <linux/blk-mq.h>
 #include <linux/percpu-refcount.h>
 #endif
@@ -620,7 +620,7 @@ static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
 }
 #endif
 
-#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+#ifdef HAVE_BLK_MQ_MAKE_REQUEST
 // Linux version 5.8
 static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, struct bio *bio){
 	percpu_ref_get(&q->q_usage_counter);
@@ -3363,33 +3363,24 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 	int i;
 	struct snap_device *dev;
 	struct request_queue *q = bdev_get_queue(bdev);
+	make_request_fn *orig_mrf = elastio_snap_get_bd_mrf(bdev);
 
-	if(elastio_snap_get_bd_mrf(bdev) != tracing_mrf){
-#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+	if(orig_mrf != tracing_mrf){
+#if defined HAVE_BLK_MQ_MAKE_REQUEST || defined USE_BDOPS_SUBMIT_BIO
+		// Linux version 5.8+
+		if (!orig_mrf){
 #ifdef USE_BDOPS_SUBMIT_BIO
-		// Linux version 5.9+
-		*mrf = elastio_snap_get_bd_mrf(bdev);
-		if (!*mrf){
-			if (elastio_blk_mq_submit_bio){
-				*mrf = elastio_snap_null_mrf;
-				LOG_DEBUG("original submit_bio is empty, set to elastio_snap_null_mrf");
-			}else{
+			// Linux version 5.9+
+			if (!elastio_blk_mq_submit_bio){
 				LOG_ERROR(-EFAULT, "error finding original mrf, original submit_bio and elastio_snap_null_mrf both are empty");
 				return -EFAULT;
 			}
-		}
-#else
-		// Linux versions older than 5.8
-		*mrf = q->make_request_fn;
 #endif
-#else
-		// Linux version 5.8
-		if (q->make_request_fn) *mrf = q->make_request_fn;
-		else{
-			*mrf = elastio_snap_null_mrf;
+			orig_mrf = elastio_snap_null_mrf;
 			LOG_DEBUG("original mrf is empty, set to elastio_snap_null_mrf");
 		}
 #endif
+		*mrf = orig_mrf;
 		return 0;
 	}
 
@@ -3471,8 +3462,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 	}else{
 		LOG_DEBUG("ending tracing");
-#if defined HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID || defined USE_BDOPS_SUBMIT_BIO
-// Linux version 5.8
+#if defined HAVE_BLK_MQ_MAKE_REQUEST || defined USE_BDOPS_SUBMIT_BIO
+// Linux version 5.8+
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf == elastio_snap_null_mrf ? NULL : new_mrf);
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
