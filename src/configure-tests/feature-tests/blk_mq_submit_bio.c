@@ -5,6 +5,7 @@
  */
 
 #include "includes.h"
+#include <linux/blk-mq.h>
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){

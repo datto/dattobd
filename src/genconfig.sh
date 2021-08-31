@@ -24,9 +24,16 @@ fi
 
 SYSTEM_MAP_FILE="/lib/modules/${KERNEL_VERSION}/System.map"
 
-if [ ! -f "$SYSTEM_MAP_FILE" ]; then
-	# Use fallback location
-	SYSTEM_MAP_FILE="/boot/System.map-${KERNEL_VERSION}"
+# Use standard location at the /boot
+[ ! -f "$SYSTEM_MAP_FILE" ] && SYSTEM_MAP_FILE="/boot/System.map-${KERNEL_VERSION}"
+if [ ! -f "$SYSTEM_MAP_FILE" ] || [ $(cat "$SYSTEM_MAP_FILE" | wc -l) -lt 10 ]; then
+	# The build is running on Debian 11+. File /boot/System.map-${KERNEL_VERSION} exists, but it
+	# contains just a single line.
+	# Maybe package linux-image-$(uname -r)-dbg is installed...
+	SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
+
+	# Use fallback option
+	[ ! -f "$SYSTEM_MAP_FILE" ] && SYSTEM_MAP_FILE="/proc/kallsyms"    
 fi
 
 

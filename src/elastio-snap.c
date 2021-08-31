@@ -38,7 +38,7 @@ MODULE_VERSION(ELASTIO_SNAP_VERSION);
 #include <uapi/linux/mount.h>
 #endif
 
-#if defined HAVE_BLK_MQ_MAKE_REQUEST || defined USE_BDOPS_SUBMIT_BIO
+#if defined HAVE_BLK_MQ_MAKE_REQUEST || defined HAVE_BLK_MQ_SUBMIT_BIO
 #include <linux/blk-mq.h>
 #include <linux/percpu-refcount.h>
 #endif
@@ -633,12 +633,12 @@ static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, str
 // Linux version 5.9+
 
 #ifdef HAVE_BLK_MQ_SUBMIT_BIO
-// Use real blk_mq_submit_bio for kernels 5.9.0 - 5.9.1 where it was exported and add compat HAVE_BLK_MQ_SUBMIT_BIO
-static inline blk_qc_t elastio_blk_mq_submit_bio(struct bio *bio){
-	return blk_mq_submit_bio(struct bio *bio);
-}
-#else
-blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR));
+// The blk_mq_submit_bio function was exported in the kernels 5.9.0 - 5.9.1. And starting from the 5.9.2 it doesn't.
+// And compat HAVE_BLK_MQ_SUBMIT_BIO doesn't allow us to detect whether it exported or not.
+// Anyway this call by address works in all cases for the kernels 5.9+.
+// Also elastio_blk_mq_submit_bio is set to NULL in case if address of the blk_mq_submit_bio function is not detected for further checks.
+blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR != 0) ?
+	(blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
 #endif
 
 static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct bio *bio){

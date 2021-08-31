@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         distro: [
-          debian8, debian9, debian10,
+          debian8, debian9, debian10, debian11,
           centos7, centos8,
           amazon2,
           fedora31, fedora32,
