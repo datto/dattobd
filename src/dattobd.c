@@ -934,7 +934,8 @@ static const struct seq_operations dattobd_seq_proc_ops = {
 	.show = dattobd_proc_show,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
+#ifndef HAVE_PROC_OPS
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static const struct file_operations dattobd_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = dattobd_proc_open,
@@ -3633,7 +3634,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//allocate request queue
 	LOG_DEBUG("allocating queue");
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
+#ifdef HAVE_BLOCK_ALLOC_QUEUE_1
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
 	dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
 #else
 	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
@@ -3644,9 +3646,10 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		goto error;
 	}
 
+#ifdef HAVE_BLOCK_ALLOC_QUEUE_1
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)	
 	//register request handler
 	LOG_DEBUG("setting up make request function");
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)	
 	blk_queue_make_request(dev->sd_queue, snap_mrf);
 #endif
 	//give our request queue the same properties as the base device's
