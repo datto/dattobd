@@ -131,13 +131,43 @@ void path_put(const struct path *path) {
 typedef mode_t fmode_t;
 #endif
 
-#ifdef HAVE_BD_SUPER
-#define elastio_snap_get_super(bdev) (bdev)->bd_super
-#define elastio_snap_drop_super(sb)
-#else
-#define elastio_snap_get_super(bdev) get_super(bdev)
-#define elastio_snap_drop_super(sb) drop_super(sb)
+#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
+struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE_ADDR != 0) ?
+	(struct request_queue* (*)(int node_id)) (BLK_ALLOC_QUEUE_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
 #endif
+
+#ifdef HAVE_BD_SUPER
+#define elastio_snap_get_super_def(bdev) (bdev)->bd_super
+#define elastio_snap_drop_super_def(sb)
+#endif
+
+struct super_block *elastio_snap_get_super(struct block_device *bdev)
+{
+	struct super_block* (*get_super_fn)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
+		(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
+	if (get_super_fn != NULL)
+	{
+		return get_super_fn(bdev);
+	}
+	else
+	{
+		return elastio_snap_get_super_def(bdev);
+	}
+}
+
+void elastio_snap_drop_super(struct super_block *sb)
+{
+	void (*drop_super_fn)(struct super_block *) = (DROP_SUPER_ADDR != 0) ?
+		(void (*)(struct super_block *sb)) (DROP_SUPER_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
+	if (drop_super_fn != NULL)
+	{
+		drop_super_fn(sb);
+	}
+	else
+	{
+		elastio_snap_drop_super_def(sb);
+	}
+}
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
@@ -513,6 +543,13 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 }
 
 
+#ifdef HAVE_BIO_BI_BDEV_BD_DISK
+	#define elastio_snap_bio_bi_disk(bio) ((bio)->bi_bdev->bd_disk)
+#else
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
+	#define elastio_snap_bio_bi_disk(bio) ((bio)->bi_disk)
+#endif
+
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev);
@@ -642,7 +679,7 @@ blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR !=
 #endif
 
 static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct bio *bio){
-	percpu_ref_get(&bio->bi_disk->queue->q_usage_counter);
+	percpu_ref_get(&elastio_snap_bio_bi_disk(bio)->queue->q_usage_counter);
 	return elastio_blk_mq_submit_bio(bio);
 }
 
@@ -735,29 +772,29 @@ static inline ssize_t elastio_snap_kernel_write(struct file *filp, const void *b
 }
 
 static inline struct request_queue *elastio_snap_bio_get_queue(struct bio *bio){
-#ifdef HAVE_BIO_BI_BDEV
+#if defined HAVE_BIO_BI_BDEV && defined HAVE_MAKE_REQUEST_FN_IN_QUEUE
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	return bdev_get_queue(bio->bi_bdev);
 #else
-	return bio->bi_disk->queue;
+	return elastio_snap_bio_bi_disk(bio)->queue;
 #endif
 }
 
 static inline void elastio_snap_bio_set_dev(struct bio *bio, struct block_device *bdev){
-#ifdef HAVE_BIO_BI_BDEV
+#if defined HAVE_BIO_SET_DEV
+	bio_set_dev(bio, bdev);
+#else
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	bio->bi_bdev = bdev;
-#else
-	bio_set_dev(bio, bdev);
 #endif
 }
 
 static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
-#ifdef HAVE_BIO_BI_BDEV
+#if defined HAVE_BIO_COPY_DEV
+	bio_copy_dev(dst, src);
+#else
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 	dst->bi_bdev = src->bi_bdev;
-#else
-	bio_copy_dev(dst, src);
 #endif
 }
 
@@ -860,6 +897,10 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 
 #define ELASTIO_SNAP_DEFAULT_SNAP_DEVICES 24
 #define ELASTIO_SNAP_MAX_SNAP_DEVICES 255
+
+#if !defined BIO_MAX_PAGES && defined BIO_MAX_VECS
+#define BIO_MAX_PAGES BIO_MAX_VECS
+#endif
 
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 1;
@@ -1633,8 +1674,11 @@ static int elastio_snap_do_truncate(struct dentry *dentry, loff_t length, unsign
 #ifdef HAVE_NOTIFY_CHANGE_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	ret = notify_change(dentry, &newattrs);
-#else
+#elif defined HAVE_NOTIFY_CHANGE_3
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
 	ret = notify_change(dentry, &newattrs, NULL);
+#else
+	ret = notify_change(&init_user_ns, dentry, &newattrs, NULL);
 #endif
 	elastio_snap_inode_unlock(dentry->d_inode);
 
@@ -1808,8 +1852,11 @@ static int __file_unlink(struct file *filp, int close, int force){
 #ifdef HAVE_VFS_UNLINK_2
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	ret = vfs_unlink(dir_inode, file_dentry);
-#else
+#elif defined HAVE_VFS_UNLINK_3
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
 	ret = vfs_unlink(dir_inode, file_dentry, NULL);
+#else
+	ret = vfs_unlink(&init_user_ns, dir_inode, file_dentry, NULL);
 #endif
 	if(ret){
 		LOG_ERROR(ret, "error unlinking file");
@@ -3150,8 +3197,15 @@ retry:
 	atomic64_inc(&dev->sd_submitted_cnt);
 	smp_wmb();
 
-	//submit the bios
-	elastio_snap_submit_bio(new_bio);
+	// 
+	// submit the bios 
+	// send bio by calling original mrf when its present or call an ordinal submit_bio instead
+	//
+	if (dev->sd_orig_mrf) {
+		elastio_snap_call_mrf(dev->sd_orig_mrf, new_bio);
+	} else {
+		elastio_snap_submit_bio(new_bio);
+	}
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
@@ -3257,7 +3311,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	MAYBE_UNUSED(ret);
 
 	smp_rmb();
-	tracer_for_each(dev, i){
+	tracer_for_each(dev, i){	// for each snap device
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
@@ -3276,16 +3330,16 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 call_orig:
 #ifdef USE_BDOPS_SUBMIT_BIO
 	// Linux version 5.9+
-	if(orig_mrf) ret = elastio_snap_call_mrf(orig_mrf, bio);
-	else if (bio->bi_disk->fops->submit_bio == tracing_mrf){
-		//original_mrf is not found, however bio's submit_bio is tracing_mrf. so, usual way is applicable
-		LOG_WARN("error finding original_mrf for the traced bio");
-		ret = elastio_snap_null_mrf(bio);
-	}else if(bio->bi_disk->fops->submit_bio){
-		LOG_WARN("error finding original_mrf, but bio's submit_bio is not empty");
-		ret = bio->bi_disk->fops->submit_bio(bio);
-	}else{
-		LOG_WARN("error finding original_mrf. all are empty");
+	if (orig_mrf) {
+		ret = elastio_snap_call_mrf(orig_mrf, bio);
+	} else if (elastio_snap_bio_bi_disk(bio)->fops->submit_bio) {
+		if (elastio_snap_bio_bi_disk(bio)->fops->submit_bio == tracing_mrf) {
+			ret = elastio_snap_null_mrf(bio);
+		} else {
+			ret = elastio_snap_bio_bi_disk(bio)->fops->submit_bio(bio);
+		}
+	} else {
+		LOG_WARN("error finding original_mrf and bio's submit_bio. both are empty");
 		ret = submit_bio_noacct(bio);
 	}
 #else
@@ -3303,7 +3357,7 @@ static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 #else
 // Linux version >= 5.9
 static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
-	struct snap_device *dev = bio->bi_disk->queue->queuedata;
+	struct snap_device *dev = elastio_snap_bio_bi_disk(bio)->queue->queuedata;
 #endif
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
@@ -3418,7 +3472,7 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
-#ifndef HAVE_FREEZE_SUPER
+#ifdef HAVE_THAW_BDEV_INT
 	struct super_block *sb = NULL;
 #endif
 	char bdev_name[BDEVNAME_SIZE];
@@ -3427,28 +3481,20 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	bdevname(bdev, bdev_name);
 
 	if(origsb){
+		elastio_snap_drop_super(origsb);
+        
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
-#ifdef HAVE_FREEZE_SUPER
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34)
-		ret = freeze_super(origsb);
-		if (ret){
-			LOG_ERROR((ret), "error freezing super for '%s': error", bdev_name);
-			elastio_snap_drop_super(origsb);
+#ifdef HAVE_THAW_BDEV_INT        
+		sb = freeze_bdev(bdev);
+		ret = (IS_ERR(sb)) ? PTR_ERR(sb) : 0;
+#else
+		ret = freeze_bdev(bdev);
+#endif        
+		if (ret) {
+			LOG_ERROR((ret), "error freezing '%s': error", bdev_name);
 			return ret;
 		}
-#else
-		sb = freeze_bdev(bdev);
-		if(!sb){
-			LOG_ERROR(-EFAULT, "error freezing '%s': null", bdev_name);
-			elastio_snap_drop_super(origsb);
-			return -EFAULT;
-		}else if(IS_ERR(sb)){
-			LOG_ERROR((int)PTR_ERR(sb), "error freezing '%s': error", bdev_name);
-			elastio_snap_drop_super(origsb);
-			return (int)PTR_ERR(sb);
-		}
-#endif
 	}
 	else{
 		LOG_WARN("warning: no super found for device '%s', unable to freeze it", bdev_name);
@@ -3468,31 +3514,23 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 #endif
-		smp_wmb();
 		*dev_ptr = dev;
+		smp_wmb();
 	}
-	smp_wmb();
 
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-
-#ifdef HAVE_FREEZE_SUPER
-		ret = thaw_super(origsb);
-#else
-#ifndef HAVE_THAW_BDEV_INT
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-		thaw_bdev(bdev, sb);
-#else
+#ifdef HAVE_THAW_BDEV_INT                
 		ret = thaw_bdev(bdev, sb);
+#else
+		ret = thaw_bdev(bdev);
 #endif
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.
 			//pretend we succeeded so we don't break the block device
 		}
-#endif
-		elastio_snap_drop_super(origsb);
 	}
 
 	return 0;
@@ -3808,9 +3846,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 #ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	LOG_DEBUG("allocating queue and setting up make request function");
 	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
-#else // HAVE_BLK_ALLOC_QUEUE_GFP_T
-	LOG_DEBUG("allocating queue");
-	dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
+#else
+	dev->sd_queue = elastio_blk_alloc_queue(GFP_KERNEL);
 #endif
 
 	if(!dev->sd_queue){
@@ -3819,7 +3856,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		goto error;
 	}
 
-#ifdef HAVE_BLK_ALLOC_QUEUE_GFP_T
+#ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	LOG_DEBUG("setting up make request function");
 
 // For the Linux kernel version 5.9+:
@@ -5361,7 +5398,12 @@ static int elastio_snap_proc_release(struct inode *inode, struct file *file){
 
 static void elastio_snap_wait_for_release(struct snap_device *dev)
 {
-	int prev_state = current->state;
+#ifdef HAVE_TASK_STRUCT_STATE
+	// Linux kernel version 5.14+
+	int prev_state = READ_ONCE(current->__state);
+#else
+	int prev_state = READ_ONCE(current->state);
+#endif
 	int i = 0;
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (atomic_read(&dev->sd_refs) && i < ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT) {

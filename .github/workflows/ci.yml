@@ -20,9 +20,7 @@ jobs:
           debian8, debian9, debian10, debian11,
           centos7, centos8,
           amazon2,
-          fedora31, fedora32,
-          # - Uncomment Fedora 33 when kernel 5.12 is supported.
-          # fedora33,
+          fedora31, fedora32, fedora34, fedora35,
           ubuntu2004
         ]
         arch: [ amd64 ]

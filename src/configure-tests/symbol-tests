@@ -4,3 +4,6 @@ sys_oldumount
 sys_call_table
 printk
 blk_mq_submit_bio
+blk_alloc_queue
+get_super
+drop_super
