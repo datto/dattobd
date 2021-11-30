@@ -28,12 +28,22 @@ MODULE_VERSION(DATTOBD_VERSION);
 
 /*********************************REDEFINED FUNCTIONS*******************************/
 
+#if defined HAVE_BLK_ALLOC_QUEUE_2 || defined HAVE_BLK_ALLOC_QUEUE_RH_2
+#define HAVE_BLK_ALLOC_QUEUE
+#endif
+
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
 #endif
 
 #ifdef HAVE_UAPI_MOUNT_H
 #include <uapi/linux/mount.h>
+#endif
+
+#ifdef HAVE_BLK_ALLOC_QUEUE
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
+#include <linux/blk-mq.h>
+#include <linux/percpu-refcount.h>
 #endif
 
 #ifndef HAVE_BIO_LIST
@@ -545,6 +555,14 @@ static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 
 static inline int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	return fn(q, bio);
+}
+#endif
+
+#ifdef HAVE_BLK_ALLOC_QUEUE
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
+MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio){
+	percpu_ref_get(&q->q_usage_counter);
+	return blk_mq_make_request(q, bio);
 }
 #endif
 
@@ -3228,8 +3246,14 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 
 	//since kernel 5.8 make_request_fn can be null.
 	if(q->make_request_fn == NULL){
+#ifndef HAVE_BLK_ALLOC_QUEUE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
 		LOG_ERROR(-EINVAL, "make_request_fn is null");
 		return -EINVAL;
+#else
+		*mrf = dattobd_null_mrf;
+		return 0;
+#endif
 	}
 
 	if(q->make_request_fn != tracing_mrf){
@@ -3300,7 +3324,12 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
 	}else{
 		LOG_DEBUG("ending tracing");
+#ifndef HAVE_BLK_ALLOC_QUEUE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
 		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf;
+#else
+		if(new_mrf) bdev->bd_disk->queue->make_request_fn = new_mrf == dattobd_null_mrf ? NULL : new_mrf;
+#endif
 		smp_wmb();
 		*dev_ptr = dev;
 	}
@@ -3634,11 +3663,15 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//allocate request queue
 	LOG_DEBUG("allocating queue");
-#ifdef HAVE_BLOCK_ALLOC_QUEUE_1
+#ifndef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
 	dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
 #else
+#ifdef HAVE_BLK_ALLOC_QUEUE_RH_2 // el8
+	dev->sd_queue = blk_alloc_queue_rh(snap_mrf, NUMA_NO_NODE);
+#else
 	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
+#endif
 #endif	
 	if(!dev->sd_queue){
 		ret = -ENOMEM;
@@ -3646,7 +3679,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		goto error;
 	}
 
-#ifdef HAVE_BLOCK_ALLOC_QUEUE_1
+#ifndef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)	
 	//register request handler
 	LOG_DEBUG("setting up make request function");
