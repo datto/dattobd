@@ -58,6 +58,15 @@ jobs:
           sleep 5
         working-directory: ${{env.BOX_DIR}}
 
+      - name: Boot Fedora 35 into kernel 5.15
+        if: "${{ matrix.distro == 'fedora35' }}"
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+            sudo yum update -y kernel kernel-devel
+            sudo reboot now' || true
+          sleep 5
+        working-directory: ${{env.BOX_DIR}}
+
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
         working-directory: ${{env.BOX_DIR}}

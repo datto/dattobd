@@ -133,41 +133,11 @@ typedef mode_t fmode_t;
 
 #ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE_ADDR != 0) ?
-	(struct request_queue* (*)(int node_id)) (BLK_ALLOC_QUEUE_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
+	(struct request_queue* (*)(int node_id)) (BLK_ALLOC_QUEUE_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 #endif
 
-#ifdef HAVE_BD_SUPER
-#define elastio_snap_get_super_def(bdev) (bdev)->bd_super
-#define elastio_snap_drop_super_def(sb)
-#endif
-
-struct super_block *elastio_snap_get_super(struct block_device *bdev)
-{
-	struct super_block* (*get_super_fn)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
-		(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
-	if (get_super_fn != NULL)
-	{
-		return get_super_fn(bdev);
-	}
-	else
-	{
-		return elastio_snap_get_super_def(bdev);
-	}
-}
-
-void elastio_snap_drop_super(struct super_block *sb)
-{
-	void (*drop_super_fn)(struct super_block *) = (DROP_SUPER_ADDR != 0) ?
-		(void (*)(struct super_block *sb)) (DROP_SUPER_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
-	if (drop_super_fn != NULL)
-	{
-		drop_super_fn(sb);
-	}
-	else
-	{
-		elastio_snap_drop_super_def(sb);
-	}
-}
+struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
+	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
@@ -675,7 +645,7 @@ static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, str
 // Anyway this call by address works in all cases for the kernels 5.9+.
 // Also elastio_blk_mq_submit_bio is set to NULL in case if address of the blk_mq_submit_bio function is not detected for further checks.
 blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR != 0) ?
-	(blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)printk) - (void *)PRINTK_ADDR)) : NULL;
+	(blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 #endif
 
 static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct bio *bio){
@@ -1119,6 +1089,9 @@ static unsigned int highest_minor, lowest_minor;
 static struct snap_device **snap_devices;
 static struct proc_dir_entry *info_proc;
 static void **system_call_table = NULL;
+#ifndef HAVE_ALLOC_DISK
+static struct lock_class_key sd_bio_compl_lkclass;
+#endif
 
 static asmlinkage long (*orig_mount)(char __user *, char __user *, char __user *, unsigned long, void __user *);
 static asmlinkage long (*orig_umount)(char __user *, int);
@@ -1693,7 +1666,12 @@ static int file_truncate(struct file *filp, loff_t len){
 	dentry = elastio_snap_get_dentry(filp);
 	inode = dentry->d_inode;
 
+#ifdef HAVE_LOCKS_VERIFY_TRUNCATE
+	// The function has been disappeared starting from the kernel 5.15.
 	ret = locks_verify_truncate(inode, filp, len);
+#else
+	ret = vfs_truncate(&filp->f_path, len);
+#endif
 	if(ret){
 		LOG_ERROR(ret, "error verifying truncation is possible");
 		goto error;
@@ -3481,7 +3459,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	bdevname(bdev, bdev_name);
 
 	if(origsb){
-		elastio_snap_drop_super(origsb);
+		drop_super(origsb);
         
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
@@ -3680,7 +3658,7 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev) {
 	int ret = 0;
 	if (sb) {
 		ret = ((elastio_snap_get_mnt(file))->mnt_sb == sb);
-		elastio_snap_drop_super(sb);
+		drop_super(sb);
 	}
 	return ret;
 }
@@ -3808,7 +3786,12 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 
 	if(dev->sd_gd){
 		LOG_DEBUG("freeing gendisk");
+#ifdef HAVE_DISK_LIVE
+		// Kernel version 5.15+
+		if(disk_live(dev->sd_gd)) del_gendisk(dev->sd_gd);
+#else
 		if(dev->sd_gd->flags & GENHD_FL_UP) del_gendisk(dev->sd_gd);
+#endif
 		put_disk(dev->sd_gd);
 		dev->sd_gd = NULL;
 	}
@@ -3882,7 +3865,12 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	//allocate a gendisk struct
 	LOG_DEBUG("allocating gendisk");
+#ifdef HAVE_ALLOC_DISK
+	// alloc_disk function has been disappeared starting from the kernel 5.15
 	dev->sd_gd = alloc_disk(1);
+#else
+	dev->sd_gd = __alloc_disk_node(dev->sd_queue, NUMA_NO_NODE, &sd_bio_compl_lkclass);
+#endif
 	if(!dev->sd_gd){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating gendisk");
@@ -3894,6 +3882,9 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_queue->queuedata = dev;
 	dev->sd_gd->private_data = dev;
 	dev->sd_gd->major = major;
+#ifndef HAVE_ALLOC_DISK
+	dev->sd_gd->minors = 1;
+#endif
 	dev->sd_gd->first_minor = minor;
 	dev->sd_gd->fops = &snap_ops;
 	dev->sd_gd->queue = dev->sd_queue;
@@ -4339,7 +4330,7 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	sb = elastio_snap_get_super(bdev);
 	if(sb){
 		writable = !(sb->s_flags & MS_RDONLY);
-		elastio_snap_drop_super(sb);
+		drop_super(sb);
 	}
 
 	elastio_snap_blkdev_put(bdev);
@@ -5050,10 +5041,10 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 		if(!(sb->s_flags & MS_RDONLY)){
 			LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
 			tracer_set_fail_state(dev, -EIO);
-			elastio_snap_drop_super(sb);
+			drop_super(sb);
 			return;
 		}
-		elastio_snap_drop_super(sb);
+		drop_super(sb);
 	}
 
 	LOG_DEBUG("post umount check succeeded");
@@ -5199,7 +5190,7 @@ static void **find_sys_call_table(void){
 
 	if(!SYS_CALL_TABLE_ADDR || !SYS_MOUNT_ADDR || !SYS_UMOUNT_ADDR) return NULL;
 
-	offset = ((void *)printk) - (void *)PRINTK_ADDR;
+	offset = ((void *)kfree) - (void *)KFREE_ADDR;
 	sct = (void **)SYS_CALL_TABLE_ADDR + offset / sizeof(void **);
 
 	if(sct[__NR_mount] != (void **)SYS_MOUNT_ADDR + offset / sizeof(void **)) return NULL;
