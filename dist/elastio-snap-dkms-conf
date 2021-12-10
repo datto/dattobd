@@ -13,5 +13,4 @@ DEST_MODULE_LOCATION[0]="/kernel/drivers/block/"
 
 NO_WEAK_MODULES="yes"
 AUTOINSTALL="yes"
-REMAKE_INITRD="no"
 

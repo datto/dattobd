@@ -106,7 +106,7 @@
 
 
 Name:            elastio-snap
-Version:         0.10.15
+Version:         0.10.16
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -413,9 +413,10 @@ if [ "$1" -ge "1" ]; then
     if [ -f /usr/lib/dkms/common.postinst ]; then
         /usr/lib/dkms/common.postinst %{name} %{version} || exit $?
     fi
-%if "%{_vendor}" == "debbuild"
-    modinfo %{name} &> /dev/null && modprobe %{name} || :
-%endif
+# It was always necessary for "%{_vendor}" == "debbuild" and now necessary for CentOS/Fedora and any distro with
+# DKMS version starting from 2.8.8. Now DKMS has a parameter '--modprobe-on-install' for the 'dkms install' command.
+# But /usr/lib/dkms/common.postinst script doesn't offer this parameter. So, modprobing it manually.
+modinfo %{name} &> /dev/null && modprobe %{name} || :
 fi
 
 
@@ -582,6 +583,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Fri Dec 10 2021 Eugene Kovalenko <ikovalenko@elastio.com> - 0.10.16
+- Fix for the module loading after installation by DKMS v. 3.0+
+- Linux kernel 5.11 - 5.15 support
+- Support CentOS 8.4 with the Linux kernel 4.18.0-305
+- Fix device busy error on immediate command right after snapshot creation
 
 * Fri May 21 2021 Eugene Kovalenko <ikovalenko@elastio.com> - 0.10.15
 - Update from upstream: Additional fix for multipage bios in kernel 5.4
