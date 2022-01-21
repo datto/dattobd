@@ -4,6 +4,7 @@
 Vagrant.require_version ">= 1.6.2"
 
 $box_version=">= 20.9.9"
+$box_version_centos8="<= 21.11.24"
 
 pid = Process.pid
 
@@ -51,7 +52,11 @@ Vagrant.configure("2") do |config|
     config.vm.define "#{instance}", autostart: false do |b|
       b.vm.box = "#{box}"
       b.vm.box_url = [ "https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/devboxes/master/#{box}.json" ]
-      b.vm.box_version = $box_version
+      if distro == "centos8"
+        b.vm.box_version = $box_version_centos8
+      else 
+        b.vm.box_version = $box_version
+      end
     end
 
     config.trigger.before :"Vagrant::Action::Builtin::BoxAdd", type: :action do |trigger|

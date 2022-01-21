@@ -2655,10 +2655,15 @@ static void bio_destructor_snap_dev(struct bio *bio){
 #endif
 
 static void bio_free_clone(struct bio *bio){
-	int i;
+	bio_iter_t iter;
+	bio_iter_bvec_t bvec;
+	struct page *bv_page;
 
-	for(i = 0; i < bio->bi_vcnt; i++){
-		if(bio->bi_io_vec[i].bv_page) __free_page(bio->bi_io_vec[i].bv_page);
+	bio_for_each_segment(bvec, bio, iter) {
+		bv_page = bio_iter_page(bio, iter);
+		if (bv_page) {
+			__free_page(bv_page);
+		}
 	}
 	bio_put(bio);
 }
