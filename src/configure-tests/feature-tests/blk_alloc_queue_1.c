@@ -7,11 +7,5 @@
 #include "includes.h"
 
 static inline void dummy(void){
-
-    make_request_fn *fn;
-
-    struct request_queue *rq = blk_alloc_queue_rh(fn, NUMA_NO_NODE);
-
-    (void)rq;
-
+    struct request_queue *rq = blk_alloc_queue(GFP_KERNEL);
 }

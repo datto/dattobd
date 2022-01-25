@@ -4,7 +4,7 @@ Upstream-Contact: Tom Caputi <tcaputi@datto.com>
 Source: https://github.com/datto/dattobd
 
 Files: *
-Copyright: Copyright 2015 Datto, Inc.
+Copyright: Copyright 2015-2022 Datto, Inc.
 License: GPL-2.0
  This program is free software; you can redistribute it
  and/or modify it under the terms of the GNU General Public
@@ -27,7 +27,7 @@ License: GPL-2.0
  `/usr/share/common-licenses/GPL-2'.
 
 Files: lib/*
-Copyright: Copyright 2015 Datto, Inc.
+Copyright: Copyright 2015-2022 Datto, Inc.
 License: LGPL-2.1+
  This program is free software; you can redistribute it
  and/or modify it under the terms of the GNU General Public
@@ -50,7 +50,7 @@ License: LGPL-2.1+
  `/usr/share/common-licenses/LGPL-2.1'.
 
 Files: src/dattobd.h
-Copyright: Copyright 2015 Datto, Inc.
+Copyright: Copyright 2015-2022 Datto, Inc.
 License: LGPL-2.1+
  This program is free software; you can redistribute it
  and/or modify it under the terms of the GNU General Public
