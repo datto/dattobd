@@ -547,13 +547,12 @@ rm -rf %{buildroot}
 %config %{_sysconfdir}/sysconfig/modules/dattobd.modules
 %endif
 %dir %{_kmod_src_root}
-%{_kmod_src_root}/Makefile
+%{_kmod_src_root}/*.c
+%{_kmod_src_root}/*.h
 %{_kmod_src_root}/configure-tests
-%{_kmod_src_root}/dattobd.c
-%{_kmod_src_root}/dattobd.h
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
-%{_kmod_src_root}/includes.h
+%{_kmod_src_root}/Makefile
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
 %{_sysconfdir}/kernel/postinst.d/50-dattobd

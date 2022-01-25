@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-obj-m := dattobd.o
+SRCS := $(notdir $(wildcard $M/*.c))
+MODULE_NAME := dattobd
+obj-m += $(MODULE_NAME).o
+$(MODULE_NAME)-y := $(SRCS:.c=.o)
 
 KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
