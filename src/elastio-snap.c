@@ -3182,13 +3182,17 @@ retry:
 
 	// 
 	// submit the bios 
-	// send bio by calling original mrf when its present or call an ordinal submit_bio instead
 	//
+#ifdef USE_BDOPS_SUBMIT_BIO
+	// send bio by calling original mrf when its present or call an ordinal submit_bio instead
 	if (dev->sd_orig_mrf) {
 		elastio_snap_call_mrf(dev->sd_orig_mrf, new_bio);
 	} else {
 		elastio_snap_submit_bio(new_bio);
 	}
+#else
+	elastio_snap_submit_bio(new_bio);
+#endif	
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
