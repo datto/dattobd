@@ -52,7 +52,7 @@ Vagrant.configure("2") do |config|
     config.vm.define "#{instance}", autostart: false do |b|
       b.vm.box = "#{box}"
       b.vm.box_url = [ "https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/devboxes/master/#{box}.json" ]
-      if distro == "fedora35"
+      if (distro == "fedora34") || (distro == "fedora35")
         b.vm.box_version = $box_version_fedora35
       else
         b.vm.box_version = $box_version

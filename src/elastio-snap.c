@@ -841,6 +841,8 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define ACTIVE 1
 #define UNVERIFIED 2
 
+#define LOW_MEMORY_FAIL_PERCENT 20
+
 //macros for working with bios
 #define BIO_SET_SIZE 256
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
@@ -3149,6 +3151,23 @@ static void on_bio_read_complete(struct bio *bio){
 }
 #endif
 
+static int memory_is_too_low(struct snap_device *dev) {
+	int ret;
+	struct sysinfo si;
+	static __kernel_ulong_t totalram = 0;
+	if (totalram == 0) {
+		si_meminfo(&si);
+		totalram = si.totalram;
+	}
+
+	ret = ((si_mem_available() * 100) / totalram) < LOW_MEMORY_FAIL_PERCENT ? -ENOMEM : 0;
+	if (ret) {
+		LOG_ERROR(ret, "physical memory usage has exceeded %d%% threshold. entering error state", (100 - LOW_MEMORY_FAIL_PERCENT));
+		tracer_set_fail_state(dev, ret);
+	}
+	return ret;
+}
+
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	int ret;
 	struct bio *new_bio = NULL;
@@ -3157,7 +3176,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	unsigned int bytes, pages;
 
 	//if we don't need to cow this bio just call the real mrf normally
-	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
+	if (!bio_needs_cow(bio, dev->sd_cow_inode) || memory_is_too_low(dev)) {
+		return elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
+	}
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
