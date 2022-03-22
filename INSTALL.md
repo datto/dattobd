@@ -23,18 +23,7 @@ sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-opensuse-r
 sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### SUSE Linux Enterprise
-The repository install package `datto-sle-rpm-release` is available for SUSE Linux Enterprise 11 SP4 and higher.
-#### SUSE Linux Enterprise 11 SP4
-Due to the DKMS software not being present in the default repositories and most versions for SLE 11 are too old, we provide a
-usable copy in our repositories.
-```bash
-ktype=$(uname -r | awk -F '-' '{ print $NF }')
-kver=$(uname -r | sed "s/-${ktype}//")
-kbuild=$(rpm -qa kernel-${ktype} | grep ${kver} | awk -F '.' '{ print $NF }')
-sudo zypper install https://cpkg.datto.com/datto-rpm/repoconfig/datto-sle-rpm-release-11-latest.noarch.rpm
-sudo zypper install -C "kernel-syms = ${kver}.${kbuild}"
-sudo zypper install dkms-dattobd dattobd-utils
-```
+The repository install package `datto-sle-rpm-release` is available for SUSE Linux Enterprise 12 SP3 and higher.
 #### SUSE Linux Enterprise 12 SP3
 Due to the DKMS software not being present in SLE's default repositories, we provide a usable copy in
 our repositories.
