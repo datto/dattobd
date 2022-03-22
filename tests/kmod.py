@@ -25,16 +25,12 @@ class Module(object):
 
         subprocess.check_call(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
             timeout=self.timeout)
 
     def unload(self):
         cmd = ["rmmod", self.name]
         subprocess.check_call(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
             timeout=self.timeout)
 
     def info(self):
