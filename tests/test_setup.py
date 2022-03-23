@@ -36,11 +36,6 @@ class TestSetup(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(elastio_snap.info(self.minor))
 
-    def test_setup_cow_file_on_wrong_device(self):
-        self.assertEqual(elastio_snap.setup(self.minor, self.device, "/tmp/{}".format(self.cow_file)), errno.EINVAL)
-        self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(elastio_snap.info(self.minor))
-
     def test_setup_unmounted_volume(self):
         util.unmount(self.mount)
         self.addCleanup(util.mount, self.device, self.mount)
