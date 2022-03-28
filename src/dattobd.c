@@ -736,7 +736,7 @@ static inline void dattobd_bio_copy_dev(struct bio *dst, struct bio *src){
 
 //macros for defining sector and block sizes
 #define SECTORS_PER_PAGE (PAGE_SIZE / SECTOR_SIZE)
-#define COW_SECTION_SIZE 4096
+#define COW_SECTION_SIZE PAGE_SIZE
 #define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / SECTOR_SIZE)
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)
@@ -2544,11 +2544,11 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
+static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct bio *orig_bio, sector_t sect, unsigned int pages, unsigned int tail, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
-	unsigned int i, bytes, total = 0, actual_pages = (pages > BIO_MAX_PAGES)? BIO_MAX_PAGES : pages;
+	unsigned int i, bytes, actual_size = PAGE_SIZE, total = 0, actual_pages = (pages > BIO_MAX_PAGES)? BIO_MAX_PAGES : pages;
 
 	//allocate bio clone
 	new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
@@ -2581,9 +2581,13 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 			goto error;
 		}
 
+		//only need to read actual_size data in last page when bio is no page aligned
+		if (i == pages - 1 && tail != 0) {
+			actual_size = PAGE_SIZE - tail;
+		}
 		//add the page to the bio
-		bytes = bio_add_page(new_bio, pg, PAGE_SIZE, 0);
-		if(bytes != PAGE_SIZE){
+		bytes = bio_add_page(new_bio, pg, actual_size, 0);
+		if(bytes != actual_size){
 			__free_page(pg);
 			break;
 		}
@@ -2973,7 +2977,12 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 #ifndef HAVE_BVEC_ITER
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
 	for(i = 0; i < bio->bi_vcnt; i++){
-		bio->bi_io_vec[i].bv_len = PAGE_SIZE;
+		//last io_vec will less than a page when size is not page aligned, 64k pagesize e.g.
+		if ((i+1)*PAGE_SIZE > map->size) {
+			bio->bi_io_vec[i].bv_len = map->size - i * PAGE_SIZE;
+		} else {
+			bio->bi_io_vec[i].bv_len = PAGE_SIZE;
+		}
 		bio->bi_io_vec[i].bv_offset = 0;
 	}
 #endif
@@ -3030,7 +3039,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	struct bio *new_bio = NULL;
 	struct tracing_params *tp = NULL;
 	sector_t start_sect, end_sect;
-	unsigned int bytes, pages;
+	unsigned int bytes, pages, tail;
 
 	//if we don't need to cow this bio just call the real mrf normally
 	if(!bio_needs_cow(bio, dev->sd_cow_inode)) return dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio), bio);
@@ -3038,7 +3047,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
-	pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
+	//end_sect - start_sect is not always page aligned, 64k pagesize e.g.
+	pages = ROUND_UP(end_sect - start_sect, SECTORS_PER_PAGE) / SECTORS_PER_PAGE;
+	tail = pages * PAGE_SIZE - (end_sect - start_sect) * SECTOR_SIZE;
 
 	//allocate tracing_params struct to hold all pointers we will need across contexts
 	ret = tp_alloc(dev, bio, &tp);
@@ -3046,7 +3057,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 
 retry:
 	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
-	ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages, &new_bio, &bytes);
+	ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages, tail, &new_bio, &bytes);
 	if(ret) goto error;
 
 	//set pointers for read clone
@@ -3060,7 +3071,7 @@ retry:
 	dattobd_submit_bio(new_bio);
 
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
-	if(bytes / PAGE_SIZE < pages){
+	if(bytes < (end_sect - start_sect) * SECTOR_SIZE){
 		start_sect += bytes / SECTOR_SIZE;
 		pages -= bytes / PAGE_SIZE;
 		goto retry;
