@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
-
-/*
- * Copyright (C) 2022 Datto Inc.
- */
-
 #include "cow_manager.h"
 #include "dattobd.h"
 #include "includes.h"
@@ -44,16 +38,33 @@ static const struct seq_operations dattobd_seq_proc_ops = {
         .show = dattobd_proc_show,
 };
 
+#ifndef HAVE_PROC_OPS
+
 /**
  * get_proc_fops() - Retrieves a file operations struct pointer
  *
  * Return:
  * The &struct file_operations object pointer.
  */
-const struct file_operations *get_proc_fops(void)
+const struct file_operations* get_proc_fops(void)
 {
         return &dattobd_proc_fops;
 }
+
+#else // HAVE_PROC_OPS
+
+/**
+ * get_proc_fops() - Retrieves a file operations struct pointer
+ *
+ * Return:
+ * The &struct file_operations object pointer.
+ */
+const struct proc_ops* get_proc_fops(void)
+{
+        return &dattobd_proc_fops;
+}
+
+#endif // HAVE_PROC_OPS
 
 /**
  * dattobd_proc_get_idx() - Turns offset into pointer into @snap_devices array.
@@ -88,7 +99,7 @@ static void *dattobd_proc_start(struct seq_file *m, loff_t *pos)
          * be called followed by an invocation of this function with a non-
          * zero @pos with the expectation that we continue from where we
          * left off.
-         */
+         */ 
         if (*pos == 0)
                 return SEQ_START_TOKEN;
         return dattobd_proc_get_idx(*pos - 1);
