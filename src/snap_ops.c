@@ -9,6 +9,7 @@
 #include "includes.h"
 #include "logging.h"
 #include "snap_device.h"
+#include "tracer_helper.h"
 
 /**
  * __tracer_add_ref() - Adds a reference to &snap_device->sd_refs.
@@ -75,10 +76,40 @@ static void snap_release(struct gendisk *gd, fmode_t mode)
 }
 #endif
 
+#ifndef USE_BDOPS_SUBMIT_BIO
+// Linux version < 5.9
+MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
+    struct snap_device *dev = q->queuedata;
+#else
+// Linux version >= 5.9
+MRF_RETURN_TYPE snap_mrf(struct bio *bio){
+    struct snap_device *dev = dattobd_bio_bi_disk(bio)->queue->queuedata;
+#endif
+    //if a write request somehow gets sent in, discard it
+    if(bio_data_dir(bio)){
+        dattobd_bio_endio(bio, -EOPNOTSUPP);
+        MRF_RETURN(0);
+    }else if(tracer_read_fail_state(dev)){
+        dattobd_bio_endio(bio, -EIO);
+        MRF_RETURN(0);
+    }else if(!test_bit(ACTIVE, &dev->sd_state)){
+        dattobd_bio_endio(bio, -EBUSY);
+        MRF_RETURN(0);
+    }
+
+    //queue bio for processing by kernel thread
+    bio_queue_add(&dev->sd_cow_bios, bio);
+
+    MRF_RETURN(0);
+}
+
 static const struct block_device_operations snap_ops = {
         .owner = THIS_MODULE,
         .open = snap_open,
         .release = snap_release,
+#ifdef USE_BDOPS_SUBMIT_BIO
+        .submit_bio = snap_mrf
+#endif
 };
 
 const struct block_device_operations *get_snap_ops(void)

@@ -14,6 +14,9 @@ struct dattobd_info;
 struct snap_device;
 struct bio;
 
+//maximum number of clones per traced bio
+#define MAX_CLONES_PER_BIO 10
+
 #define tracer_setup_unverified_inc(dev, minor, bdev_path, cow_path,           \
                                     cache_size)                                \
         __tracer_setup_unverified(dev, minor, bdev_path, cow_path, cache_size, \
@@ -36,6 +39,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor,
                               const char *bdev_path, const char *cow_path,
                               unsigned long cache_size, int is_snap);
+void dattobd_free_request_tracking_ptr(struct snap_device *dev);
 
 /************************IOCTL TRANSITION FUNCTIONS************************/
 

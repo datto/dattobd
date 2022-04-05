@@ -5,6 +5,8 @@
  */
 
 #include "tracer.h"
+
+#include "bio_request_callback.h"
 #include "blkdev.h"
 #include "cow_manager.h"
 #include "filesystem.h"
@@ -15,12 +17,13 @@
 #include "mrf.h"
 #include "snap_device.h"
 #include "snap_ops.h"
+#include "submit_bio.h"
 #include "task_helper.h"
 #include "tracer_helper.h"
-
+#include "tracing_params.h"
+#include <linux/blk-mq.h>
 #ifdef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
-#include <linux/blk-mq.h>
 #include <linux/percpu-refcount.h>
 #endif
 
@@ -72,7 +75,19 @@ static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
 #else
 #define dattobd_bdev_stack_limits(queue, bdev, start)                          \
         bdev_stack_limits(&(queue)->limits, bdev, start)
+#endif // # !HAVE_BDEV_STACK_LIMITS) && !HAVE_BLK_SET_DEFAULT_LIMITS
+
+// Helpers to get/set either the make_request_fn or the submit_bio function 
+// pointers in a block device.
+static inline BIO_REQUEST_CALLBACK_FN* dattobd_get_bd_fn(
+    struct block_device *bdev)
+{
+#ifdef USE_BDOPS_SUBMIT_BIO
+    return bdev->bd_disk->fops->submit_bio;
+#else
+    return bdev->bd_disk->queue->make_request_fn;
 #endif
+}
 
 #ifndef HAVE_BLK_SET_DEFAULT_LIMITS
 #define blk_set_default_limits(ql)
@@ -128,28 +143,18 @@ static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
 #define SECTORS_PER_PAGE (PAGE_SIZE / SECTOR_SIZE)
 #define BLOCK_TO_SECTOR(block) ((block)*SECTORS_PER_BLOCK)
 
-MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio)
+void dattobd_free_request_tracking_ptr(struct snap_device *dev)
 {
-        struct snap_device *dev = q->queuedata;
-
-        // if a write request somehow gets sent in, discard it
-        if (bio_data_dir(bio)) {
-                dattobd_bio_endio(bio, -EOPNOTSUPP);
-                MRF_RETURN(0);
-        } else if (tracer_read_fail_state(dev)) {
-                dattobd_bio_endio(bio, -EIO);
-                MRF_RETURN(0);
-        } else if (!test_bit(ACTIVE, &dev->sd_state)) {
-                dattobd_bio_endio(bio, -EBUSY);
-                MRF_RETURN(0);
-        }
-
-        // queue bio for processing by kernel thread
-        bio_queue_add(&dev->sd_cow_bios, bio);
-
-        MRF_RETURN(0);
+    dev->sd_orig_request_fn = NULL;
+#ifdef USE_BDOPS_SUBMIT_BIO
+    dev->sd_orig_gendisk = NULL;
+    if (dev->sd_tracing_gendisk) {
+        kfree(dev->sd_tracing_gendisk);
+        dev->sd_tracing_gendisk = NULL;
+    }
+#endif
 }
-
+ 
 /**
  * snap_trace_bio() - Traces a bio when snapshotting.  For bio reads there is
  * nothing to do and the request is passed to the original driver.  For writes
@@ -180,12 +185,12 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         // the cow manager works in 4096 byte blocks, so read clones must also
         // be 4096 byte aligned
         start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off,
-                                SECTORS_PER_BLOCK) +
-                     dev->sd_sect_off;
+                        SECTORS_PER_BLOCK) +
+                dev->sd_sect_off;
         end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) -
-                                    dev->sd_sect_off,
-                            SECTORS_PER_BLOCK) +
-                   dev->sd_sect_off;
+                        dev->sd_sect_off,
+                        SECTORS_PER_BLOCK) +
+                dev->sd_sect_off;
         pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
 
         bio_list_init(&bio_list);
@@ -254,9 +259,7 @@ error:
         return 0;
 
 call_orig:
-
-        return dattobd_call_mrf(dev->sd_orig_mrf,
-                                        dattobd_bio_get_queue(bio), bio);
+        return SUBMIT_BIO_REAL(dev, bio);
 }
 
 /**
@@ -296,7 +299,8 @@ static int inc_make_sset(struct snap_device *dev, sector_t sect,
 /**
  * inc_trace_bio() - Determines the regions modified by the @bio and
  * queues their affected regions so that a record of what changed can be
- * kept.  The bio is then processed by the original mrf so that the
+ * kept.  The bio is then processed by the original io submit function
+ * (make_request_fn or submit_bio function ptr) so that the
  * modification can be made permanent.  This mode of tracing only
  * records what has changed and does not COW data.
  *
@@ -356,8 +360,7 @@ out:
         }
 
         // call the original mrf
-        ret = dattobd_call_mrf(dev->sd_orig_mrf, dattobd_bio_get_queue(bio),
-                               bio);
+        ret = SUBMIT_BIO_REAL(dev, bio);
 
         return ret;
 }
@@ -801,7 +804,6 @@ static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm,
 
         return base_queue->merge_bvec_fn(base_queue, bio_bvm, bvec);
 }
-
 #endif
 #endif
 
@@ -865,10 +867,14 @@ error:
 }
 
 /**
- * __tracer_copy_cow_path() - Copies the COW path from @src to @dest.
+ * __tracer_setup_cow_path() - Sets up the COW file path given a &struct file.
  *
- * @src: The &struct snap_device source object pointer.
- * @dest: The &struct snap_device destination object pointer.
+ * @dev: The &struct snap_device object pointer.
+ * @cow_file: The &struct file object pointer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
  */
 static void __tracer_copy_cow_path(const struct snap_device *src,
                                    struct snap_device *dest)
@@ -949,6 +955,21 @@ static int __tracer_bioset_init(struct snap_device *dev)
 #endif
 }
 
+static blk_status_t tracing_queue_rq(struct blk_mq_hw_ctx *hctx, 
+        const struct blk_mq_queue_data *bd)
+{
+        struct request *rq = bd->rq;
+        blk_mq_start_request(rq);
+        blk_mq_complete_request(rq);
+        return BLK_STS_OK;
+}
+
+static const struct blk_mq_ops tracing_mq_ops = {
+    .queue_rq = tracing_queue_rq,
+    .init_request = NULL, // move snap thread initialization here?
+    .complete = NULL
+}; /// @todo move me somewhere appropriate along with the rest of the mq stuff.
+
 /**
  * __tracer_setup_snap() - Allocates &struct snap_device fields for use when
  *                         tracking an active snapshot.  Also sets up the
@@ -969,7 +990,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                                struct block_device *bdev, sector_t size)
 {
         int ret;
-
+        
         ret = __tracer_bioset_init(dev);
         if (ret) {
                 LOG_ERROR(ret, "error initializing bio set");
@@ -977,7 +998,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         }
 
         // allocate request queue
-        LOG_DEBUG("allocating queue");
+        LOG_DEBUG("allocating queue"); 
 #ifndef HAVE_BLK_ALLOC_QUEUE
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
         dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
@@ -994,11 +1015,52 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
+#ifdef USE_BDOPS_SUBMIT_BIO
+        // allocate tag set
+        LOG_DEBUG("allocating tag set");
+        dev->sd_tag_set = kzalloc_node(
+            sizeof(struct blk_mq_tag_set),
+            GFP_KERNEL, NUMA_NO_NODE);
+        
+        dev->sd_tag_set->ops = &tracing_mq_ops;
+        dev->sd_tag_set->nr_hw_queues = 1;
+        dev->sd_tag_set->queue_depth = 128; // must be < BLK_MQ_MAX_DEPTH
+        dev->sd_tag_set->numa_node = NUMA_NO_NODE;
+        // cmd_size not set
+        dev->sd_tag_set->flags = BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_STACKING;       
+        // driver_data not set.
+        ret = blk_mq_alloc_tag_set(dev->sd_tag_set);
+        if (ret)
+        {
+            LOG_ERROR(ret, "could not allocate tag set");
+            goto error;
+        }
+        // init queue
+        LOG_DEBUG("initializing queue");
+        dev->sd_queue = blk_mq_init_allocated_queue(
+            dev->sd_tag_set,
+            dev->sd_queue,
+            true
+        );        
+#endif
+        if (IS_ERR(dev->sd_queue)) {
+            LOG_ERROR( (int)PTR_ERR(dev->sd_queue), "error initializing tag set");
+            goto error;
+        } 
+
+// For the Linux kernel version 5.9+:
+// The snap_mrf function is already set in the block_device_operations snap_ops struct
+// as submit_bio func. So, the request handler is already registered.
+// See a line below "dev->sd_gd->fops = &snap_ops;"
 #ifndef HAVE_BLK_ALLOC_QUEUE
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
         // register request handler
+        
+        
+#ifndef USE_BDOPS_SUBMIT_BIO
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
+#endif
 #endif
 
         // give our request queue the same properties as the base device's
@@ -1074,9 +1136,7 @@ error:
 }
 
 /**
- * __tracer_destroy_cow_thread() - Stops the COW kernel thread and
- *                                 disassociates it from the
- *                                 &struct snap_device.
+ * __tracer_bioset_exit() - Releases the bioset within the &struct snap_device.
  *
  * @dev: The &struct snap_device object pointer.
  */
@@ -1138,140 +1198,274 @@ error:
  *
  * @dev: The &struct snap_device object pointer.
  * @bdev: The &struct block_device that stores the COW data.
- * @new_mrf: Optional MRF function to be used by the snapshot disk,
- *           may be NULL to continue using the current MRF fn.
+ * @new_bio_tracking_ptr: Optional function pointer to be used by the snapshot disk
+ *         i/o handling, may be NULL to continue using the current function pointer.
  * @dev_ptr: Contains the output &struct snap_device when successful.
  *
  * Return:
  * * 0 - success
  * * !0 - errno indicating the error
  */
-static int __tracer_transition_tracing(struct snap_device *dev,
-                                       struct block_device *bdev,
-                                       make_request_fn *new_mrf,
-                                       struct snap_device **dev_ptr)
+static int __tracer_transition_tracing(
+    struct snap_device *dev,
+    struct block_device *bdev,
+    BIO_REQUEST_TRACKING_PTR_TYPE *new_bio_tracking_ptr,
+    struct snap_device **dev_ptr)
 {
         int ret;
         struct super_block *origsb = dattobd_get_super(bdev);
+        #ifndef HAVE_FREEZE_SUPER
         struct super_block *sb = NULL;
+        #endif
         char bdev_name[BDEVNAME_SIZE];
         MAYBE_UNUSED(ret);
 
         bdevname(bdev, bdev_name);
+        if(origsb){
 
-        if (origsb) {
-                // freeze and sync block device
+                //freeze and sync block device
                 LOG_DEBUG("freezing '%s'", bdev_name);
+#ifdef HAVE_FREEZE_SUPER
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34)
+                ret = freeze_super(origsb);
+                if (ret){
+                        LOG_ERROR((ret), "error freezing super for '%s': error", bdev_name);
+                        dattobd_drop_super(origsb);
+                        return ret;
+                }
+#else
                 sb = freeze_bdev(bdev);
-                if (!sb) {
+                if(!sb){
                         LOG_ERROR(-EFAULT, "error freezing '%s': null",
                                   bdev_name);
                         dattobd_drop_super(origsb);
                         return -EFAULT;
-                } else if (IS_ERR(sb)) {
+                }else if(IS_ERR(sb)){
                         LOG_ERROR((int)PTR_ERR(sb),
                                   "error freezing '%s': error", bdev_name);
                         dattobd_drop_super(origsb);
                         return (int)PTR_ERR(sb);
                 }
+#endif
         }
-
+        else{
+                LOG_WARN(
+                        "warning: no super found for device '%s', "
+                        "unable to freeze it",
+                        bdev_name);
+        }
         smp_wmb();
-        if (dev) {
+        if(dev){
                 LOG_DEBUG("starting tracing");
                 *dev_ptr = dev;
                 smp_wmb();
-                if (new_mrf)
-                        bdev->bd_disk->queue->make_request_fn = new_mrf;
-        } else {
-                LOG_DEBUG("ending tracing");
-#ifndef HAVE_BLK_ALLOC_QUEUE
-                //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
-                if (new_mrf)
-                        bdev->bd_disk->queue->make_request_fn = new_mrf;
+                if(new_bio_tracking_ptr){
+#ifdef USE_BDOPS_SUBMIT_BIO            
+                        dattobd_set_gendisk(bdev, new_bio_tracking_ptr);
 #else
-                if (new_mrf)
-                        bdev->bd_disk->queue->make_request_fn =
-                                new_mrf == dattobd_null_mrf ? NULL : new_mrf;
+                        bdev->bd_disk->queue->make_request_fn = 
+                                new_bio_tracking_ptr;
 #endif
-                smp_wmb();
-                *dev_ptr = dev;
-        }
-        smp_wmb();
-
-        if (origsb) {
-                // thaw the block device
-                LOG_DEBUG("thawing '%s'", bdev_name);
-#ifndef HAVE_THAW_BDEV_INT
-                //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-                thaw_bdev(bdev, sb);
+                }
+        }else{
+                LOG_DEBUG("ending tracing");
+                if (new_bio_tracking_ptr){
+#ifdef USE_BDOPS_SUBMIT_BIO
+                        dattobd_set_gendisk(bdev, new_bio_tracking_ptr);
 #else
+                        bdev->bd_disk->queue->make_request_fn =
+                                new_bio_tracking_ptr;
+#endif
+                }
+                *dev_ptr = dev;
+                smp_wmb();
+        }
+        if(origsb){
+                //, the block device
+                LOG_DEBUG("thawing '%s'", bdev_name);
+#ifdef HAVE_THAW_BDEV_INT
                 ret = thaw_bdev(bdev, sb);
-                if (ret) {
+#else
+                ret = thaw_bdev(bdev);
+#endif
+                if(ret){
                         LOG_ERROR(ret, "error thawing '%s'", bdev_name);
-                        // we can't reasonably undo what we've done at this
-                        // point, and we've replaced the mrf. pretend we
+                        // We can't reasonably undo what we've done at this 
+                        // point, and we've replaced the mrf. pretend we 
                         // succeeded so we don't break the block device
                 }
-#endif
                 dattobd_drop_super(origsb);
         }
-
         return 0;
 }
 
-/**
- * tracing_mrf() - Routes the BIO to the appropriate MRF function.
- * @q: The &struct request_queue.
- * @bio: The &struct bio which describes the I/O.
+#ifdef USE_BDOPS_SUBMIT_BIO
+
+/**     
+ * tracing_fn() - This is the entry point for in-flight i/o we intercepted.
+ * @bio: The &struct bio which describes the in-flight I/O.
  *
  * If the BIO has been marked as passthrough then the block device's
- * original MRF is used to process the BIO.  Otherwise, depending on
- * whether we're in snapshot or incremental mode, the appropriate handler
- * is called.
+ * original device's function pointer for handling i/o is used to process the BIO.
+ * Otherwise, depending on whether we're in snapshot or incremental mode, the appropriate 
+ * handler is called.
  *
  * Return: varies across versions of Linux and is what's expected by each for
  *         a make request function.
  */
-static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio)
+static asmlinkage MRF_RETURN_TYPE tracing_fn(struct bio *bio)
+
+#else
+
+/**     
+ * tracing_fn() - This is the entry point for in-flight i/o we intercepted.
+ * @q: The &struct request_queue.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * If the BIO has been marked as passthrough then the block device's
+ * original device's function pointer for handling i/o is used to process the BIO.
+ * Otherwise, depending on whether we're in snapshot or incremental mode, the appropriate 
+ * handler is called.
+ *
+ * Return: varies across versions of Linux and is what's expected by each for
+ *         a make request function.
+ */
+static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
+
+#endif
 {
         int i, ret = 0;
-        struct snap_device *dev;
-        make_request_fn *orig_mrf = NULL;
-
+        struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
 
         smp_rmb();
         tracer_for_each(dev, i)
         {
                 if (!dev || test_bit(UNVERIFIED, &dev->sd_state) ||
-                    !tracer_queue_matches_bio(dev, bio))
-                        continue;
+                        !tracer_queue_matches_bio(dev, bio))
+                                continue;
+                // If we get here, then we know this is a device we're managing
+                // and the current bio belongs to said device.
 
-                orig_mrf = dev->sd_orig_mrf;
-                if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH)) {
+                if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH))
+                {
                         dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
-                        goto call_orig;
                 }
-
-                if (tracer_should_trace_bio(dev, bio)) {
+                else if (tracer_should_trace_bio(dev, bio)) 
+                {
                         if (test_bit(SNAPSHOT, &dev->sd_state))
                                 ret = snap_trace_bio(dev, bio);
                         else
                                 ret = inc_trace_bio(dev, bio);
                         goto out;
                 }
-        }
-
-call_orig:
-        if (orig_mrf)
-                ret = dattobd_call_mrf(orig_mrf, q, bio);
-        else
-                LOG_ERROR(-EFAULT, "error finding original_mrf");
+                // Now we can submit the bio.
+                ret = SUBMIT_BIO_REAL(dev, bio);
+        } // tracer_for_each(dev, i)
 
 out:
+
         MRF_RETURN(ret);
 }
+
+#ifdef USE_BDOPS_SUBMIT_BIO
+
+/**
+ * dattobd_find_orig_gendisk() -  populates bd_disk and fn params with the original
+ * device's gendisk and submit_bio pointers (original device, meaning, not the one
+ * we messed with to re-route i/o to this kernel module).
+ *
+ * This function is the equivalent of dattobd_find_orig_mrf in <5.9 kernels. 
+ * In kernels >5.9 we use the gendisk->fops->submit_bio instead to hook our
+ * tracing_fn to intercept in-flight IO.
+ *
+ * Note: this should always set fn to some value, or else we didn't find a disk.
+ *
+ * @bdev: the 'real' block device.
+ * @bd_disk: Pointer to the gendisk to be set by this function. It will be set to
+ *           the gendisk contained in the bdev on success.
+ * @fn: Pointer to the submit_bio function pointer to be used to submit i/o to the
+ *      real device. This is either whichever function the kernel users, or 
+ *      dattobd_null_mrf on some kernels where submit_bio is normally null.
+ *
+ * Return:
+ * * 0  - success
+ * * -1 - if the gendisk/submit_bio ptr couldn't be extracted from the bdev.
+ */
+static int dattobd_find_orig_gendisk(
+    struct block_device *bdev,
+    struct gendisk **bd_disk,
+    submit_bio_fn **fn)
+{
+    struct gendisk *orig_ops = dattobd_get_gendisk(bdev);
+    submit_bio_fn *orig_fn = orig_ops->fops->submit_bio;
+    
+    if (!bdev) goto orig_gendisk_not_found;
+    
+    smp_wmb();
+    *bd_disk = orig_ops;
+    if (!orig_fn) 
+    {
+        *fn = dattobd_null_mrf;
+    }
+    else
+    {
+        *fn = orig_fn;
+    }
+    return 0;
+orig_gendisk_not_found:
+    *fn = NULL;
+    *bd_disk = NULL;
+    return -EINVAL;
+}
+
+#else // USE_BDOPS_SUBMIT_BIO
+
+/**
+ * dattobd_find_orig_mrf() - Locates the original MRF function associated with
+ *                   the @bdev block device.  All tracked block devices
+ *                   are checked until a match is found.
+ *
+ * @bdev: The &struct block_device that stores the COW data.
+ * @mrf: The original MRF function, if found.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
+static int dattobd_find_orig_mrf(struct block_device *bdev,
+                                 make_request_fn **mrf){
+        int i;
+        struct snap_device *dev;
+        struct request_queue *q = bdev_get_queue(bdev);
+        make_request_fn *orig_mrf = dattobd_get_bd_mrf(bdev);
+
+        if(orig_mrf != tracing_fn){
+#ifdef HAVE_BLK_MQ_MAKE_REQUEST
+                // Linux version 5.8
+                if (!orig_mrf){
+                        orig_mrf = dattobd_null_mrf;
+                        LOG_DEBUG(
+                            "original mrf is empty, set to dattobd_null_mrf");
+                }
+#endif
+            *mrf = orig_mrf;
+            return 0;
+        }
+
+        tracer_for_each(dev, i){
+                if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
+                if(q == bdev_get_queue(dev->sd_base_dev)){
+                        *mrf = dev->sd_orig_request_fn;
+                        return 0;
+                }
+        }
+
+        *mrf = NULL;
+        return -EFAULT;
+}
+
+#endif // USE_BDOPS_SUBMIT_BIO
 
 /**
  * __tracer_should_reset_mrf() - Searches the traced devices and verifies that
@@ -1284,36 +1478,23 @@ out:
  */
 static int __tracer_should_reset_mrf(const struct snap_device *dev)
 {
-        struct snap_device *cur_dev;
-        struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
+    int i;
+    struct snap_device *cur_dev;
+    struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
 
-        // since kernel 5.8 make_request_fn can be null.
-        if (q->make_request_fn == NULL) {
-                LOG_ERROR(-EINVAL, "make_request_fn is null");
-                return -EINVAL;
+    if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev) != tracing_fn) return 0;
+    if (dev != snap_devices[dev->sd_minor]) return 0;
+
+    //return 0 if there is another device tracing the same queue as dev.
+    if (snap_devices){
+        tracer_for_each(cur_dev, i){
+            if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) 
+                || cur_dev == dev) continue;
+            if (q == bdev_get_queue(cur_dev->sd_base_dev)) return 0;
         }
+    }
 
-        if (q->make_request_fn != tracing_mrf)
-                return 0;
-        if (snap_devices) {
-                int i;
-                if (dev != snap_devices[dev->sd_minor])
-                        return 0;
-
-                // return 0 if there is another device tracing the same queue as
-                // dev.
-                tracer_for_each(cur_dev, i)
-                {
-                        if (!cur_dev ||
-                            test_bit(UNVERIFIED, &cur_dev->sd_state) ||
-                            cur_dev == dev)
-                                continue;
-                        if (q == bdev_get_queue(cur_dev->sd_base_dev))
-                                return 0;
-                }
-        }
-
-        return 1;
+    return 1;
 }
 
 /**
@@ -1325,23 +1506,49 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
  */
 static void __tracer_destroy_tracing(struct snap_device *dev)
 {
-        if (dev->sd_orig_mrf) {
+        if(dev->sd_orig_request_fn){
                 LOG_DEBUG("replacing make_request_fn if needed");
-                if (__tracer_should_reset_mrf(dev))
+                if(__tracer_should_reset_mrf(dev)){
+#ifdef USE_BDOPS_SUBMIT_BIO
                         __tracer_transition_tracing(
-                                NULL, dev->sd_base_dev, dev->sd_orig_mrf,
-                                &snap_devices[dev->sd_minor]);
-                else
+                            NULL,
+                            dev->sd_base_dev,
+                            dev->sd_orig_gendisk,
+                            &snap_devices[dev->sd_minor]
+                        );
+#else
                         __tracer_transition_tracing(
-                                NULL, dev->sd_base_dev, NULL,
-                                &snap_devices[dev->sd_minor]);
+                            NULL,
+                            dev->sd_base_dev,
+                            dev->sd_orig_request_fn,
+                            &snap_devices[dev->sd_minor]
+                        );
+#endif
+                }
+        else
+        {
+                __tracer_transition_tracing(
+                        NULL,
+                        dev->sd_base_dev,
+                        NULL,
+                        &snap_devices[dev->sd_minor]
+                );
+        }
+        smp_wmb();
+        dattobd_free_request_tracking_ptr(dev);
 
-                dev->sd_orig_mrf = NULL;
-        } else if (snap_devices[dev->sd_minor] == dev) {
+        }
+        else if(snap_devices[dev->sd_minor] == dev)
+        {
                 smp_wmb();
                 snap_devices[dev->sd_minor] = NULL;
                 smp_wmb();
         }
+#ifdef USE_BDOPS_SUBMIT_BIO
+        if (dev->sd_orig_gendisk){
+                kfree(dev->sd_orig_gendisk);
+        }
+#endif
 
         dev->sd_minor = 0;
         minor_range_recalculate();
@@ -1358,68 +1565,18 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 static void __tracer_setup_tracing_unverified(struct snap_device *dev,
                                               unsigned int minor)
 {
-        dev->sd_orig_mrf = NULL;
-        minor_range_include(minor);
-        smp_wmb();
-        dev->sd_minor = minor;
-        snap_devices[minor] = dev;
-        smp_wmb();
-}
-
-/**
- * find_orig_mrf() - Locates the original MRF function associated with
- *                   the @bdev block device.  All tracked block devices
- *                   are checked until a match is found.
- *
- * @bdev: The &struct block_device that stores the COW data.
- * @mrf: The original MRF function, if found.
- *
- * Return:
- * * 0 - success
- * * !0 - errno indicating the error
- */
-static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf)
-{
-        int i;
-        struct snap_device *dev;
-        struct request_queue *q = bdev_get_queue(bdev);
-
-        // since kernel 5.8 make_request_fn can be null.
-        if (q->make_request_fn == NULL) {
-#ifndef HAVE_BLK_ALLOC_QUEUE
-                //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
-                LOG_ERROR(-EINVAL, "make_request_fn is null");
-                return -EINVAL;
-#else
-                *mrf = dattobd_null_mrf;
-                return 0;
-#endif
-        }
-
-        if (q->make_request_fn != tracing_mrf) {
-                *mrf = q->make_request_fn;
-                return 0;
-        }
-
-        tracer_for_each(dev, i)
-        {
-                if (!dev || test_bit(UNVERIFIED, &dev->sd_state))
-                        continue;
-                if (q == bdev_get_queue(dev->sd_base_dev)) {
-                        *mrf = dev->sd_orig_mrf;
-                        return 0;
-                }
-        }
-
-        *mrf = NULL;
-        return -EFAULT;
+    minor_range_include(minor);
+    smp_wmb();
+    dev->sd_minor = minor;
+    snap_devices[minor] = dev;
+    smp_wmb();
 }
 
 /**
  * __tracer_setup_tracing() - Adds @minor to the range of included tracked
- *                            minors, saves the original MRF and installs
- *                            the tracing MRF for the block device associated
- *                            with our &struct snap_device.
+ *                            minors, saves the original io submit function ptr
+ *                            and replaces it with the tracing_fn function ptr for 
+ *                            the block device associated with our &struct snap_device.
  *
  * @dev: The &struct snap_device object pointer.
  * @minor: the device's minor number.
@@ -1430,28 +1587,48 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf)
  */
 int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
 {
-        int ret;
+        int ret = 0;
 
         dev->sd_minor = minor;
         minor_range_include(minor);
 
         // get the base block device's make_request_fn
         LOG_DEBUG("getting the base block device's make_request_fn");
-        ret = find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_mrf);
+#ifdef USE_BDOPS_SUBMIT_BIO
+        if (!dev->sd_orig_gendisk){
+                // new snapshot (not incremental)
+                ret = dattobd_find_orig_gendisk(
+                        dev->sd_base_dev,
+                        &dev->sd_orig_gendisk,
+                        &dev->sd_orig_request_fn);
+                dev->sd_orig_fops = (struct block_device_operations*)
+                                    dev->sd_orig_gendisk->fops;
+                dev->sd_tracing_gendisk = dattobd_copy_gendisk(
+                        dev->sd_orig_gendisk, tracing_fn);
+        }
+        ret = __tracer_transition_tracing(
+                dev, 
+                dev->sd_base_dev,
+                dev->sd_tracing_gendisk,
+                &snap_devices[minor]);
+#else
+        ret = dattobd_find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_request_fn);
         if (ret)
                 goto error;
-
-        ret = __tracer_transition_tracing(dev, dev->sd_base_dev, tracing_mrf,
-                                          &snap_devices[minor]);
+        ret = __tracer_transition_tracing(
+                dev,
+                dev->sd_base_dev,
+                tracing_fn,
+                &snap_devices[minor]);
+#endif
         if (ret)
                 goto error;
-
         return 0;
 
 error:
         LOG_ERROR(ret, "error setting up tracing");
         dev->sd_minor = 0;
-        dev->sd_orig_mrf = NULL;
+        dev->sd_orig_request_fn = NULL;
         minor_range_recalculate();
         return ret;
 }
@@ -1591,6 +1768,8 @@ error:
         return ret;
 }
 
+/************************IOCTL TRANSITION FUNCTIONS************************/
+
 /**
  * tracer_active_snap_to_inc() - Transitions from snapshot mode to incremental
  * tracking.
@@ -1629,8 +1808,11 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         if (ret)
                 goto error;
 
-        // inject the tracing function and write the new dev into
-        // the snap_devices array.
+        // inject the tracing function
+#ifdef USE_BDOPS_SUBMIT_BIO
+        dev->sd_orig_gendisk = old_dev->sd_orig_gendisk;
+#endif
+        dev->sd_orig_request_fn = old_dev->sd_orig_request_fn;
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
         if (ret)
                 goto error;
@@ -1758,6 +1940,10 @@ int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path,
                 goto error;
 
         // start tracing (overwrites old_dev's tracing)
+#ifdef USE_BDOPS_SUBMIT_BIO
+        dev->sd_orig_gendisk = old_dev->sd_orig_gendisk;
+#endif
+        dev->sd_orig_request_fn = old_dev->sd_orig_request_fn;
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
         if (ret)
                 goto error;
@@ -1830,6 +2016,8 @@ void tracer_dattobd_info(const struct snap_device *dev,
                 memset(info->uuid, 0, COW_UUID_SIZE);
         }
 }
+
+/************************AUTOMATIC TRANSITION FUNCTIONS************************/
 
 /**
  * __tracer_active_to_dormant() - Transitions from ACTIVE to DORMANT.  This
