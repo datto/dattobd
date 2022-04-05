@@ -131,6 +131,9 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
 
         // submit the bio to the base device and wait for completion
         if (mode != READ_MODE_COW_FILE) {
+#ifdef HAVE_BDOPS_SUBMIT_BIO
+                bio->bi_disk = dev->sd_orig_gendisk;
+#endif
                 ret = dattobd_submit_bio_wait(bio);
                 if (ret) {
                         LOG_ERROR(ret,

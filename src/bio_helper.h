@@ -5,6 +5,7 @@
  */
 
 #ifndef BIO_HELPER_H
+
 #define BIO_HELPER_H
 
 #include "includes.h"
@@ -20,6 +21,14 @@
 
 #define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / SECTOR_SIZE)
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
+
+#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO
+        // Linux kernel version 5.9+
+        // make_request_fn has been moved from the request queue structure to the
+        // block_device_operations as submit_bio function.
+        // See https://github.com/torvalds/linux/commit/c62b37d96b6eb3ec5ae4cbe00db107bf15aebc93
+        #define USE_BDOPS_SUBMIT_BIO
+#endif
 
 // macros for working with bios
 #define BIO_SET_SIZE 256
@@ -164,6 +173,12 @@ void dattobd_bio_endio(struct bio *bio, int err);
 void dattobd_bio_endio(struct bio *bio, int err);
 #else
 void dattobd_bio_endio(struct bio *bio, int err);
+#endif
+
+#ifdef HAVE_BIO_BI_BDEV_BD_DISK
+    #define dattobd_bio_bi_disk(bio) ((bio)->bi_bdev->bd_disk)
+#else
+    #define dattobd_bio_bi_disk(bio) ((bio)->bi_disk)
 #endif
 
 #endif /* BIO_HELPER_H */

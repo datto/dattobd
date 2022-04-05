@@ -13,6 +13,7 @@
 #include "snap_device.h"
 #include "snap_handle.h"
 #include "sset_queue.h"
+#include "submit_bio.h"
 #include "tracer_helper.h"
 
 // this is defined in 3.16 and up
@@ -174,10 +175,10 @@ int snap_cow_thread(void *data)
  */
 int snap_mrf_thread(void *data)
 {
-        int ret;
+        int ret = 0;
         struct snap_device *dev = data;
         struct bio_queue *bq = &dev->sd_orig_bios;
-        struct bio *bio;
+        struct bio *bio = 0;
 
         MAYBE_UNUSED(ret);
 
@@ -197,9 +198,17 @@ int snap_mrf_thread(void *data)
 
                 // submit the original bio to the block IO layer
                 dattobd_bio_op_set_flag(bio, DATTOBD_PASSTHROUGH);
-
-                ret = dattobd_call_mrf(dev->sd_orig_mrf,
-                                       dattobd_bio_get_queue(bio), bio);
+#ifdef HAVE_BDOPS_SUBMIT_BIO
+                smp_wmb();
+                if (dev->sd_orig_gendisk)
+                    bio->bi_disk = dev->sd_orig_gendisk;
+#endif
+                // blk_qc_t (*)(struct request_queue *, struct bio *)’ 
+                // {aka ‘unsigned int (*)(struct request_queue *, struct bio *)’} but argument is of type ‘struct snap_device *’
+                ret = SUBMIT_BIO_REAL(
+                    dev,
+                    bio
+                );
 #ifdef HAVE_MAKE_REQUEST_FN_INT
                 if (ret)
                         generic_make_request(bio);

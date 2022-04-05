@@ -5,6 +5,7 @@ utils/update-img
 # Dynamically generated files
 src/kernel-config.h
 modules.order
+*.mod
 *.mod.c
 Module.symvers
 *.cmd
@@ -19,3 +20,5 @@ __pycache__/
 
 # Project directories
 pkgbuild/
+
+*kdev4*
