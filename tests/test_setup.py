@@ -8,12 +8,13 @@
 
 import errno
 import os
+import subprocess
 import unittest
+from random import randint
 
 import elastio_snap
 import util
 from devicetestcase import DeviceTestCase
-
 
 class TestSetup(DeviceTestCase):
     def setUp(self):
@@ -75,6 +76,49 @@ class TestSetup(DeviceTestCase):
         self.assertEqual(snapdev["bdev"], self.device)
         self.assertEqual(snapdev["version"], 1)
 
+    def test_setup_2_volumes(self):
+        # Setup device #1 at the root volume
+        minor = randint(0, 23)
+        while minor == self.minor:
+          minor = randint(0, 23)
+
+        cmd = ["findmnt", "/", "-n", "-o", "SOURCE"]
+        device = subprocess.check_output(cmd, timeout=10, shell=False).rstrip().decode("utf-8")
+        snap_device = "/dev/elastio-snap{}".format(minor)
+        cow_file = "cow"
+
+        self.assertEqual(elastio_snap.setup(minor, device, "/{}".format(cow_file)), 0)
+
+        # Check the snapshot device exists and alive
+        self.assertTrue(os.path.exists(snap_device))
+
+        snapdev = elastio_snap.info(minor)
+        self.assertIsNotNone(snapdev)
+
+        self.assertEqual(snapdev["error"], 0)
+        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["cow"], "/{}".format(cow_file))
+        self.assertEqual(snapdev["bdev"], device)
+        self.assertEqual(snapdev["version"], 1)
+
+        # Setup device number 2, as ususally on an external disk or on a loopback device
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        # Check the 2nd snapshot device
+        self.assertTrue(os.path.exists(self.snap_device))
+
+        snapdev = elastio_snap.info(self.minor)
+        self.assertIsNotNone(snapdev)
+
+        self.assertEqual(snapdev["error"], 0)
+        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["cow"], "/{}".format(self.cow_file))
+        self.assertEqual(snapdev["bdev"], self.device)
+        self.assertEqual(snapdev["version"], 1)
+
+        # Destroy 1st snapshot device
+        self.assertEqual(elastio_snap.destroy(minor), 0)
 
 if __name__ == "__main__":
     unittest.main()
