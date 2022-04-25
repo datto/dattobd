@@ -18,12 +18,25 @@
 
 #define cow_write_filler_mapping(cm, pos) __cow_write_mapping(cm, pos, 1)
 
+/**
+ * struct cow_section - maintains data and usage statistics for a cow section.
+ *
+ * A &struct cow_section manages the basic unit of data the COW manager works
+ * with and represents a section which is 4K sectors.
+ */
 struct cow_section {
-        char has_data; // zero if this section has mappings (on file or in
-                // memory)
-        unsigned long
-                usage; // counter that keeps track of how often this section is used
-        uint64_t *mappings; // array of block addresses
+        /**
+         * @has_data: zero if this section has mappings (on file or in memory)
+         */
+        char has_data;
+
+        /**
+         * @usage: counter that keeps track of how often this section is used
+         */
+        unsigned long usage;
+
+        /** @mappings: array of block addresses */
+        uint64_t *mappings;
 };
 
 struct cow_manager {
@@ -33,19 +46,21 @@ struct cow_manager {
         uint64_t data_offset; // starting offset of data
         uint64_t file_max; // max size of the file before an error is thrown
         uint64_t seqid; // sequence id, increments on each transition to
-                // snapshot mode
+                        // snapshot mode
         uint64_t version; // version of cow file format
-        uint64_t nr_changed_blocks; // number of changed blocks since last snapshot
+        uint64_t nr_changed_blocks; // number of changed blocks since last
+                                    // snapshot
         uint8_t uuid[COW_UUID_SIZE]; // uuid for this series of snaphots
         unsigned int log_sect_pages; // log2 of the number of pages needed to
-                // store a section
-        unsigned long
-                sect_size; // size of a section in number of elements it can contain
+                                     // store a section
+        unsigned long sect_size; // size of a section in number of elements it
+                                 // can contain
         unsigned long allocated_sects; // number of currently allocated sections
         unsigned long total_sects; // total sections the cm log represents
         unsigned long allowed_sects; // the maximum number of sections that may
-                // be allocated at once
-        struct cow_section *sects; // pointer to the array of sections of mappings
+                                     // be allocated at once
+        struct cow_section *sects; // pointer to the array of sections of
+                                   // mappings
 };
 
 /***************************COW MANAGER FUNCTIONS**************************/

@@ -12,7 +12,7 @@
 #include "logging.h"
 #include "snap_device.h"
 
-// macros for snapshot bio modes of operation
+// macros for snapshot bio modes of operation.
 #define READ_MODE_COW_FILE 1
 #define READ_MODE_BASE_DEVICE 2
 #define READ_MODE_MIXED 3
@@ -21,6 +21,21 @@
 #define READ_SYNC 0
 #endif
 
+/**
+ * snap_read_bio_get_mode() - Determine how to handle reading this @bio.
+ * @dev: The &struct snap_device object pointer.
+ * @bio: The &struct bio which describes the I/O.
+ * @mode: An output indicating the computed read mode.
+ *
+ * The BIO is contained in either three cases:
+ * * it is entirely in cache, READ_MODE_COW_FILE,
+ * * it is entirely on the block device, READ_MODE_BASE_DEVICE,
+ * * or it is a mixture of the two location, READ_MODE_MIXED.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 static int snap_read_bio_get_mode(const struct snap_device *dev,
                                   struct bio *bio, int *mode)
 {
@@ -75,6 +90,17 @@ error:
         return ret;
 }
 
+/**
+ * snap_handle_read_bio() - Reads all data contained in the @bio.  The data
+ *                          is either all in cache, on the block device or
+ *                          a mixture of the two locations.
+ * @dev: The &struct snap_device containing snap device state.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
 {
         int ret, mode;
@@ -118,6 +144,7 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
 #endif
         }
 
+        // read the bio from the cow file
         if (mode != READ_MODE_BASE_DEVICE) {
                 // reset the bio
                 bio_idx(bio) = bio_orig_idx;
@@ -194,6 +221,20 @@ out:
         return ret;
 }
 
+/**
+ * snap_handle_write_bio() - This writes all data in the BIO.
+ * @dev: The &struct snap_device containing snap device state.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * It will ultimately either cache/store what's already on the block device
+ * before allowing new data to be written or it will just transfer the new
+ * data to the block device in the event that the original data has already
+ * been stored.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 {
         int ret;
@@ -215,7 +256,7 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 
                 // loop through the blocks in the page
                 for (; start_block < end_block; start_block++) {
-                        // pas the block to the cow manager to be handled
+                        // pass the block to the cow manager to be handled
                         ret = cow_write_current(dev->sd_cow, start_block, data);
                         if (ret) {
                                 kunmap(bio_iter_page(bio, iter));
@@ -234,6 +275,16 @@ error:
         return ret;
 }
 
+/**
+ * inc_handle_sset() - Adds a placeholder to the mapping state maintained for
+ *                     each COW block spanning the range of sectors.
+ * @dev: The &struct snap_device containing snap device state.
+ * @sset: The &struct sector_set which describes the I/O spaning sectors.
+ *
+ * Return:
+ * * 0 - successful
+ * * !0 - errno indicating the error
+ */
 int inc_handle_sset(const struct snap_device *dev, struct sector_set *sset)
 {
         int ret;

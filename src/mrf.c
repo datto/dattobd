@@ -39,6 +39,7 @@ int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio)
 {
         percpu_ref_get(&q->q_usage_counter);
+        // create a make_request_fn for the supplied request_queue.
         return blk_mq_make_request(q, bio);
 }
 #endif

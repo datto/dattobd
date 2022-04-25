@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/*
+ * Copyright (C) 2022 Datto Inc.
+ */
+
 #include "cow_manager.h"
 #include "dattobd.h"
 #include "includes.h"
@@ -38,11 +44,25 @@ static const struct seq_operations dattobd_seq_proc_ops = {
         .show = dattobd_proc_show,
 };
 
+/**
+ * get_proc_fops() - Retrieves a file operations struct pointer
+ *
+ * Return:
+ * The &struct file_operations object pointer.
+ */
 const struct file_operations *get_proc_fops(void)
 {
         return &dattobd_proc_fops;
 }
 
+/**
+ * dattobd_proc_get_idx() - Turns offset into pointer into @snap_devices array.
+ * @pos: An offset into the array of @snap_devices.
+ *
+ * Return:
+ * * NULL - invalid @pos supplied, indicates "past end of file."
+ * * !NULL - a void* pointer into the @snap_devices array.
+ */
 static void *dattobd_proc_get_idx(loff_t pos)
 {
         if (pos > highest_minor)
@@ -50,13 +70,43 @@ static void *dattobd_proc_get_idx(loff_t pos)
         return &snap_devices[pos];
 }
 
+/**
+ * dattobd_proc_start() - Prepares to iterate through the @snap_devices array.
+ *
+ * @m: Pointer to a seq_file structure.
+ * @pos: the previous offset from the last iteration session.
+ *
+ * Return:
+ * * NULL - @pos does not translate to a valid @snap_devices entry.
+ * * SEQ_START_TOKEN - A new iteration from the start so print a header first.
+ * * otherwise - Pointer into @snap_devices at offset @pos.
+ */
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos)
 {
+        /*
+         * Depending on how much we've printed thus far our *_stop() might
+         * be called followed by an invocation of this function with a non-
+         * zero @pos with the expectation that we continue from where we
+         * left off.
+         */
         if (*pos == 0)
                 return SEQ_START_TOKEN;
         return dattobd_proc_get_idx(*pos - 1);
 }
 
+/**
+ * dattobd_proc_next() - Return the next entry to *_show() and advance @pos.
+ *
+ * @m: The sequence file structure.
+ * @v: The value last returned from *_start() or *_next()
+ * @pos: The value passed in represents the position of the next item in
+ *       the snap_devices array.  The value returned holds the position that
+ *       start() could use to find the next snap_device.
+ *
+ * Return:
+ * * NULL - @pos does not represent a valid entry in @snap_devices.
+ * * otherwise - A pointer to the entry to *_show().
+ */
 static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos)
 {
         void *dev = dattobd_proc_get_idx(*pos);
@@ -64,10 +114,27 @@ static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos)
         return dev;
 }
 
+/** dattobd_proc_stop() - Always called at the end of iterating through the
+ *                        @snap_devices array.
+ * @m: The sequence file structure.
+ * @v: The value last returned from *_start() or *_next()
+ *
+ * The end of iterating through the array is identified by a NULL return
+ * value from either *_start() or *_next().
+ */
 static void dattobd_proc_stop(struct seq_file *m, void *v)
 {
+        /* Nothing to do since we're iterating through a global array. */
 }
 
+/** dattobd_proc_show() - Outputs information about a @snap_device.  Optionally
+ *                        adds header and/or footer.
+ * @m: The seq_file structure.
+ * @v: The entry supplied from the last call to either *_start() or *_next().
+ *
+ * Return:
+ * Always indicates success with a zero value.
+ */
 static int dattobd_proc_show(struct seq_file *m, void *v)
 {
         struct snap_device **dev_ptr = v;

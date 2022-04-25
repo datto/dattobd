@@ -1,9 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/*
+ * Copyright (C) 2022 Datto Inc.
+ */
+
 #include "snap_ops.h"
 
 #include "includes.h"
 #include "logging.h"
 #include "snap_device.h"
 
+/**
+ * __tracer_add_ref() - Adds a reference to &snap_device->sd_refs.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @ref_cnt: The number of references to be added.
+ *
+ * Return:
+ * 0 - success
+ * !0 - an errno indicating the error
+ */
 static int __tracer_add_ref(struct snap_device *dev, int ref_cnt)
 {
         int ret = 0;
@@ -25,6 +41,7 @@ error:
 
 #ifdef HAVE_BDOPS_OPEN_INODE
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+
 static int snap_open(struct inode *inode, struct file *filp)
 {
         return __tracer_open(inode->i_bdev->bd_disk->private_data);
@@ -36,6 +53,7 @@ static int snap_release(struct inode *inode, struct file *filp)
 }
 #elif defined HAVE_BDOPS_OPEN_INT
 //#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+
 static int snap_open(struct block_device *bdev, fmode_t mode)
 {
         return __tracer_open(bdev->bd_disk->private_data);

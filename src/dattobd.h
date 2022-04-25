@@ -21,8 +21,8 @@
 struct setup_params {
         char *bdev; // name of block device to snapshot
         char *cow; // name of cow file for snapshot
-        unsigned long
-                fallocated_space; // space allocated to the cow file (in megabytes)
+        unsigned long fallocated_space; // space allocated to the cow file (in
+                                        // megabytes)
         unsigned long cache_size; // maximum cache size (in bytes)
         unsigned int minor; // requested minor number of the device
 };
@@ -36,8 +36,8 @@ struct reload_params {
 
 struct transition_snap_params {
         char *cow; // name of cow file for snapshot
-        unsigned long
-                fallocated_space; // space allocated to the cow file (in bytes)
+        unsigned long fallocated_space; // space allocated to the cow file (in
+                                        // bytes)
         unsigned int minor; // requested minor
 };
 
@@ -58,6 +58,10 @@ struct reconfigure_params {
 #define COW_VERSION_0 0
 #define COW_VERSION_CHANGED_BLOCKS 1
 
+/**
+ * struct cow_header - Encapsulates the values stored at the beginning of the
+ * COW file.
+ */
 struct cow_header {
         uint32_t magic; // COW header magic
         uint32_t flags; // COW file flags
@@ -66,7 +70,8 @@ struct cow_header {
         uint64_t seqid; // seqential id of snapshot (starts at 1)
         uint8_t uuid[COW_UUID_SIZE]; // uuid for this series of snapshots
         uint64_t version; // version of cow file format
-        uint64_t nr_changed_blocks; // number of changed blocks since last snapshot
+        uint64_t nr_changed_blocks; // number of changed blocks since last
+                                    // snapshot
 };
 
 struct dattobd_info {
@@ -93,8 +98,8 @@ struct dattobd_info {
 #define IOCTL_TRANSITION_INC                                                   \
         _IOW(DATTO_IOCTL_MAGIC, 5, unsigned int) // in: minor
 #define IOCTL_TRANSITION_SNAP                                                  \
-        _IOW(DATTO_IOCTL_MAGIC, 6,                                             \
-             struct transition_snap_params) // in: see above
+        _IOW(DATTO_IOCTL_MAGIC, 6, struct transition_snap_params) // in: see
+                                                                  // above
 #define IOCTL_RECONFIGURE                                                      \
         _IOW(DATTO_IOCTL_MAGIC, 7, struct reconfigure_params) // in: see above
 #define IOCTL_DATTOBD_INFO                                                     \

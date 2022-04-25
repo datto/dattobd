@@ -11,6 +11,18 @@
 #include "logging.h"
 #include "snap_device.h"
 
+/**
+ * tp_alloc() - Allocates and initializes tracing params and increments the
+ * reference count.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @bio: The &struct bio which describes the I/O.
+ * @tp_out: The caller owned &struct tracing_params object.  Use kfree().
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int tp_alloc(struct snap_device *dev, struct bio *bio,
              struct tracing_params **tp_out)
 {
@@ -34,11 +46,22 @@ int tp_alloc(struct snap_device *dev, struct bio *bio,
         return 0;
 }
 
+/**
+ * tp_get() - Increments the reference count.
+ *
+ * @tp: The &struct tracing_params object pointer.
+ */
 void tp_get(struct tracing_params *tp)
 {
         atomic_inc(&tp->refs);
 }
 
+/**
+ * tp_put() - Decrement the reference count.
+ * @tp: The &struct tracing_params object pointer.
+ *
+ * Frees memory associated with the @tp object.
+ */
 void tp_put(struct tracing_params *tp)
 {
         // drop a reference to the tp
@@ -58,6 +81,16 @@ void tp_put(struct tracing_params *tp)
         }
 }
 
+/**
+ * tp_add() - Adds @bio to the &struct tracing_params object.
+ *
+ * @tp: The &struct tracing_params object pointer.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int tp_add(struct tracing_params *tp, struct bio *bio)
 {
         struct bio_sector_map *map;

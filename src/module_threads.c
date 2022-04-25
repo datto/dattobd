@@ -20,6 +20,16 @@
 #define MIN_NICE -20
 #endif
 
+/**
+ * inc_sset_thread() - The thread entry that dequeues sector sets
+ *                     and hands them off for processing.
+ * @data: the &struct snap_device object pointer.
+ *
+ * If there is an error the queue is cleaned up and all ssets remaining are
+ * freed without further processing.
+ *
+ * Return: always zero.
+ */
 int inc_sset_thread(void *data)
 {
         int ret, is_failed = 0;
@@ -73,6 +83,14 @@ int inc_sset_thread(void *data)
         return 0;
 }
 
+/**
+ * snap_cow_thread() - Processes BIOs by passing each to an appropriate
+ * read or write handler.
+ *
+ * @data: The &struct snap_device object pointer.
+ *
+ * Return: always zero.
+ */
 int snap_cow_thread(void *data)
 {
         int ret, is_failed = 0;
@@ -111,9 +129,9 @@ int snap_cow_thread(void *data)
                         // if we're in the fail state just send back an IO error
                         // and free the bio
                         if (is_failed) {
-                                dattobd_bio_endio(
-                                        bio,
-                                        -EIO); // end the bio with an IO error
+                                dattobd_bio_endio(bio,
+                                                  -EIO); // end the bio with an
+                                                         // IO error
                                 continue;
                         }
 
@@ -146,6 +164,14 @@ int snap_cow_thread(void *data)
         return 0;
 }
 
+/**
+ * snap_mrf_thread() - Dispatches the original BIOs to the block IO layer
+ * one-by-one.
+ *
+ * @data: The &struct snap_device object pointer.
+ *
+ * Return: always zero.
+ */
 int snap_mrf_thread(void *data)
 {
         int ret;

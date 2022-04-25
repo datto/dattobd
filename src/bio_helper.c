@@ -13,6 +13,15 @@
 #include "tracing_params.h"
 #include <linux/bio.h>
 
+/**
+ * dattobd_bio_get_queue() - Gets the request queue for the given block
+ * I/O operation.
+ *
+ * @bio: The &struct bio which describes the I/O
+ *
+ * Return:
+ * The @request_queue containing the @bio.
+ */
 struct request_queue *dattobd_bio_get_queue(struct bio *bio)
 {
 #ifdef HAVE_BIO_BI_BDEV
@@ -23,6 +32,13 @@ struct request_queue *dattobd_bio_get_queue(struct bio *bio)
 #endif
 }
 
+/**
+ * dattobd_bio_set_dev() - Sets the block device associated with the
+ * block I/O operation.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @bdev: The associated block device.
+ */
 void dattobd_bio_set_dev(struct bio *bio, struct block_device *bdev)
 {
 #ifdef HAVE_BIO_BI_BDEV
@@ -33,6 +49,11 @@ void dattobd_bio_set_dev(struct bio *bio, struct block_device *bdev)
 #endif
 }
 
+/**
+ * dattobd_bio_copy_dev() - copies the block I/O operation from @src to @dst
+ * @src: the source bio
+ * @dst: the destination bio
+ */
 void dattobd_bio_copy_dev(struct bio *dst, struct bio *src)
 {
 #ifdef HAVE_BIO_BI_BDEV
@@ -64,6 +85,14 @@ void dattobd_bio_copy_dev(struct bio *dst, struct bio *src)
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
 
 #ifndef HAVE_ENUM_REQ_OP
+/**
+ * dattobd_set_bio_ops() - Sets the I/O operation and additional flags in the
+ * @bio.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @op: The operation to be performed.
+ * @op_flags: Additional flags.
+ */
 void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 {
         bio->bi_rw = 0;
@@ -92,16 +121,40 @@ void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 }
 #endif
 
+/**
+ * dattobd_bio_op_flagged() - Checks the bio for a given flag.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to test.
+ *
+ * Return:
+ * * 0 - not set
+ * * !0 - set
+ */
 int dattobd_bio_op_flagged(struct bio *bio, unsigned int flag)
 {
         return bio->bi_rw & flag;
 }
 
+/**
+ * dattobd_bio_op_set_flag() - Sets the given flag in the bio I/O
+ * operation flags field.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to set.
+ */
 void dattobd_bio_op_set_flag(struct bio *bio, unsigned int flag)
 {
         bio->bi_rw |= flag;
 }
 
+/**
+ * dattobd_bio_op_clear_flag() - Clears the given flag in the bio I/O
+ * operation flags field.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to clear.
+ */
 void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag)
 {
         bio->bi_rw &= ~flag;
@@ -115,22 +168,53 @@ typedef enum req_op req_op_t;
 typedef enum req_opf req_op_t;
 #endif
 
+/**
+ * dattobd_set_bio_ops() - Sets the op and its flags.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @op: The operation to be performed.
+ * @op_flags: Additional flags.
+ */
 void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 {
         bio->bi_opf = 0;
         bio_set_op_attrs(bio, op, op_flags);
 }
 
+/**
+ * dattobd_bio_op_flagged() - Checks the bio for a given flag.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to test.
+ *
+ * Return:
+ * * 0 - not set
+ * * !0 - set
+ */
 int dattobd_bio_op_flagged(struct bio *bio, unsigned int flag)
 {
         return bio->bi_opf & flag;
 }
 
+/**
+ * dattobd_bio_op_set_flag() - Sets the given flag in the bio I/O
+ * operation flags field.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to set.
+ */
 void dattobd_bio_op_set_flag(struct bio *bio, unsigned int flag)
 {
         bio->bi_opf |= flag;
 }
 
+/**
+ * dattobd_bio_op_clear_flag() - Clears the given flag in the bio I/O
+ * operation flags field.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @flag: The operation flag to clear.
+ */
 void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag)
 {
         bio->bi_opf &= ~flag;
@@ -145,6 +229,14 @@ struct submit_bio_ret {
         int error;
 };
 
+/**
+ * __submit_bio_wait_endio() - Common endio completion routine used across
+ * various versions of OS.
+ * see http://canali.hopto.org/linux/source/kernel/sched/completion.c?v=4.14.14
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @error: an errno
+ */
 static void __submit_bio_wait_endio(struct bio *bio, int error)
 {
         struct submit_bio_ret *ret = bio->bi_private;
@@ -153,6 +245,19 @@ static void __submit_bio_wait_endio(struct bio *bio, int error)
 }
 
 #ifdef HAVE_BIO_ENDIO_INT
+
+/**
+ * submit_bio_wait_endio() - Intended to be used as the end I/O routine for a
+ * @struct bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @bytes: unused
+ * @error: an errno
+ *
+ * Return:
+ * * 0 - I/O has ended on this whole bio.
+ * * 1 - The &struct bio has bytes remaining
+ */
 static int submit_bio_wait_endio(struct bio *bio, unsigned int bytes, int error)
 {
         if (bio->bi_size)
@@ -161,13 +266,33 @@ static int submit_bio_wait_endio(struct bio *bio, unsigned int bytes, int error)
         __submit_bio_wait_endio(bio, error);
         return 0;
 }
+
 #else
+
+/**
+ * submit_bio_wait_endio() - Intended to be used as the end I/O routine for a
+ * @struct bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @error: an errno
+ */
 static void submit_bio_wait_endio(struct bio *bio, int error)
 {
         __submit_bio_wait_endio(bio, error);
 }
+
 #endif
 
+/**
+ * submit_bio_wait() - submit a bio and wait until it completes
+ *
+ * @rw: flags, i.e., whether to READ or WRITE, or maybe to READA (read ahead).
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 int submit_bio_wait(int rw, struct bio *bio)
 {
         struct submit_bio_ret ret;
@@ -183,32 +308,77 @@ int submit_bio_wait(int rw, struct bio *bio)
 
         return ret.error;
 }
+
 #endif
 
 #ifdef HAVE_BIO_ENDIO_INT
+
+/**
+ * dattobd_bio_endio() - end I/O on a bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ */
 void dattobd_bio_endio(struct bio *bio, int err)
 {
         bio_endio(bio, bio->bi_size, err);
 }
+
 #elif !defined HAVE_BIO_ENDIO_1
+
+/**
+ * dattobd_bio_endio - end I/O on a bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ */
 void dattobd_bio_endio(struct bio *bio, int err)
 {
         bio_endio(bio, err);
 }
+
 #elif defined HAVE_BLK_STATUS_T
+
+/**
+ * dattobd_bio_endio - end I/O on a bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ */
 void dattobd_bio_endio(struct bio *bio, int err)
 {
         bio->bi_status = errno_to_blk_status(err);
         bio_endio(bio);
 }
+
 #else
+
+/**
+ * dattobd_bio_endio - end I/O on a bio
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ */
 void dattobd_bio_endio(struct bio *bio, int err)
 {
         bio->bi_error = err;
         bio_endio(bio);
 }
+
 #endif
 
+/**
+ * __on_bio_read_complete() - A private shared implemention of the completion
+ *                            procedure executed whenever the I/O operation on
+ *                            the &struct bio is complete.
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ *
+ * This completion routine is used when a write operation BIO is received and
+ * a COW operation is required.  The write BIO is first cloned as a read BIO
+ * and this is used by the cloned BIO as a completion routine.  This BIO is
+ * handed off to the COW thread for further processing.
+ */
 static void __on_bio_read_complete(struct bio *bio, int err)
 {
         int ret;
@@ -242,9 +412,9 @@ static void __on_bio_read_complete(struct bio *bio, int err)
         }
 
         /*
-* Reset the position in each bvec. Unnecessary with bvec iterators.
-* Will cause multipage bvec capable kernels to lock up.
-*/
+         * Reset the position in each bvec. Unnecessary with bvec iterators.
+         * Will cause multipage bvec capable kernels to lock up.
+         */
 #ifndef HAVE_BVEC_ITER
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
         for (i = 0; i < bio->bi_vcnt; i++) {
@@ -281,6 +451,20 @@ error:
 }
 
 #ifdef HAVE_BIO_ENDIO_INT
+
+/**
+ * on_bio_read_complete() - The completion procedure executed whenever
+ * the I/O operation on the &struct bio is complete.  It's meant to be
+ * assigned to the bi_end_io field of a &struct bio.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @bytes: unused
+ * @err: an errno
+ *
+ * Return:
+ * * 0 - I/O has ended on this whole bio.
+ * * 1 - The &struct bio has bytes remaining
+ */
 static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int err)
 {
         if (bio->bi_size)
@@ -288,25 +472,74 @@ static int on_bio_read_complete(struct bio *bio, unsigned int bytes, int err)
         __on_bio_read_complete(bio, err);
         return 0;
 }
+
 #elif !defined HAVE_BIO_ENDIO_1
+
+/**
+ * on_bio_read_complete() - The completion procedure executed whenever
+ * the I/O operation on the &struct bio is complete.  It's meant to be
+ * assigned to the bi_end_io field of a &struct bio.
+ *
+ * @bio: The &struct bio which describes the I/O
+ * @err: an errno
+ *
+ * Return:
+ * * 0 - I/O has ended on this whole bio.
+ * * 1 - The &struct bio has bytes remaining
+ */
 static void on_bio_read_complete(struct bio *bio, int err)
 {
         if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
                 err = -EIO;
         __on_bio_read_complete(bio, err);
 }
+
 #elif defined HAVE_BLK_STATUS_T
+
+/**
+ * on_bio_read_complete() - The completion procedure executed whenever
+ * the I/O operation on the &struct bio is complete.  It's meant to be
+ * assigned to the bi_end_io field of a &struct bio.
+ *
+ * @bio: The &struct bio which describes the I/O
+ *
+ * Return:
+ * * 0: I/O has ended on this whole bio.
+ * * 1: The &struct bio has bytes remaining
+ */
 static void on_bio_read_complete(struct bio *bio)
 {
         __on_bio_read_complete(bio, blk_status_to_errno(bio->bi_status));
 }
+
 #else
+
+/**
+ * on_bio_read_complete() - The completion procedure executed whenever
+ * the I/O operation on the &struct bio is complete.  It's meant to be
+ * assigned to the bi_end_io field of a &struct bio.
+ *
+ * @bio: The &struct bio which describes the I/O
+ *
+ * Return:
+ * * 0 - I/O has ended on this whole bio.
+ * * 1 - The &struct bio has bytes remaining
+ */
 static void on_bio_read_complete(struct bio *bio)
 {
         __on_bio_read_complete(bio, bio->bi_error);
 }
 #endif
 
+/**
+ * page_get_inode() - Get the inode hosting the page, if there is one
+ *
+ * @pg: the &struct page
+ *
+ * Return:
+ * * The &struct inode if there is one
+ * * NULL otherwise
+ */
 struct inode *page_get_inode(struct page *pg)
 {
         if (!pg)
@@ -325,6 +558,17 @@ struct inode *page_get_inode(struct page *pg)
         return pg->mapping->host;
 }
 
+/**
+ * bio_needs_cow() - Test to see if the &struct bio contains a write request
+ * or if the bio inodes don't match our cow file.
+ *
+ * @bio: The &struct bio which describes the I/O.
+ * @inode: The inode of the directory containing the cow file.
+ *
+ * Return:
+ * * 0 - does not need to be copied.
+ * * !0 - does need to be copied.
+ */
 int bio_needs_cow(struct bio *bio, struct inode *inode)
 {
         bio_iter_t iter;
@@ -347,12 +591,24 @@ int bio_needs_cow(struct bio *bio, struct inode *inode)
 }
 
 #ifndef HAVE_BIO_BI_POOL
+/**
+ * bio_destructor_tp - A destructor method invoked when a bio is being freed.
+ *
+ * @bio: The &struct bio which describes the I/O
+ */
 static void bio_destructor_tp(struct bio *bio)
 {
         struct tracing_params *tp = bio->bi_private;
         bio_free(bio, dev_bioset(tp->dev));
 }
 
+/**
+ * bio_destructor_snap_dev() - Used as completion routine to free the
+ * &struct bio and return it to the bioset contained in the
+ * &struct snap_device
+ *
+ * @bio: The &struct bio which describes the I/O
+ */
 static void bio_destructor_snap_dev(struct bio *bio)
 {
         struct snap_device *dev = bio->bi_private;
@@ -360,6 +616,14 @@ static void bio_destructor_snap_dev(struct bio *bio)
 }
 #endif
 
+/**
+ * bio_free_clone() - Cleans up a bio allocated with bio_make_read_clone().
+ *
+ * @bio: The &struct bio which describes the I/O
+ *
+ * This is used indirectly by the endio completion routine set for the
+ * cloned &struct bio.
+ */
 void bio_free_clone(struct bio *bio)
 {
         int i;
@@ -371,6 +635,28 @@ void bio_free_clone(struct bio *bio)
         bio_put(bio);
 }
 
+/**
+ * bio_make_read_clone() - Creates a new &struct bio to read all data
+ * contained in an existing bio.
+ *
+ * @bs: the allocation pool used to allocate the new &struct bio
+ * @tp: The &struct tracing_params carried along with the output @struct bio
+ * @orig_bio: The @struct bio to be constructed to read all data from the
+ * original bio
+ * @sect: The starting sector within the input &struct bio
+ * @pages: The number of pages contained in the input &struct bio
+ * @bio_out: The bio created for READing the pages contained in the input
+ * @orig_bio
+ * @bytes_added: The number of bytes contained in @bio_out
+ *
+ * It is possible that all of the data contained in the original bio
+ * will not be contained in the new which requires that additional calls
+ * be made to completely read the original bio.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - failure
+ */
 int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
                         struct bio *orig_bio, sector_t sect, unsigned int pages,
                         struct bio **bio_out, unsigned int *bytes_added)
@@ -378,11 +664,15 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         int ret;
         struct bio *new_bio;
         struct page *pg;
-        unsigned int i, bytes,
-                total = 0,
-                actual_pages = (pages > BIO_MAX_PAGES) ? BIO_MAX_PAGES : pages;
+        unsigned int i;
+        unsigned int bytes;
+        unsigned int total = 0;
+        unsigned int actual_pages =
+                (pages > BIO_MAX_PAGES) ? BIO_MAX_PAGES : pages;
 
-        // allocate bio clone
+        // allocate bio clone, instruct the allocator to not make I/O requests
+        // while trying to allocate memory to prevent any possible lock
+        // contention.
         new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
         if (!new_bio) {
                 ret = -ENOMEM;

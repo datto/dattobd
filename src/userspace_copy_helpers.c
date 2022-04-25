@@ -8,8 +8,20 @@
 #include "includes.h"
 #include "logging.h"
 
-/************************IOCTL COPY FROM USER FUNCTIONS************************/
-
+/**
+ * copy_string_from_user() - Copies string data from a user space address to
+ * kernel space.
+ *
+ * @data: A user space address pointing to a string.
+ * @out_ptr: The string in a kernel allocated buffer.  The caller owns the
+ *           buffer.
+ *
+ * Will copy no more than a PAGE_SIZE from user space.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int copy_string_from_user(const char __user *data, char **out_ptr)
 {
         int ret;
@@ -35,6 +47,21 @@ error:
         return ret;
 }
 
+/**
+ * get_setup_params() - Copies &struct setup_params from user space to the
+ * kernel.
+ *
+ * @in: The &struct setup_params object pointer from user space.
+ * @minor: The minor number.
+ * @bdev_name: Uses @copy_string_from_user to transfer the block device name.
+ * @cow_path: Uses @copy_string_from_user to transfer the cow file path.
+ * @fallocated_space: A number of bytes for fallocated_space.
+ * @cache_size: A number of bytes for section cache.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int get_setup_params(const struct setup_params __user *in, unsigned int *minor,
                      char **bdev_name, char **cow_path,
                      unsigned long *fallocated_space, unsigned long *cache_size)
@@ -91,6 +118,19 @@ error:
         return ret;
 }
 
+/**
+ * get_reload_params() - Copies &struct reload_params from user space to the
+ * kernel.
+ * @in: The &struct reload_params object pointer from user space.
+ * @minor: The minor number.
+ * @bdev_name: Uses @copy_string_from_user to transfer the block device name.
+ * @cow_path: Uses @copy_string_from_user to transfer the cow file path.
+ * @cache_size: A number of bytes for section cache.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int get_reload_params(const struct reload_params __user *in,
                       unsigned int *minor, char **bdev_name, char **cow_path,
                       unsigned long *cache_size)
@@ -145,6 +185,19 @@ error:
         return ret;
 }
 
+/**
+ * get_transition_snap_params() - Copies &struct transition_snap_params from
+ * user space to the kernel.
+ *
+ * @in: The &struct transition_snap_params object pointer from user space.
+ * @minor: The minor number.
+ * @cow_path: Uses @copy_string_from_user to transfer the cow file path.
+ * @fallocated_space: A number of bytes for fallocated_space.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 int get_transition_snap_params(const struct transition_snap_params __user *in,
                                unsigned int *minor, char **cow_path,
                                unsigned long *fallocated_space)
@@ -187,6 +240,17 @@ error:
         return ret;
 }
 
+/**
+ * get_reconfigure_params() - Copies &struct reconfigure_params from user
+ * space to kernel space.
+ * @in: The &struct reconfigure_params object pointer from user space.
+ * @minor: The minor number.
+ * @cache_size: A number of bytes for section cache.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 int get_reconfigure_params(const struct reconfigure_params __user *in,
                            unsigned int *minor, unsigned long *cache_size)
 {
