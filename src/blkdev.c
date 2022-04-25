@@ -7,6 +7,19 @@
 #include "blkdev.h"
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
+
+/**
+ * dattobd_lookup_bdev() - Looks up the inode associated with the path, verifies
+ * that the file is a block special file, and asks the kernel for a &struct
+ * block_device associated with the file.
+ *
+ * @pathname: the path name of a block special file.
+ * @mode: The mode used to open the block special file, likely just FMODE_READ.
+ *
+ * Return:
+ * On success the @block_device structure otherwise an error created via
+ * ERR_PTR().
+ */
 static struct block_device *dattobd_lookup_bdev(const char *pathname,
                                                 fmode_t mode)
 {
@@ -44,15 +57,30 @@ fail:
         retbd = ERR_PTR(r);
         goto out;
 }
+
 #endif
 
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
+
+/**
+ * blkdev_get_by_path() - Fetches the @block_device struct associated with the
+ * @pathname.  This is very similar to @dattobd_lookup_bdev with minor
+ * additional validation.
+ *
+ * @pathname: the path name of a block special file.
+ * @mode: The mode used to open the block special file, likely just FMODE_READ.
+ * @holder: unused
+ *
+ * Return:
+ * On success the @block_device structure otherwise an error created via
+ * ERR_PTR().
+ */
+struct block_device *blkdev_get_by_path(const char *pathname, fmode_t mode,
                                         void *holder)
 {
         struct block_device *bdev;
-        bdev = dattobd_lookup_bdev(path, mode);
+        bdev = dattobd_lookup_bdev(pathname, mode);
         if (IS_ERR(bdev))
                 return bdev;
 
@@ -67,4 +95,5 @@ struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
 
         return bdev;
 }
+
 #endif

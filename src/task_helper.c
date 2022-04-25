@@ -9,11 +9,16 @@
 #include "hints.h"
 #include "includes.h"
 
-/******************************TASK WORK
- * FUNCTIONS*******************************/
-// reimplementation of task_work_run() to force fput() and mntput() to perform
-// their work synchronously
 #ifdef HAVE_TASK_STRUCT_TASK_WORKS_HLIST
+
+/**
+ * task_work_flush() - Each entry in the &task_struct->task_works field for the
+ *                     current process has its func() called.  The list is
+ *                     processed in reverse order.  This is a reimplementation
+ *                     of task_work_run(), called before returning to user
+ *                     space, to force fput() and mntput() to perform their
+ *                     work synchronously.
+ */
 void task_work_flush(void)
 {
         struct task_struct *task = current;
@@ -42,6 +47,15 @@ void task_work_flush(void)
         }
 }
 #elif defined HAVE_TASK_STRUCT_TASK_WORKS_CB_HEAD
+
+/**
+ * task_work_flush() - Each entry in the &task_struct->task_works field for the
+ *                     current process has its func() called.  The list is
+ *                     processed in reverse order.  This is a reimplementation
+ *                     of task_work_run(), called before returning to user
+ *                     space, to force fput() and mntput() to perform their
+ *                     work synchronously.
+ */
 void task_work_flush(void)
 {
         struct task_struct *task = current;
@@ -76,6 +90,9 @@ void task_work_flush(void)
                 } while (work);
         }
 }
+
 #else
+
 #define task_work_flush()
+
 #endif

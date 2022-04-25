@@ -20,7 +20,7 @@ struct snap_device {
         unsigned int sd_minor; // minor number of the snapshot
         unsigned long sd_state; // current state of the snapshot
         unsigned long sd_falloc_size; // space allocated to the cow file (in
-                // megabytes)
+                                      // megabytes)
         unsigned long sd_cache_size; // maximum cache size (in bytes)
         atomic_t sd_refs; // number of users who have this device open
         atomic_t sd_fail_code; // failure return code
@@ -33,11 +33,13 @@ struct snap_device {
         struct cow_manager *sd_cow; // cow manager
         char *sd_cow_path; // cow file path
         struct inode *sd_cow_inode; // cow file inode
-        make_request_fn
-                *sd_orig_mrf; // block device's original make request function
-        struct task_struct *sd_cow_thread; // thread for handling file read/writes
+        make_request_fn *sd_orig_mrf; // block device's original make request
+                                      // function
+        struct task_struct *sd_cow_thread; // thread for handling file
+                                           // read/writes
         struct bio_queue sd_cow_bios; // list of outstanding cow bios
-        struct task_struct *sd_mrf_thread; // thread for handling file read/writes
+        struct task_struct *sd_mrf_thread; // thread for handling file
+                                           // read/writes
         struct bio_queue sd_orig_bios; // list of outstanding original bios
         struct sset_queue sd_pending_ssets; // list of outstanding sector sets
 #ifndef HAVE_BIOSET_INIT
@@ -47,9 +49,9 @@ struct snap_device {
         struct bio_set sd_bioset; // allocation pool for bios
 #endif
         atomic64_t sd_submitted_cnt; // count of read clones submitted to
-                // underlying driver
+                                     // underlying driver
         atomic64_t sd_received_cnt; // count of read clones submitted to
-                // underlying driver
+                                    // underlying driver
 };
 
 #endif /* SNAP_DEVICE_H_ */

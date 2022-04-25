@@ -48,18 +48,28 @@ static asmlinkage long (*orig_umount)(char __user *, int);
 static asmlinkage long (*orig_oldumount)(char __user *);
 #endif
 
-/************************AUTOMATIC HANDLER FUNCTIONS************************/
-
-void auto_transition_dormant(unsigned int i)
+/**
+ * auto_transition_dormant() - Transitions an active snapshot to dormant.
+ *
+ * @minor: the device's minor number.
+ */
+void auto_transition_dormant(unsigned int minor)
 {
         mutex_lock(&ioctl_mutex);
-        __tracer_active_to_dormant(snap_devices[i]);
+        __tracer_active_to_dormant(snap_devices[minor]);
         mutex_unlock(&ioctl_mutex);
 }
 
-void auto_transition_active(unsigned int i, const char __user *dir_name)
+/**
+ * auto_transition_active() - Transitions a device to an active state
+ *                            whether snapshot or incremental.
+ *
+ * @minor: the device's minor number.
+ * @dir_name: the user-space supplied directory name of the mount.
+ */
+void auto_transition_active(unsigned int minor, const char __user *dir_name)
 {
-        struct snap_device *dev = snap_devices[i];
+        struct snap_device *dev = snap_devices[minor];
 
         mutex_lock(&ioctl_mutex);
 
@@ -74,8 +84,17 @@ void auto_transition_active(unsigned int i, const char __user *dir_name)
         mutex_unlock(&ioctl_mutex);
 }
 
-/***************************SYSTEM CALL HOOKING***************************/
-
+/**
+ * __handle_bdev_mount_nowrite() - Transitions a device to a dormant state
+ *                                 when it is unmounted.
+ *
+ * @mnt: The &struct vfsmount object pointer.
+ * @idx_out: Output the minor device number of the transitioned device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
                                 unsigned int *idx_out)
 {
@@ -109,6 +128,18 @@ out:
         return ret;
 }
 
+/**
+ * __handle_bdev_mount_writable() - Transitions a dormant device to active
+ *                                  on mount, if one exists.
+ *
+ * @dir_name: the user-space suplied directory name of the mount.
+ * @bdev: The &struct block_device that stores the COW data.
+ * @idx_out: Output the minor device number of the transitioned device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __handle_bdev_mount_writable(const char __user *dir_name,
                                  const struct block_device *bdev,
                                  unsigned int *idx_out)
@@ -168,6 +199,18 @@ out:
         return ret;
 }
 
+/**
+ * __handle_bdev_mount_event() - A common impl used to handle a mount event.
+ *
+ * @dir_name: the user-space supplied directory name of the mount.
+ * @follow_flags: flags passed to the system call.
+ * @idx_out: Output the minor device number of the transitioned device.
+ * @mount_writable: Whether the mount is writable or not.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 int handle_bdev_mount_event(const char __user *dir_name, int follow_flags,
                             unsigned int *idx_out, int mount_writable)
 {
@@ -218,6 +261,15 @@ out:
         return ret;
 }
 
+/**
+ * post_umount_check() - Checks to make sure umount succeeded and the driver
+ *                       is in a good state.
+ *
+ * @dormant_ret: the return value from transitioning to dormant.
+ * @umount_ret: the return value from the original umount call.
+ * @idx: the device minor number.
+ * @dir_name: the user-space supplied directory name of the mount.
+ */
 void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx,
                        const char __user *dir_name)
 {
@@ -270,6 +322,19 @@ void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx,
         LOG_DEBUG("post umount check succeeded");
 }
 
+/**
+ * mount_hook() - Handles mounting a block device.
+ *
+ * @dev_name: the userspace supplied device file name.
+ * @dir_name: the userspace supplied directory name of the mount.
+ * @type: passed type to the original mount hook.
+ * @flags: passed flags to the original mount hook.
+ * @data: passed data to the original mount hook.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name,
                            char __user *type, unsigned long flags,
                            void __user *data)
@@ -330,6 +395,16 @@ asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name,
         return sys_ret;
 }
 
+/**
+ * umount_hook() - Handles umounting a block device.
+ *
+ * @name: the device file name.
+ * @flags: the umount flags.
+ *
+ * Return:
+ * * 0 - success.
+ * * !0 - errno indicating the error.
+ */
 asmlinkage long umount_hook(char __user *name, int flags)
 {
         int ret;
@@ -359,6 +434,7 @@ asmlinkage long umount_hook(char __user *name, int flags)
 }
 
 #ifdef HAVE_SYS_OLDUMOUNT
+
 asmlinkage long oldumount_hook(char __user *name)
 {
         int ret;
@@ -387,6 +463,11 @@ asmlinkage long oldumount_hook(char __user *name)
 }
 #endif
 
+/**
+ * find_sys_call_table() - Finds the system call table address.
+ *
+ * Return: the system call table address.
+ */
 void **find_sys_call_table(void)
 {
         long long offset;
@@ -415,6 +496,10 @@ void **find_sys_call_table(void)
         return sct;
 }
 
+/**
+ * restore_system_call_table() - Restored the system call table, removing this
+ *                               driver's hooks.
+ */
 void restore_system_call_table(void)
 {
         unsigned long cr0;
@@ -435,6 +520,14 @@ void restore_system_call_table(void)
         }
 }
 
+/**
+ * hook_system_call_table() - Insert this driver's hooks for detecting events
+ * such as mount and umount.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int hook_system_call_table(void)
 {
         unsigned long cr0;

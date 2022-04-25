@@ -26,6 +26,13 @@
 #define get_zeroed_pages(flags, order)                                         \
         __get_free_pages(((flags) | __GFP_ZERO), order)
 
+/**
+ * __cow_free_section() - Frees the memory used to track the section at
+ * offset @sect_idx and marks the array entry as unused.
+ *
+ * @cm: The &struct cow_manager tracking the block device.
+ * @sect_idx: An offset into the array of sections used to track COW data.
+ */
 void __cow_free_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         free_pages((unsigned long)cm->sects[sect_idx].mappings,
@@ -34,6 +41,19 @@ void __cow_free_section(struct cow_manager *cm, unsigned long sect_idx)
         cm->allocated_sects--;
 }
 
+/**
+ * __cow_alloc_section() - Allocates a section in the cache at offset
+ * @sect_idx, marks it as having data and updates cache stats.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @sect_idx: the cow section index
+ * @zero: an int encoded boolean value indicating whether to allocate mappings
+ *        initially zeroed or with potentially random data.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
                         int zero)
 {
@@ -56,6 +76,16 @@ int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
         return 0;
 }
 
+/**
+ * __cow_load_section() - Allocates and reads a section from the COW backing
+ * file
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @sect_idx: An offset into the array of sections used to track COW data.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         int ret;
@@ -79,6 +109,15 @@ error:
         return ret;
 }
 
+/**
+ * __cow_write_section() - Transfers the cached section to the backing file.
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @sect_idx: An offset into the array of sections used to track COW data.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         int ret;
@@ -94,7 +133,21 @@ int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
         return 0;
 }
 
-int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long thresh)
+/**
+ * __cow_sync_and_free_sections() - Used to synchronize and deallocate certain
+ * sections from the &struct cow_manager.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @thresh: A threshold of zero will free all sections otherwise any section
+ *          with a usage at or below the threshold will be synced and
+ *          deallocated.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
+static int __cow_sync_and_free_sections(struct cow_manager *cm,
+                                        unsigned long thresh)
 {
         int ret;
         unsigned long i;
@@ -121,15 +174,23 @@ int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long thresh)
         return 0;
 }
 
-/***************************COW MANAGER FUNCTIONS**************************/
-
-int __cow_cleanup_mappings(struct cow_manager *cm)
+/**
+ * __cow_cleanup_mappings() - This deallocates sections from the
+ * &struct cow_manager equal to approximately half of the cached sections.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
+static int __cow_cleanup_mappings(struct cow_manager *cm)
 {
         unsigned long i;
         int ret;
         unsigned long granularity, thresh = 0;
 
-        // find the max usage of the sections of the cm
+        // find the max usage of the sections of the cow manager
         for (i = 0; i < cm->total_sects; i++) {
                 if (cm->sects[i].usage > thresh)
                         thresh = cm->sects[i].usage;
@@ -168,6 +229,19 @@ int __cow_cleanup_mappings(struct cow_manager *cm)
         return 0;
 }
 
+/**
+ * __cow_write_header() - Transfers in-memory header data to the header stored
+ * on the block device.
+ *
+ * @cm: Each &struct snap_device has a &struct cow_manager.
+ * @is_clean: Used to indicate whether the COW file has been closed correctly.
+ * * 0: clears the COW_CLEAN flag.
+ * * !0: sets the COW_CLEAN flag.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_write_header(struct cow_manager *cm, int is_clean)
 {
         int ret;
@@ -196,6 +270,24 @@ int __cow_write_header(struct cow_manager *cm, int is_clean)
         return 0;
 }
 
+/**
+ * __cow_open_header() - Reads and validates the &struct cow_header from the
+ * beginning of the COW file. Then writes the header back to the backing file
+ * to reflect and changes stored in the &struct cow_manager.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @index_only: int encoded bool indicating whether the COW file should be in
+ *              incremental or snapshot mode?
+ * @reset_vmalloc: int encoded bool indicating whether the COW_VMALLOC_UPPER
+ *                 flag should be cleared.  The memory allocated for
+ *                 &cow_manager->sects may be allocated by different allocators
+ *                 and this presence or lack of this flag indicates how it
+ *                 should be freed.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc)
 {
         int ret;
@@ -254,6 +346,12 @@ error:
         return ret;
 }
 
+/**
+ * cow_free_members() - Frees COW state tracking memory and unlinks the COW
+ * backing file.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ */
 void cow_free_members(struct cow_manager *cm)
 {
         if (cm->sects) {
@@ -278,12 +376,27 @@ void cow_free_members(struct cow_manager *cm)
         }
 }
 
+/**
+ * cow_free() - Frees the memory used for COW tracking and unlinks the COW
+ * backing file from the block device.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ */
 void cow_free(struct cow_manager *cm)
 {
         cow_free_members(cm);
         kfree(cm);
 }
 
+/**
+ * cow_sync_and_free() - Flushes cached data to the backing file, closes the
+ * COW backing file and deallocates the &struct cow_manager.
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_sync_and_free(struct cow_manager *cm)
 {
         int ret;
@@ -298,6 +411,7 @@ int cow_sync_and_free(struct cow_manager *cm)
 
         if (cm->filp)
                 file_close(cm->filp);
+        cm->filp = NULL;
 
         if (cm->sects) {
                 if (cm->flags & (1 << COW_VMALLOC_UPPER))
@@ -316,6 +430,15 @@ error:
         return ret;
 }
 
+/**
+ * cow_sync_and_close() - Flushes cached data to the backing file, closes the
+ * COW backing file but does not deallocate the &struct cow_manager.
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_sync_and_close(struct cow_manager *cm)
 {
         int ret;
@@ -340,6 +463,16 @@ error:
         return ret;
 }
 
+/**
+ * cow_reopen() - Re-opens an existing COW file located at @pathname.
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ * @pathname: The path of the COW file.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_reopen(struct cow_manager *cm, const char *pathname)
 {
         int ret;
@@ -365,8 +498,21 @@ error:
         return ret;
 }
 
-unsigned long __cow_calculate_allowed_sects(unsigned long cache_size,
-                                            unsigned long total_sects)
+/**
+ * __cow_calculate_allowed_sects() - Estimates the total number of cow
+ * sections that can fit within the allowed cache size.
+ *
+ * @cache_size: The number of bytes allowed for the cache.  The cache should
+ *              be at least as large as the memory required for the array of
+ *              &struct cow_section objects used to track data during
+ *              snapshotting.
+ * @total_sects: The number of sections currently allocated.
+ *
+ * Return:
+ * The remaining sections that would fit within memory set aside for the cache.
+ */
+static unsigned long __cow_calculate_allowed_sects(unsigned long cache_size,
+                                                   unsigned long total_sects)
 {
         if (cache_size <= (total_sects * sizeof(struct cow_section)))
                 return 0;
@@ -376,6 +522,23 @@ unsigned long __cow_calculate_allowed_sects(unsigned long cache_size,
                        (COW_SECTION_SIZE * 8);
 }
 
+/**
+ * cow_reload() - Allocates a &struct cow_manager object and reloads it from
+ *                data saved in the supplied COW file.  All cached sections
+ *                are marked as having data which will trigger loading from
+ *                disk for each data section.
+ * @path: The path to the COW file.
+ * @elements: typically the number of sectors on the block device.
+ * @sect_size: The basic unit of size that the &struct cow_manager works with.
+ * @cache_size: The amount of RAM dedicated to the data cache.
+ * @index_only: int encoded bool indicating whether the COW file should be in
+ *              incremental or snapshot mode?
+ * @cm_out: The reloaded &struct cow_manager object.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_reload(const char *path, uint64_t elements, unsigned long sect_size,
                unsigned long cache_size, int index_only,
                struct cow_manager **cm_out)
@@ -453,6 +616,24 @@ error:
         return ret;
 }
 
+/**
+ * cow_init() - Allocates a &struct cow_manager object and initializes it.
+ *              Also creates the COW backing file on disk and writes a
+ *              header into it.
+ * @path: The path to the COW file.
+ * @elements: typically the number of sectors on the block device.
+ * @sect_size: The basic unit of size that the &struct cow_manager works with.
+ * @cache_size: The amount of RAM dedicated to the data cache.
+ * @file_max: The maximum size of the cow file.  It will be allocated to this
+ *            size after it is created.
+ * @uuid: NULL or a valid pointer to a UUID.
+ * @seqid: The sequence ID used to identify the snapshot.
+ * @cm_out: The initialized &struct cow_manager object.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
              unsigned long cache_size, uint64_t file_max, const uint8_t *uuid,
              uint64_t seqid, struct cow_manager **cm_out)
@@ -543,6 +724,16 @@ error:
         return ret;
 }
 
+/**
+ * cow_truncate_to_index() - Truncates the COW file so that it only contains
+ * the header and index.
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_truncate_to_index(struct cow_manager *cm)
 {
         // truncate the cow file to just the index
@@ -550,12 +741,35 @@ int cow_truncate_to_index(struct cow_manager *cm)
         return file_truncate(cm->filp, cm->data_offset);
 }
 
+/**
+ * cow_modify_cache_size() - Modifies the value of
+ *                           &struct cow_manager->allowed_sects.
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ * @cache_size: The number of bytes allowed for the cache.  The cache should
+ *              be at least as large as the memory required for the array of
+ *              &struct cow_section objects used to track data during
+ *              snapshotting.
+ */
 void cow_modify_cache_size(struct cow_manager *cm, unsigned long cache_size)
 {
         cm->allowed_sects =
                 __cow_calculate_allowed_sects(cache_size, cm->total_sects);
 }
 
+/**
+ * cow_read_mapping() - Loads a section into &struct cow_manager cache.  If
+ * the newly loaded section exceeds the number of allowed sections then the
+ * cache is cleaned up to free up space.
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ * @pos: The section index offset within the cache.
+ * @out: On success, output of the value stored in the mapping.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 {
         int ret;
@@ -590,6 +804,17 @@ error:
         return ret;
 }
 
+/**
+ * __cow_write_mapping() - Writes the specified section to the COW file.
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ * @pos: The section index offset within the cache.
+ * @val:
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t val)
 {
         int ret;
@@ -629,7 +854,18 @@ error:
         return ret;
 }
 
-int __cow_write_data(struct cow_manager *cm, void *buf)
+/**
+ * __cow_write_data() - Writes a block of COW data to the current position
+ * in the COW file.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager.
+ * @buf: A buffer at least as large as COW_BLOCK_SIZE.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
+static int __cow_write_data(struct cow_manager *cm, void *buf)
 {
         int ret;
         char *abs_path = NULL;
@@ -666,6 +902,20 @@ error:
         return ret;
 }
 
+/**
+ * cow_write_current() - Conditionally writes the @block data stored in @buf
+ * to the cow datastore.  Writing is short circuited to prevent overwriting
+ * snapshot data if something is already stored for this @block.  When not
+ * already present both the mapping and the data are stored.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager
+ * @block: the block associated with the data in @buf
+ * @buf: The data belonging to the @block
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf)
 {
         int ret;
@@ -697,6 +947,19 @@ error:
         return ret;
 }
 
+/**
+ * cow_read_data() - Reads data form the COW file.
+ *
+ * @cm: each &struct snap_device has a &struct cow_manager.
+ * @buf: A buffer that must be at least @len bytes.
+ * @block_pos: Reads at this block position.
+ * @block_off: A block offset that can be less than a full COW block.
+ * @len: How many bytes to read at the supplied location.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
                   unsigned long block_off, unsigned long len)
 {

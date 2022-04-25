@@ -150,6 +150,20 @@ MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio)
         MRF_RETURN(0);
 }
 
+/**
+ * snap_trace_bio() - Traces a bio when snapshotting.  For bio reads there is
+ * nothing to do and the request is passed to the original driver.  For writes
+ * the original data must be read and in the event that the original bio
+ * cannot be read in a single try multiple attempts are made by creating
+ * additional bio requests until the original bio is fully processed.
+ *
+ * @dev: The &struct snap_device that keeps device state.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - error
+ */
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 {
         int ret;
@@ -227,6 +241,19 @@ error:
         return 0;
 }
 
+/**
+ * inc_make_sset() - This allocates a recordkeeping object to remember the
+ * changed passed in the call.  This object is then queued for processing
+ * by a kernel thread.
+ *
+ * @dev: the &struct snap_device used to compute the relative sector offset.
+ * @sect: the absolute sector offset of the first changed sector
+ * @len: the length of the changes
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - an errno indicating the error
+ */
 static int inc_make_sset(struct snap_device *dev, sector_t sect,
                          unsigned int len)
 {
@@ -248,6 +275,20 @@ static int inc_make_sset(struct snap_device *dev, sector_t sect,
         return 0;
 }
 
+/**
+ * inc_trace_bio() - Determines the regions modified by the @bio and
+ * queues their affected regions so that a record of what changed can be
+ * kept.  The bio is then processed by the original mrf so that the
+ * modification can be made permanent.  This mode of tracing only
+ * records what has changed and does not COW data.
+ *
+ * @dev: The &struct snap_device that keeps device state.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - an errno indicating the error
+ */
 static int inc_trace_bio(struct snap_device *dev, struct bio *bio)
 {
         int ret = 0, is_initialized = 0;
@@ -303,6 +344,16 @@ out:
         return ret;
 }
 
+/**
+ * bdev_is_already_traced() - Checks to for the existance of the
+ * &struct block_device in this driver's tracking state.
+ *
+ * @bdev: The &struct block_device in question.
+ *
+ * Return:
+ * * 0 - not being traced
+ * * 1 - already being traced
+ */
 static int bdev_is_already_traced(const struct block_device *bdev)
 {
         int i;
@@ -319,6 +370,17 @@ static int bdev_is_already_traced(const struct block_device *bdev)
         return 0;
 }
 
+/**
+ * file_is_on_bdev() - Checks to see if the &struct file object is contained
+ * within the &struct block_device device.
+ *
+ * @file: the file to check
+ * @bdev: the &struct block_device that might hold the @file.
+ *
+ * Return:
+ * * 0 - the @file is not on the @bdev.
+ * * !0 - the @file is on the @bdev.
+ */
 static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
 {
         struct super_block *sb = dattobd_get_super(bdev);
@@ -330,6 +392,10 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
         return ret;
 }
 
+/**
+ * minor_range_recalculate() - Updates the device minors tracked by this
+ * driver.  This must be done whenever a minor number is no longer in use.
+ */
 static void minor_range_recalculate(void)
 {
         unsigned int i, highest = 0, lowest = dattobd_max_snap_devices - 1;
@@ -350,6 +416,12 @@ static void minor_range_recalculate(void)
         highest_minor = highest;
 }
 
+/**
+ * minor_range_include() - Used to possibly expand the bounds kept to track
+ * the minimum and maximum device minor numbers services by this driver.
+ *
+ * @minor: the device's minor number
+ */
 static void minor_range_include(unsigned int minor)
 {
         if (minor < lowest_minor)
@@ -358,6 +430,11 @@ static void minor_range_include(unsigned int minor)
                 highest_minor = minor;
 }
 
+/**
+ * __tracer_init() - initializes the &struct snap_device object.
+ *
+ * @dev: the &struct snap_device used to track changes to a snapshot device.
+ */
 static void __tracer_init(struct snap_device *dev)
 {
         LOG_DEBUG("initializing tracer");
@@ -367,6 +444,16 @@ static void __tracer_init(struct snap_device *dev)
         sset_queue_init(&dev->sd_pending_ssets);
 }
 
+/**
+ * tracer_alloc() - Allocates and initializes the &struct snap_device object
+ * used to track changes to the newly created snapshot device.
+ *
+ * @dev_ptr: resultant &struct snap_device allocated by this call.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int tracer_alloc(struct snap_device **dev_ptr)
 {
         int ret;
@@ -395,6 +482,22 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_destroy_cow() - Tears down COW tracking state, deallocating the
+ * &struct cow_manager object in the process.
+ *
+ * @dev: The &struct snap_device that keeps snapshot device state.
+ * @close_method: The close method.
+ *                * 0: frees memory and unlinks the backing file.
+ *                * 1: flushes section cache, closes COW file, deallocates
+ *                     &struct cow_manager.
+ *                * 2: flushes section cache, closes COW file.
+ *                * other: undefined.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_destroy_cow(struct snap_device *dev, int close_method)
 {
         int ret = 0;
@@ -421,6 +524,29 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method)
         return ret;
 }
 
+/**
+ * __tracer_setup_cow() - Sets up the COW tracking structures.
+ *
+ * @dev: The &struct snap_device that keeps snapshot device state.
+ * @bdev: The &struct block_device that stores the COW data.
+ * @cow_path: The path to the COW backing file.
+ * @size: The number of sectors to allocate to the COW file.
+ * @fallocated_space: A value of zero defaults the size.
+ * @cache_size: Limits the size of the COW section cache (in bytes).
+ * @uuid: A unique UUID assigned to a series of snapshots, or NULL to
+ *        auto-generate a UUID.
+ * @seqid: The current sequence ID to use in the header.
+ * @open_method: The open method.
+ *               The value of open_method determines how the
+ *               &struct cow_manager and its cache will be handled.
+ *               * 0: creates and initializes a new COW file.
+ *               * 3: opens an existing COW file.
+ *               * other: reloads the COW manager but not the cache.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_setup_cow(struct snap_device *dev,
                               struct block_device *bdev, const char *cow_path,
                               sector_t size, unsigned long fallocated_space,
@@ -503,6 +629,11 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_destroy_base_dev() - Tears down the base block device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_destroy_base_dev(struct snap_device *dev)
 {
         dev->sd_size = 0;
@@ -521,6 +652,16 @@ static void __tracer_destroy_base_dev(struct snap_device *dev)
         }
 }
 
+/**
+ * __tracer_setup_base_dev() - Sets up the base block device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @bdev_path: The block device path, e.g., '/dev/loop0'.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_setup_base_dev(struct snap_device *dev,
                                    const char *bdev_path)
 {
@@ -576,6 +717,13 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_copy_base_dev() - Copies base block device fields from @src
+ *                            to @dest.
+ *
+ * @src: The &struct snap_device source object pointer.
+ * @dest: The &struct snap_device destination object pointer.
+ */
 static void __tracer_copy_base_dev(const struct snap_device *src,
                                    struct snap_device *dest)
 {
@@ -587,6 +735,19 @@ static void __tracer_copy_base_dev(const struct snap_device *src,
 
 #ifdef HAVE_MERGE_BVEC_FN
 #ifdef HAVE_BVEC_MERGE_DATA
+
+/**
+ * snap_merge_bvec() - Determines if it can augment an existing request with
+ *                     more data.  Requests queues usually have fixed size
+ *                     limits for their requests but specialized devices might
+ *                     have varying limits.
+ *
+ * @q: The &struct request_queue object pointer.
+ * @bvm: the &struct bvec_merge_data passed to the merge_bvec_fn() call.
+ * @bvec: the &struct bio_vec passed to the merge_bvec_fn() call.
+ *
+ * Return: the result returned from the wrapped function.
+ */
 static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm,
                            struct bio_vec *bvec)
 {
@@ -597,7 +758,21 @@ static int snap_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm,
 
         return base_queue->merge_bvec_fn(base_queue, bvm, bvec);
 }
+
 #else
+
+/**
+ * snap_merge_bvec() - Determines if it can augment an existing request with
+ *                     more data.  Requests queues usually have fixed size
+ *                     limits for their requests but specialized devices might
+ *                     have varying limits.
+ *
+ * @q: The &struct request_queue object pointer.
+ * @bio_bvm: the &struct bvec_merge_data passed to the merge_bvec_fn() call.
+ * @bvec: the &struct bio_vec passed to the merge_bvec_fn() call.
+ *
+ * Return: the result returned from the wrapped function.
+ */
 static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm,
                            struct bio_vec *bvec)
 {
@@ -608,9 +783,16 @@ static int snap_merge_bvec(struct request_queue *q, struct bio *bio_bvm,
 
         return base_queue->merge_bvec_fn(base_queue, bio_bvm, bvec);
 }
+
 #endif
 #endif
 
+/**
+ * __tracer_copy_cow() - Copies COW fields from @src to @dest.
+ *
+ * @src: The &struct snap_device source object pointer.
+ * @dest: The &struct snap_device destination object pointer.
+ */
 static void __tracer_copy_cow(const struct snap_device *src,
                               struct snap_device *dest)
 {
@@ -620,6 +802,11 @@ static void __tracer_copy_cow(const struct snap_device *src,
         dest->sd_falloc_size = src->sd_falloc_size;
 }
 
+/**
+ * __tracer_destroy_cow_path() - Tears down the COW path
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_destroy_cow_path(struct snap_device *dev)
 {
         if (dev->sd_cow_path) {
@@ -629,6 +816,16 @@ static void __tracer_destroy_cow_path(struct snap_device *dev)
         }
 }
 
+/**
+ * __tracer_setup_cow_path() - Sets up the COW file path given a &struct file.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @cow_file: The &struct file object pointer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_setup_cow_path(struct snap_device *dev,
                                    const struct file *cow_file)
 {
@@ -649,12 +846,23 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_copy_cow_path() - Copies the COW path from @src to @dest.
+ *
+ * @src: The &struct snap_device source object pointer.
+ * @dest: The &struct snap_device destination object pointer.
+ */
 static void __tracer_copy_cow_path(const struct snap_device *src,
                                    struct snap_device *dest)
 {
         dest->sd_cow_path = src->sd_cow_path;
 }
 
+/**
+ * __tracer_bioset_exit() - Releases the bioset within the &struct snap_device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_bioset_exit(struct snap_device *dev)
 {
 #ifndef HAVE_BIOSET_INIT
@@ -669,6 +877,11 @@ static void __tracer_bioset_exit(struct snap_device *dev)
 #endif
 }
 
+/**
+ * __tracer_destroy_snap() - Tears down a snap device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_destroy_snap(struct snap_device *dev)
 {
         if (dev->sd_mrf_thread) {
@@ -694,6 +907,16 @@ static void __tracer_destroy_snap(struct snap_device *dev)
         __tracer_bioset_exit(dev);
 }
 
+/**
+ * __tracer_bioset_init() - Initializes the bioset field for the
+ *                          &struct snap_device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_bioset_init(struct snap_device *dev)
 {
 #ifndef HAVE_BIOSET_INIT
@@ -708,6 +931,22 @@ static int __tracer_bioset_init(struct snap_device *dev)
 #endif
 }
 
+/**
+ * __tracer_setup_snap() - Allocates &struct snap_device fields for use when
+ *                         tracking an active snapshot.  Also sets up the
+ *                         read-only disk used to present a snapshot image of
+ *                         the underlying live volume and registers it with
+ *                         the kernel.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ * @bdev: The &struct block_device that stores the COW data.
+ * @size: The number of sectors to allocate to the block device.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                                struct block_device *bdev, sector_t size)
 {
@@ -816,6 +1055,13 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_destroy_cow_thread() - Stops the COW kernel thread and
+ *                                 disassociates it from the
+ *                                 &struct snap_device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_destroy_cow_thread(struct snap_device *dev)
 {
         if (dev->sd_cow_thread) {
@@ -825,6 +1071,18 @@ static void __tracer_destroy_cow_thread(struct snap_device *dev)
         }
 }
 
+/**
+ * __tracer_setup_cow_thread() - Creates a COW thread and associates it with
+ *                               the &struct snap_device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ * @is_snap: snapshot or incremental.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_setup_cow_thread(struct snap_device *dev,
                                      unsigned int minor, int is_snap)
 {
@@ -853,6 +1111,23 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_transition_tracing() - Starts or ends tracing on @bdev depending
+ *                                 on whether @dev is defined.  The @bdev is
+ *                                 frozen while transitioning and then thawed
+ *                                 afterwards so that requests  can be
+ *                                 reinstated on @bdev.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @bdev: The &struct block_device that stores the COW data.
+ * @new_mrf: Optional MRF function to be used by the snapshot disk,
+ *           may be NULL to continue using the current MRF fn.
+ * @dev_ptr: Contains the output &struct snap_device when successful.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_transition_tracing(struct snap_device *dev,
                                        struct block_device *bdev,
                                        make_request_fn *new_mrf,
@@ -927,6 +1202,19 @@ static int __tracer_transition_tracing(struct snap_device *dev,
         return 0;
 }
 
+/**
+ * tracing_mrf() - Routes the BIO to the appropriate MRF function.
+ * @q: The &struct request_queue.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * If the BIO has been marked as passthrough then the block device's
+ * original MRF is used to process the BIO.  Otherwise, depending on
+ * whether we're in snapshot or incremental mode, the appropriate handler
+ * is called.
+ *
+ * Return: varies across versions of Linux and is what's expected by each for
+ *         a make request function.
+ */
 static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio)
 {
         int i, ret = 0;
@@ -967,6 +1255,15 @@ out:
         MRF_RETURN(ret);
 }
 
+/**
+ * __tracer_should_reset_mrf() - Searches the traced devices and verifies that
+ * the device would have had a make_request_fn when tracing was initiated.
+ * @dev: The &struct snap_device object pointer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int __tracer_should_reset_mrf(const struct snap_device *dev)
 {
         struct snap_device *cur_dev;
@@ -1001,6 +1298,13 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
         return 1;
 }
 
+/**
+ * __tracer_destroy_tracing() - Stops tracing of the &struct snap_device
+ *                              and possibly reinstates the original MRF
+ *                              function if necessary.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 static void __tracer_destroy_tracing(struct snap_device *dev)
 {
         if (dev->sd_orig_mrf) {
@@ -1025,6 +1329,14 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
         minor_range_recalculate();
 }
 
+/**
+ * __tracer_setup_tracing_unverified() - Assigns @dev to the array of snap
+ *                                       devices begin tracked by this
+ *                                       driver.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ */
 static void __tracer_setup_tracing_unverified(struct snap_device *dev,
                                               unsigned int minor)
 {
@@ -1036,6 +1348,18 @@ static void __tracer_setup_tracing_unverified(struct snap_device *dev,
         smp_wmb();
 }
 
+/**
+ * find_orig_mrf() - Locates the original MRF function associated with
+ *                   the @bdev block device.  All tracked block devices
+ *                   are checked until a match is found.
+ *
+ * @bdev: The &struct block_device that stores the COW data.
+ * @mrf: The original MRF function, if found.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf)
 {
         int i;
@@ -1073,6 +1397,19 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf)
         return -EFAULT;
 }
 
+/**
+ * __tracer_setup_tracing() - Adds @minor to the range of included tracked
+ *                            minors, saves the original MRF and installs
+ *                            the tracing MRF for the block device associated
+ *                            with our &struct snap_device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
 {
         int ret;
@@ -1101,6 +1438,20 @@ error:
         return ret;
 }
 
+/**
+ * __tracer_setup_unverified() - Sets up tracing for an unverified device.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ * @bdev_path: The block device path, e.g., '/dev/loop0'.
+ * @cow_path: The path to the COW backing file.
+ * @cache_size: Limits the size of the COW section cache (in bytes).
+ * @is_snap: snapshot or incremental.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor,
                               const char *bdev_path, const char *cow_path,
                               unsigned long cache_size, int is_snap)
@@ -1135,6 +1486,12 @@ error:
 
 /************************SETUP / DESTROY FUNCTIONS************************/
 
+/**
+ * tracer_destroy() - Tears down tracing of the snap device freeing necessary
+ *                    fields in the process.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 void tracer_destroy(struct snap_device *dev)
 {
         __tracer_destroy_tracing(dev);
@@ -1145,6 +1502,24 @@ void tracer_destroy(struct snap_device *dev)
         __tracer_destroy_base_dev(dev);
 }
 
+/**
+ * tracer_setup_active_snap() - Sets up for a snapshot.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @minor: the device's minor number.
+ * @bdev_path: The block device path, e.g., '/dev/loop0'.
+ * @cow_path: The path to the COW backing file.
+ * @fallocated_space: A value of zero defaults the size.
+ * @cache_size: Limits the size of the COW section cache (in bytes).
+ *
+ * This call sets up the snapshot device, creates the COW file including the
+ * data region, determines the COW path, sets up the COW thread, and finally
+ * initiates tracing.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
                              const char *bdev_path, const char *cow_path,
                              unsigned long fallocated_space,
@@ -1198,8 +1573,15 @@ error:
         return ret;
 }
 
-/************************IOCTL TRANSITION FUNCTIONS************************/
-
+/**
+ * tracer_active_snap_to_inc() - Transitions from snapshot mode to incremental
+ * tracking.
+ * @old_dev: The &struct snap_device being replaced by this call.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int tracer_active_snap_to_inc(struct snap_device *old_dev)
 {
         int ret;
@@ -1229,7 +1611,8 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         if (ret)
                 goto error;
 
-        // inject the tracing function
+        // inject the tracing function and write the new dev into
+        // the snap_devices array.
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
         if (ret)
                 goto error;
@@ -1299,6 +1682,18 @@ error:
         return ret;
 }
 
+/**
+ * tracer_active_inc_to_snap() - Transitions from incremental mode to
+ * snapshot mode.
+ *
+ * @old_dev: The &struct snap_device tracing in incremental mode.
+ * @cow_path: The path to the COW backing file.
+ * @fallocated_space: A value of zero carries over the current setting.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - error
+ */
 int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path,
                               unsigned long fallocated_space)
 {
@@ -1371,6 +1766,12 @@ error:
         return ret;
 }
 
+/**
+ * tracer_reconfigure() - Reconfigures the cache size associated with @dev.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @cache_size: Limits the size of the COW section cache (in bytes).
+ */
 void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size)
 {
         dev->sd_cache_size = cache_size;
@@ -1380,6 +1781,13 @@ void tracer_reconfigure(struct snap_device *dev, unsigned long cache_size)
                 cow_modify_cache_size(dev->sd_cow, cache_size);
 }
 
+/**
+ * tracer_dattobd_info() - Copies relevant, current information in @dev to
+ *                         @info.
+ *
+ * @dev: The source &struct snap_device tracking block device state.
+ * @info: A destination &struct dattobd_info object pointer.
+ */
 void tracer_dattobd_info(const struct snap_device *dev,
                          struct dattobd_info *info)
 {
@@ -1405,8 +1813,13 @@ void tracer_dattobd_info(const struct snap_device *dev,
         }
 }
 
-/************************AUTOMATIC TRANSITION FUNCTIONS************************/
-
+/**
+ * __tracer_active_to_dormant() - Transitions from ACTIVE to DORMANT.  This
+ *                                happens, for example, when the underlying
+ *                                block device becomes unwritable.
+ *
+ * @dev: The &struct snap_device object pointer.
+ */
 void __tracer_active_to_dormant(struct snap_device *dev)
 {
         int ret;
@@ -1430,6 +1843,14 @@ error:
         tracer_set_fail_state(dev, ret);
 }
 
+/**
+ * __tracer_unverified_snap_to_active() - Initiates tracking from a device
+ *                                        that was unverified and makes it
+ *                                        active.
+ *
+ * @dev: The &struct snap_device object pointer.
+ * @user_mount_path: A userspace supplied path used to build the COW file path.
+ */
 void __tracer_unverified_snap_to_active(struct snap_device *dev,
                                         const char __user *user_mount_path)
 {
@@ -1505,6 +1926,14 @@ error:
                 kfree(cow_path);
 }
 
+/**
+ * __tracer_unverified_inc_to_active() - Moves from an unverified state to
+ *                                       and active state.
+ * @dev: The &struct snap_device object pointer.
+ * @user_mount_path: A userspace supplied path used to build the COW file path.
+ *
+ * Tracing is configured for the block device after this call completes.
+ */
 void __tracer_unverified_inc_to_active(struct snap_device *dev,
                                        const char __user *user_mount_path)
 {
@@ -1575,6 +2004,14 @@ error:
                 kfree(cow_path);
 }
 
+/**
+ * __tracer_dormant_to_active() - Starts tracing on a previously traced
+ *                                device.
+ * @dev: The &struct snap_device object pointer.
+ * @user_mount_path: A userspace supplied path used to build the COW file path.
+ *
+ * Will continue tracing in the previous mode, i.e., snapshot or incremental.
+ */
 void __tracer_dormant_to_active(struct snap_device *dev,
                                 const char __user *user_mount_path)
 {

@@ -38,7 +38,21 @@ struct mutex ioctl_mutex;
 
 /************************IOCTL HANDLER FUNCTIONS************************/
 
-int __verify_minor(unsigned int minor, int mode)
+/**
+ * __verify_minor() - Verify the supplied minor device number according to the
+ *                    requested mode.
+ *
+ * @minor: the minor number to check.
+ * @mode: what to verify:
+ * * 0: the minor is not in allocated.
+ * * 1: the minor is allocated and is not busy.
+ * * 2: the minor is allocated whether busy or not.
+ *
+ * Return:
+ * * 0 - successfully validated.
+ * * 1 - a negative errno otherwise.
+ */
+static int __verify_minor(unsigned int minor, int mode)
 {
         // check minor number is within range
         if (minor >= dattobd_max_snap_devices) {
@@ -68,6 +82,17 @@ int __verify_minor(unsigned int minor, int mode)
         return 0;
 }
 
+/**
+ * __verify_bdev_writable() - Determines if the block device is writable.
+ *
+ * @bdev_path: the path to the block device.
+ * @out: the result
+ *
+ * Return:
+ * * 0 - successful, @out contains a boolean value indicating whether the bdev
+ * is writable.
+ * * !0 - errno indicating the error.
+ */
 int __verify_bdev_writable(const char *bdev_path, int *out)
 {
         int writable = 0;
@@ -93,6 +118,24 @@ int __verify_bdev_writable(const char *bdev_path, int *out)
         return 0;
 }
 
+/**
+ * __ioctl_setup() - Sets up for tracking for mounted or unmounted in
+ * reload/setup mode as appropriate for the current mount state.
+ * block devices
+ *
+ * @minor: An unallocated device minor number.
+ * @bdev_path: The path to the block device.
+ * @cow_path: The path to the cow file.
+ * @fallocated_space: The specific amount of space to use if non-zero,
+ *                    default otherwise.
+ * @cache_size: The specific amount of RAM to use for cache, default otherwise.
+ * @is_snap: snapshot or incremental.
+ * @is_reload: is a reload or a new setup.
+ *
+ * Return:
+ * * 0 - successfully set up.
+ * * !0 - errno indicating the error.
+ */
 int __ioctl_setup(unsigned int minor, const char *bdev_path,
                   const char *cow_path, unsigned long fallocated_space,
                   unsigned long cache_size, int is_snap, int is_reload)
@@ -164,6 +207,16 @@ error:
         return ret;
 }
 
+/**
+ * ioctl_destroy() - Tears down an allocated minor device as long as it is not
+ *                   referenced(busy).
+ *
+ * @minor: An allocated device minor number.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int ioctl_destroy(unsigned int minor)
 {
         int ret;
@@ -185,6 +238,16 @@ int ioctl_destroy(unsigned int minor)
         return 0;
 }
 
+/**
+ * ioctl_transition_inc() - Transitions the snapshot device to incremental
+ *                          tracking.
+ *
+ * @minor: An allocated device minor number.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int ioctl_transition_inc(unsigned int minor)
 {
         int ret;
@@ -226,6 +289,22 @@ error:
         return ret;
 }
 
+/**
+ * ioctl_transition_snap() - Transitions from active incremental mode to
+ *                           snapshot mode.
+ *
+ * @minor: An allocated device minor number.
+ * @cow_path: The path to the cow file.
+ * @fallocated_space: The specific amount of space to use if non-zero,
+ *                    default otherwise.
+ *
+ * As a result COW data will be used during snapshotting to preserve snapshot
+ * data while the live volume might change.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int ioctl_transition_snap(unsigned int minor, const char *cow_path,
                           unsigned long fallocated_space)
 {
@@ -268,6 +347,16 @@ error:
         return ret;
 }
 
+/**
+ * ioctl_reconfigure() - Reconfigures the cache size to match the supplied
+ *                       value.
+ * @minor: An allocated device minor number.
+ * @cache_size: The specific amount of RAM to use for cache, default otherwise.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int ioctl_reconfigure(unsigned int minor, unsigned long cache_size)
 {
         int ret;
@@ -298,6 +387,16 @@ error:
         return ret;
 }
 
+/**
+ * ioctl_dattobd_info() - Stores relevant, current &struct snap_device state
+ *                        in @info.
+ *
+ * @info: A @struct dattobd_info object pointer.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 int ioctl_dattobd_info(struct dattobd_info *info)
 {
         int ret;
@@ -321,6 +420,11 @@ error:
         return ret;
 }
 
+/**
+ * get_free_minor() - Determine the next available device minor number.
+ *
+ * Return: The next available minor number or an errno indicating the error.
+ */
 int get_free_minor(void)
 {
         struct snap_device *dev;
@@ -335,6 +439,19 @@ int get_free_minor(void)
         return -ENOENT;
 }
 
+/**
+ * ctrl_ioctl() - Dispatches the supplied IOCTL command to the appropriate
+ *                handler function(s).
+ *
+ * @filp: The &struct file object pointer associated with the misc driver
+ *        that handles the IOCTL interface.
+ * @cmd: The IOCTL command.
+ * @arg: A user space argument supplied with the IOCTL call.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
 long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
         int ret, idx;

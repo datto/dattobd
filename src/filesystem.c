@@ -33,6 +33,17 @@ static int kern_path(const char *name, unsigned int flags, struct path *path)
 }
 #endif
 
+/**
+ * dattobd_kernel_read() - This is a wrapper around kernel_read enhanced for
+ * systems that don't support it.
+ * @filp: A &struct file object.
+ * @buf: A buffer with at least @count entries.
+ * @count: The number of bytes to read from @filp.
+ * @pos: Set to the offset into @filp identifying the first sequential access.
+ *       Contains the current file offset after a successful call.
+ *
+ * Return: The number of bytes read or a negative errno.
+ */
 static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
                                    loff_t *pos)
 {
@@ -52,6 +63,17 @@ static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
 #endif
 }
 
+/**
+ * dattobd_kernel_write() - This is a wrapper around kernel_write enhanced for
+ * systems that don't support it.
+ * @filp: A &struct file object.
+ * @buf: A buffer with at least @count entries.
+ * @count: The number of bytes to write to @filp.
+ * @pos: Set to the offset into @filp identifying the first sequential access.
+ *       Contains the current file offset after a successful call.
+ *
+ * Return: The number of bytes written or a negative errno.
+ */
 static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
                                     size_t count, loff_t *pos)
 {
@@ -71,6 +93,19 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
 #endif
 }
 
+/**
+ * file_io() - Reads or writes to the supplied file.
+ *
+ * @filp: A pointer to the file object.
+ * @is_write: An integer encoded bool indicating a write or read operation.
+ * @buf: Input/output buffer for write/read, respectively.
+ * @offset: Byte offset of the first sequential access within @filp.
+ * @len: The number of bytes in the transfer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
             unsigned long len)
 {
@@ -98,14 +133,57 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
         return 0;
 }
 
+/**
+ * file_write() - Writes @len bytes of data to offset @offset within @filp from
+ * @buf.
+ *
+ * @filp: A pointer to the file object.
+ * @buf: Input buffer for write.
+ * @offset: Byte offset of the first sequential access within @filp.
+ * @len: The number of bytes in the transfer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 #define file_write(filp, buf, offset, len) file_io(filp, 1, buf, offset, len)
+
+/**
+ * file_read() - Store @len bytes of data from offset @offset within @filp into
+ * @buf.
+ *
+ * @filp: A pointer to the file object.
+ * @buf: Output buffer for read.
+ * @offset: Byte offset of the first sequential access within @filp.
+ * @len: The number of bytes in the transfer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error
+ */
 #define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
 
+/**
+ * file_close() - Closes the file object.
+ *
+ * @f: A pointer to a file object.
+ */
 inline void file_close(struct file *f)
 {
         filp_close(f, NULL);
 }
 
+/**
+ * file_open() - Opens a file.
+ *
+ * @filename: The full path to a file.
+ * @flags: Additional flags to use when opening the file.
+ * @filp: The resultant file object pointer, if successful.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int file_open(const char *filename, int flags, struct file **filp)
 {
         int ret;
@@ -144,6 +222,18 @@ error:
 }
 
 #if !defined(HAVE___DENTRY_PATH) && !defined(HAVE_DENTRY_PATH_RAW)
+/**
+ * dentry_get_relative_pathname() - Returns the pathname of the supplied dentry
+ * relative to the mount point of the block device containing the dentry.
+ *
+ * @dentry: A dentry object.
+ * @buf: Output pathname. Use kfree() on the returned buffer.
+ * @len_res: Pathname length of the result, NULL means don't care.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int dentry_get_relative_pathname(struct dentry *dentry, char **buf,
                                  int *len_res)
 {
@@ -178,6 +268,18 @@ int dentry_get_relative_pathname(struct dentry *dentry, char **buf,
         return 0;
 }
 #else
+/**
+ * dentry_get_relative_pathname() - Returns the pathname of the supplied dentry
+ * relative to the mount point of the block device containing the dentry.
+ *
+ * @dentry: A dentry object.
+ * @buf: Output pathname. Use kfree() on the returned buffer.
+ * @len_res: Pathname length of the result, NULL means don't care.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int dentry_get_relative_pathname(struct dentry *dentry, char **buf,
                                  int *len_res)
 {
@@ -234,8 +336,22 @@ error:
 }
 #endif
 
-int path_get_absolute_pathname(const struct path *path, char **buf,
-                               int *len_res)
+/**
+ * path_get_absolute_pathname() - Gets an absolute pathname from the supplied
+ *                                &struct path object.
+ *
+ * @path: Contains dentry objects for both a directory and its mount point.
+ * @buf: Output pathname. Use kfree() on the returned buffer.
+ * @len_res: Pathname length of the result, NULL means don't care.
+ *
+ * The absolute path must be less than PAGE_SIZE bytes.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
+static int path_get_absolute_pathname(const struct path *path, char **buf,
+                                      int *len_res)
 {
         int ret, len;
         char *pathname, *page_buf, *final_buf = NULL;
@@ -284,6 +400,20 @@ error:
         return ret;
 }
 
+/**
+ * file_get_absolute_pathname() - Gets an absolute path from the supplied
+ *                                &struct file object.
+ *
+ * @filp: A &struct file object.
+ * @buf: Output pathname. Use kfree() on the returned buffer.
+ * @len_res: Pathname length of the result, NULL means don't care.
+ *
+ * This is a wrapper based on @path_get_absolute_pathname.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int file_get_absolute_pathname(const struct file *filp, char **buf,
                                int *len_res)
 {
@@ -307,6 +437,20 @@ error:
         return ret;
 }
 
+/**
+ * pathname_to_absolute() - Converts a pathname, relative or absolute, to
+ *                          and absolute pathname.
+ *
+ * @pathname: The pathname to convert.
+ * @buf: Output pathname. Use kfree() on the returned buffer.
+ * @len_res: Pathname length of the result, NULL means don't care.
+ *
+ * This is a wrapper based on @path_get_absolute_pathname.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int pathname_to_absolute(const char *pathname, char **buf, int *len_res)
 {
         int ret;
@@ -331,6 +475,17 @@ error:
         return ret;
 }
 
+/**
+ * pathname_concat() - Appends @pathname2 to @pathname1.
+ *
+ * @pathname1: A pathname.
+ * @pathname2: The pathname to append to @pathname1.
+ * @path_out: Output pathname. Use kfree() on the returned buffer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int pathname_concat(const char *pathname1, const char *pathname2,
                     char **path_out)
 {
@@ -367,6 +522,18 @@ int pathname_concat(const char *pathname1, const char *pathname2,
         return 0;
 }
 
+/**
+ * user_mount_pathname_concat() - Concatinates a relative path to a user space
+ * mount path.
+ *
+ * @user_mount_path: A user space mount path, will be copied to kernel space.
+ * @rel_path: A kernel space relative path.
+ * @path_out: Output pathname. Use kfree() on the returned buffer.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int user_mount_pathname_concat(const char __user *user_mount_path,
                                const char *rel_path, char **path_out)
 {
@@ -393,6 +560,13 @@ error:
         return ret;
 }
 
+/**
+ * dattobd_should_remove_suid() - Determines flags needed to remove suid.
+ *
+ * @dentry: A &struct dentry object pointer.
+ *
+ * Return: The necessary flags.
+ */
 static int dattobd_should_remove_suid(struct dentry *dentry)
 {
         mode_t mode = dentry->d_inode->i_mode;
@@ -415,9 +589,25 @@ static int dattobd_should_remove_suid(struct dentry *dentry)
         return 0;
 }
 
-// reimplemented from linux kernel (it isn't exported in the vanilla kernel)
-int dattobd_do_truncate(struct dentry *dentry, loff_t length,
-                        unsigned int time_attrs, struct file *filp)
+/**
+ * dattobd_do_truncate() - Modifies the attributes of the &struct file object
+ *                         to indicate a new file size.  For security the SUID
+ *                         and/or SGID bits are removed from the @filp object
+ *                         as well.
+ * @dentry: The &struct dentry describing the @filp parent.
+ * @length: The new length, in bytes.
+ * @time_attrs: Time attributes.
+ * @filp: The &struct file object.
+ *
+ * Reimplemented from linux kernel since it isn't exported in the vanilla
+ * kernel.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
+static int dattobd_do_truncate(struct dentry *dentry, loff_t length,
+                               unsigned int time_attrs, struct file *filp)
 {
         int ret;
         struct iattr newattrs;
@@ -448,6 +638,18 @@ int dattobd_do_truncate(struct dentry *dentry, loff_t length,
         return ret;
 }
 
+/**
+ * file_truncate() - Truncates a file to a given length.
+ *
+ * @filp: A &struct file object.
+ * @len: The truncation length in bytes.
+ *
+ * Special treatment of SUID and SGID is performed.  See @dattobd_do_truncate.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int file_truncate(struct file *filp, loff_t len)
 {
         struct inode *inode;
@@ -489,8 +691,37 @@ error:
 
 #ifdef HAVE_VFS_FALLOCATE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+
+/**
+ * real_fallocate() - Allows the caller to allocate disk space for a file
+ * within the range specified by @offset and @length.  Any subregion within
+ * This domain that didn't have data before the call will contain zeroes.
+ *
+ * @f: A &struct file object.
+ * @offset: The offset into @f indicating the start of the allocation.
+ * @length: The number of byte to allocate starting at @offset.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 #define real_fallocate(f, offset, length) vfs_fallocate(f, 0, offset, length)
+
 #else
+
+/**
+ * real_fallocate() - Allows the caller to allocate disk space for a file
+ * within the range specified by @offset and @length.  Any subregion within
+ * this domain that didn't have data before the call will contain zeroes.
+ *
+ * @f: A &struct file object.
+ * @offset: The offset into @f indicating the start of the allocation.
+ * @length: The number of byte to allocate starting at @offset.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
 {
         int ret;
@@ -532,6 +763,19 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
 }
 #endif
 
+/**
+ * file_allocate() - Allows the caller to allocate disk space for a file
+ * within the range specified by @offset and @length.  Attempts to use
+ * @real_fallocate with a fallback of writing zeroes if that fails.
+ *
+ * @f: A &struct file object.
+ * @offset: The offset into @f indicating the start of the allocation.
+ * @length: The number of byte to allocate starting at @offset.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int file_allocate(struct file *f, uint64_t offset, uint64_t length)
 {
         int ret = 0;
@@ -613,6 +857,16 @@ error:
         return ret;
 }
 
+/**
+ * __file_unlink() - delete a name and possibly the file it refers to.
+ * @filp: A &struct file object.
+ * @close: Close the @filp on success.
+ * @force: Always close the @filp regardless of a successful unlink.
+ *
+ * Return:
+ * * 0 - success
+ * * !0 - errno indicating the error.
+ */
 int __file_unlink(struct file *filp, int close, int force)
 {
         int ret = 0;
@@ -661,22 +915,49 @@ mnt_error:
 
 #ifndef HAVE_D_UNLINKED
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
+
+/**
+ * d_unlinked() - Checks to see if a directory has been unlinked.
+ * @dentry: A &struct dentry object pointer.
+ *
+ * Return: A boolean indicating whether the dentry has been unlinked.
+ */
 int d_unlinked(struct dentry *dentry)
 {
         return d_unhashed(dentry) && !IS_ROOT(dentry);
 }
+
 #endif
 
 #ifndef HAVE_NOOP_LLSEEK
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+
+/**
+ * noop_llseek() - No operation performed llseek implementation
+ * @file: The &struct file object to seek on
+ * @offset: file offset to seek to
+ * @origin: type of seek
+ *
+ * Reimplemented from linux kernel since it isn't universally available.
+ *
+ * Return: the current file position.
+ */
 loff_t noop_llseek(struct file *file, loff_t offset, int origin)
 {
         return file->f_pos;
 }
+
 #endif
 
 #ifndef HAVE_PATH_PUT
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+
+/**
+ * path_put() - Put a reference to a path.
+ * @path: path to put the reference to.
+ *
+ * Given a path decrement the reference count to the dentry and the vfsmount.
+ */
 void path_put(const struct path *path)
 {
         dput(path->dentry);
@@ -686,13 +967,26 @@ void path_put(const struct path *path)
 
 #ifndef HAVE_INODE_LOCK
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+/**
+ * dattobd_inode_lock() - Locks the inode's mutex.
+ * @inode: The &struct inode object pointer.
+ *
+ * Reimplementation from Linux kernel since it isn't universally available.
+ */
 void dattobd_inode_lock(struct inode *inode)
 {
         mutex_lock(&inode->i_mutex);
 }
 
+/**
+ * dattobd_inode_unlock() - Unlocks the inode's mutex.
+ * @inode: The &struct inode object pointer.
+ *
+ * Reimplementation from Linux kernel since it isn't universally available.
+ */
 void dattobd_inode_unlock(struct inode *inode)
 {
         mutex_unlock(&inode->i_mutex);
 }
+
 #endif
