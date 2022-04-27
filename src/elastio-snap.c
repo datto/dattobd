@@ -971,6 +971,7 @@ struct snap_device{
 	unsigned long sd_cache_size; //maximum cache size (in bytes)
 	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
+	atomic_t sd_memory_state; //memory state to signal memory usage has exceeded threshold
 	sector_t sd_sect_off; //starting sector of base block device
 	sector_t sd_size; //size of device in sectors
 	struct request_queue *sd_queue; //snap device request queue
@@ -1115,6 +1116,17 @@ static inline int tracer_read_fail_state(const struct snap_device *dev){
 static inline void tracer_set_fail_state(struct snap_device *dev, int error){
 	smp_mb();
 	(void)atomic_cmpxchg(&dev->sd_fail_code, 0, error);
+	smp_mb();
+}
+
+static inline int tracer_read_memory_state(const struct snap_device *dev){
+	smp_mb();
+	return atomic_read(&dev->sd_memory_state);
+}
+
+static inline void tracer_set_memory_state(struct snap_device *dev, int error){
+	smp_mb();
+	(void)atomic_cmpxchg(&dev->sd_memory_state, 0, error);
 	smp_mb();
 }
 
@@ -3168,10 +3180,10 @@ static int memory_is_too_low(struct snap_device *dev) {
 		totalram = si.totalram;
 	}
 
-	ret = ((si_mem_available() * 100) / totalram) < LOW_MEMORY_FAIL_PERCENT ? -ENOMEM : 0;
-	if (ret) {
-		LOG_ERROR(ret, "physical memory usage has exceeded %d%% threshold. entering error state", (100 - LOW_MEMORY_FAIL_PERCENT));
-		tracer_set_fail_state(dev, ret);
+	ret = ((si_mem_available() * 100) / totalram) < LOW_MEMORY_FAIL_PERCENT ? -ENOMEM : tracer_read_memory_state(dev);
+	if (ret && tracer_read_memory_state(dev) == 0) {
+		LOG_WARN("physical memory usage has exceeded %d%% threshold. cow file update is stopped", (100 - LOW_MEMORY_FAIL_PERCENT));
+		tracer_set_memory_state(dev, ret);
 	}
 	return ret;
 }
@@ -3606,6 +3618,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 static void __tracer_init(struct snap_device *dev){
 	LOG_DEBUG("initializing tracer");
 	atomic_set(&dev->sd_fail_code, 0);
+	atomic_set(&dev->sd_memory_state, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
@@ -4389,6 +4402,9 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 	info->minor = dev->sd_minor;
 	info->state = dev->sd_state;
 	info->error = tracer_read_fail_state(dev);
+	if (info->error == 0) {
+		info->error = tracer_read_memory_state(dev);
+	}
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
 	strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
