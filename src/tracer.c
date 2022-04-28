@@ -24,6 +24,9 @@
 #include <linux/percpu-refcount.h>
 #endif
 
+#define FUSEBLK_MNT_NAME "fuseblk"
+#define FUSEBLK_MNT_LEN 7
+
 #if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 
@@ -435,6 +438,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
         int ret;
         uint64_t max_file_size;
         char bdev_name[BDEVNAME_SIZE];
+        char fuseblk_name[] = FUSEBLK_MNT_NAME;
 
         bdevname(bdev, bdev_name);
 
@@ -490,6 +494,21 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
         if (file_is_on_bdev(dev->sd_cow->filp, bdev)) {
                 set_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags);
+                /* Cow file should not be on the same device as a fuse fs.
+                 * This is because the typical setup for a fuse device involves
+                 * calling mount() and /then/ setting its ioctl callbacks (open
+                 * is of specific interest). Dormant- or unverified-to-active
+                 * transitions cause a deadlock because open will be called in
+                 * the mount syscall where the fuse device's callbacks won't
+                 * have been set yet. We prevent this from happening by not
+                 * allowing it in the first place. */
+                if (0 == strncmp(bdev->bd_super->s_type->name, fuseblk_name,
+                                 FUSEBLK_MNT_LEN)) {
+                        ret = -EDEADLOCK;
+                        LOG_ERROR(ret, "Cow file cannot be on same volume for"
+                                  " fuse filesystems");
+                        return ret;
+                }
         }
 
         // find the cow file's inode number
