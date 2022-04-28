@@ -325,10 +325,14 @@ struct inode *page_get_inode(struct page *pg)
         return pg->mapping->host;
 }
 
-int bio_needs_cow(struct bio *bio, struct inode *inode)
+int bio_needs_cow(struct bio *bio, struct snap_device *dev)
 {
         bio_iter_t iter;
         bio_iter_bvec_t bvec;
+
+        if (!test_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags)) {
+                return 1; // if the cow is non-resident, then we don't need to check if the bio is for the cow file.
+        }
 
 #ifdef HAVE_ENUM_REQ_OPF
         //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
@@ -339,7 +343,7 @@ int bio_needs_cow(struct bio *bio, struct inode *inode)
         // check the inode of each page return true if it does not match our cow
         // file
         bio_for_each_segment (bvec, bio, iter) {
-                if (page_get_inode(bio_iter_page(bio, iter)) != inode)
+                if (page_get_inode(bio_iter_page(bio, iter)) != dev->sd_cow_inode)
                         return 1;
         }
 

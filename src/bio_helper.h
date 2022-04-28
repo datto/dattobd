@@ -148,7 +148,7 @@ void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag);
 
 struct inode *page_get_inode(struct page *pg);
 
-int bio_needs_cow(struct bio *bio, struct inode *inode);
+int bio_needs_cow(struct bio *bio, struct snap_device *dev);
 
 void bio_free_clone(struct bio *bio);
 
