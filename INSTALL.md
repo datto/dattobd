@@ -1,7 +1,7 @@
 # elastio-snap INSTALL
 
 ## From Repositories
-Elastio Software Inc. provides repositories for x86_64 editions of the RHEL/CentOS starting from the version 6.10, Amazon Linux 2, Fedora 31 and newer, Debian 8 and newer, and Ubuntu LTS starting from the version 16.04.
+Elastio Software Inc. provides repositories for x86_64 editions of the RHEL/CentOS starting from the version 7, Amazon Linux 2, Fedora 31 and newer, Debian 8 and newer, and Ubuntu LTS starting from the version 16.04.
 We recommend that you install the kernel module from Elastio's repositories.
 
 ### Repository package installation for RPM-based systems

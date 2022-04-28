@@ -771,6 +771,20 @@ static inline void elastio_snap_bio_copy_dev(struct bio *dst, struct bio *src){
 #define dev_bioset(dev) (&(dev)->sd_bioset)
 #endif
 
+#ifndef __kernel_long_t
+typedef long __kernel_long_t;
+typedef unsigned long __kernel_ulong_t;
+#endif
+
+#ifndef HAVE_SI_MEM_AVAILABLE
+__kernel_ulong_t si_mem_available(void)
+{
+       struct sysinfo si;
+       si_meminfo(&si);
+       return si.freeram;
+}
+#endif
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 
@@ -5535,7 +5549,7 @@ static void elastio_snap_wait_for_release(struct snap_device *dev)
 	// Linux kernel version 5.14+
 	int prev_state = READ_ONCE(current->__state);
 #else
-	int prev_state = READ_ONCE(current->state);
+	int prev_state = ACCESS_ONCE(current->state);
 #endif
 	int i = 0;
 	set_current_state(TASK_INTERRUPTIBLE);
