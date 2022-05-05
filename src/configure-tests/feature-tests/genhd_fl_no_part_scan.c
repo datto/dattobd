@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct gendisk gd;
 	gd.flags = GENHD_FL_NO_PART_SCAN;

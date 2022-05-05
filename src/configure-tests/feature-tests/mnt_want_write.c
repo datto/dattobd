@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct vfsmount *mnt;
 	mnt_want_write(mnt);

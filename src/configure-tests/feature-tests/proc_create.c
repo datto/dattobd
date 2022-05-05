@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct proc_dir_entry *ent = proc_create("file", 0, NULL, NULL);
 	(void)ent;

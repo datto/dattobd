@@ -7,6 +7,8 @@
 #include "includes.h"
 #include <uapi/linux/mount.h>
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	int f = MS_RDONLY;
 	(void)f;

@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct file *f = NULL;
 	const void *buf = NULL;

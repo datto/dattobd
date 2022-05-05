@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	enum req_opf n = 0;
 	(void)n;

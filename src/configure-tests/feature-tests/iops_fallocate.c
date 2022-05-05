@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct inode i = { .i_sb = NULL };
 	i.i_op->fallocate(&i, 0, 0, 0);

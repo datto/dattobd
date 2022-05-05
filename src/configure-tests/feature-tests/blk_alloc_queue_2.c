@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
     make_request_fn *fn;
     struct request_queue *rq = blk_alloc_queue(fn, NUMA_NO_NODE);

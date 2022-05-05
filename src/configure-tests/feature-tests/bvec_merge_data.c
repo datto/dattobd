@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct bvec_merge_data bmd;
 	bmd.bi_bdev = NULL;
