@@ -4,14 +4,14 @@
  * Copyright (C) 2020 Elastio Software Inc.
  */
 
-// kernel_version >= 5.16
+// 5.9 <= kernel_version
 
 #include "includes.h"
 MODULE_LICENSE("GPL");
 
-static void snap_submit_bio(struct bio *bio)
+static blk_qc_t snap_submit_bio(struct bio *bio)
 {
-	(void)bio;
+	return BLK_QC_T_NONE;
 }
 
 static inline void dummy(void){

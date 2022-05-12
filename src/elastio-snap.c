@@ -548,15 +548,25 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 	#define vzalloc(size) __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL)
 #endif
 
-#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO
-	// Linux kernel version 5.9+
+#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO_UINT
+	// Linux kernel version 5.9 - 5.15
 	// make_request_fn has been moved from the request queue structure to the
-	// block_device_operations as submit_bio function.
+	// block_device_operations as submit_bio function with UINT return type.
 	// See https://github.com/torvalds/linux/commit/c62b37d96b6eb3ec5ae4cbe00db107bf15aebc93
 	#define USE_BDOPS_SUBMIT_BIO
 
 	// Prototype bdev->fops->submit_bio but with the name already used in the code
 	typedef blk_qc_t (make_request_fn) (struct bio *bio);
+#endif
+
+#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO
+	// Linux kernel version 5.16+
+	// submit_bio function in the block_device_operations structure has changed its return type to VOID.
+	// See https://github.com/torvalds/linux/commit/3e08773c3841e9db7a520908cc2b136a77d275ff#diff79b436371fdb3ddf0e7ad9bd4c9afe05160f7953438e650a77519b882904c56bR1181	
+	#define USE_BDOPS_SUBMIT_BIO
+
+	// Prototype bdev->fops->submit_bio but with the name already used in the code
+	typedef void (make_request_fn) (struct bio *bio);
 #endif
 
 #ifndef USE_BDOPS_SUBMIT_BIO
@@ -599,6 +609,7 @@ static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
 #elif defined HAVE_MAKE_REQUEST_FN_VOID
 	#define MRF_RETURN_TYPE void
 	#define MRF_RETURN(ret) return
+	#define MRF_RETURN_TYPE_VOID
 
 static inline int __elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
 	fn(q, bio);
@@ -610,8 +621,17 @@ static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
 	return 0;
 }
 #else
-	#define MRF_RETURN_TYPE blk_qc_t
-	#define MRF_RETURN(ret) return BLK_QC_T_NONE
+	#ifdef HAVE_BDOPS_SUBMIT_BIO
+		// Linux kernel version 5.16+
+		#define MRF_RETURN_TYPE void
+		#define MRF_RETURN(ret) return
+		#define MRF_RETURN_TYPE_VOID
+		#define BIO_REDIRECT_TO_PART0
+	#else
+		// Linux kernel version 5.9 - 5.15
+		#define MRF_RETURN_TYPE blk_qc_t
+		#define MRF_RETURN(ret) return BLK_QC_T_NONE
+	#endif
 
 #ifndef USE_BDOPS_SUBMIT_BIO
 static inline int __elastio_snap_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio){
@@ -632,25 +652,35 @@ static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct request_queue *q, str
 #endif
 #endif
 
+#ifdef MRF_RETURN_TYPE_VOID
+	#define MRF_SET_RETURN_VALUE(mrf_func) mrf_func
+	#define MRF_RETURN_VALUE(mrf_func) mrf_func
+#else
+	#define MRF_SET_RETURN_VALUE(mrf_func) ret = mrf_func
+	#define MRF_RETURN_VALUE(mrf_func) return mrf_func
+#endif
+
 #ifdef USE_BDOPS_SUBMIT_BIO
 // Linux version 5.9+
 
-#ifdef HAVE_BLK_MQ_SUBMIT_BIO
 // The blk_mq_submit_bio function was exported in the kernels 5.9.0 - 5.9.1. And starting from the 5.9.2 it doesn't.
 // And compat HAVE_BLK_MQ_SUBMIT_BIO doesn't allow us to detect whether it exported or not.
 // Anyway this call by address works in all cases for the kernels 5.9+.
 // Also elastio_blk_mq_submit_bio is set to NULL in case if address of the blk_mq_submit_bio function is not detected for further checks.
-blk_qc_t (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR != 0) ?
-	(blk_qc_t (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
-#endif
+MRF_RETURN_TYPE (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR != 0) ?
+	(MRF_RETURN_TYPE (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
 static inline MRF_RETURN_TYPE elastio_snap_null_mrf(struct bio *bio){
+#ifndef MRF_RETURN_TYPE_VOID
 	percpu_ref_get(&elastio_snap_bio_bi_disk(bio)->queue->q_usage_counter);
-	return elastio_blk_mq_submit_bio(bio);
+#endif
+	MRF_RETURN_VALUE(elastio_blk_mq_submit_bio(bio));
 }
 
 static inline int elastio_snap_call_mrf(make_request_fn *fn, struct bio *bio){
-	return fn(bio);
+	int ret = 0;
+	MRF_SET_RETURN_VALUE(fn(bio));
+	return ret;
 }
 #endif
 
@@ -2731,6 +2761,14 @@ static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, st
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
+#ifdef BIO_REDIRECT_TO_PART0
+	/**
+	 * starting from 5.16+ we change the device to the root partition
+	 * to make sure the 'dev->sd_sect_off' math remains the same
+	 */
+	new_bio->bi_bdev = new_bio->bi_bdev->bd_disk->part0;
+#endif
+
 	//fill the bio with pages
 	for(i = 0; i < actual_pages; i++){
 		//allocate a page and add it to our bio
@@ -3377,13 +3415,13 @@ call_orig:
 		ret = elastio_snap_call_mrf(orig_mrf, bio);
 	} else if (elastio_snap_bio_bi_disk(bio)->fops->submit_bio) {
 		if (elastio_snap_bio_bi_disk(bio)->fops->submit_bio == tracing_mrf) {
-			ret = elastio_snap_null_mrf(bio);
+			MRF_SET_RETURN_VALUE(elastio_snap_null_mrf(bio));
 		} else {
-			ret = elastio_snap_bio_bi_disk(bio)->fops->submit_bio(bio);
+			MRF_SET_RETURN_VALUE(elastio_snap_bio_bi_disk(bio)->fops->submit_bio(bio));
 		}
 	} else {
 		LOG_WARN("error finding original_mrf and bio's submit_bio. both are empty");
-		ret = submit_bio_noacct(bio);
+		MRF_SET_RETURN_VALUE(submit_bio_noacct(bio));
 	}
 #else
 	if(orig_mrf) ret = __elastio_snap_call_mrf(orig_mrf, q, bio);
@@ -3903,6 +3941,11 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 #else
 		if(dev->sd_gd->flags & GENHD_FL_UP) del_gendisk(dev->sd_gd);
 #endif
+		if(dev->sd_queue){
+			LOG_DEBUG("freeing request queue");
+			blk_cleanup_queue(dev->sd_queue);
+			dev->sd_queue = NULL;
+		}
 		put_disk(dev->sd_gd);
 		dev->sd_gd = NULL;
 	}
@@ -4014,12 +4057,25 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_gd->flags |= GENHD_FL_NO_PART_SCAN;
 #endif
 
+#ifdef HAVE_GENHD_FL_NO_PART
+	// the flag has been renamed in 5.17
+	dev->sd_gd->flags |= GENHD_FL_NO_PART;
+#endif
+
 	//set the device as read-only
 	set_disk_ro(dev->sd_gd, 1);
 
 	//register gendisk with the kernel
 	LOG_DEBUG("adding disk");
+#ifdef HAVE_ADD_DISK_INT
+	ret = add_disk(dev->sd_gd);
+	if(ret){
+		LOG_ERROR(ret, "error adding disk");
+		goto error;
+	}
+#else
 	add_disk(dev->sd_gd);
+#endif
 
 	LOG_DEBUG("starting mrf kernel thread");
 	dev->sd_mrf_thread = kthread_run(snap_mrf_thread, dev, SNAP_MRF_THREAD_NAME_FMT, minor);
