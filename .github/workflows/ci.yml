@@ -20,8 +20,8 @@ jobs:
           debian8, debian9, debian10, debian11,
           centos7, centos8,
           amazon2,
-          fedora31, fedora32, fedora34, fedora35,
-          ubuntu2004
+          fedora31, fedora32, fedora34, fedora35, fedora36,
+          ubuntu2004, ubuntu2204
         ]
         arch: [ amd64 ]
 
@@ -54,15 +54,6 @@ jobs:
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-modules-5.9.16-100.fc32.x86_64.rpm
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-5.9.16-100.fc32.x86_64.rpm
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-devel-5.9.16-100.fc32.x86_64.rpm
-            sudo reboot now' || true
-          sleep 5
-        working-directory: ${{env.BOX_DIR}}
-
-      - name: Boot Fedora 35 into latest kernel
-        if: "${{ matrix.distro == 'fedora35' }}"
-        run: |
-          vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            sudo yum update -y kernel kernel-devel
             sudo reboot now' || true
           sleep 5
         working-directory: ${{env.BOX_DIR}}

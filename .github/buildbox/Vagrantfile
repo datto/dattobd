@@ -32,8 +32,8 @@ ENV_VARS_SCRIPT
 DISTROS = [ "debian8", "debian9", "debian10", "debian11",
             "amazon2",
             "centos6", "centos7", "centos8",
-            "fedora31", "fedora32", "fedora34", "fedora35",
-            "ubuntu2004" ]
+            "fedora31", "fedora32", "fedora34", "fedora35", "fedora36",
+            "ubuntu2004", "ubuntu2204" ]
 
 # NOTE: This environment variable should be set to enable triggers of the type "action".
 # The actions are used to make a lock around Vagrant::Action::Builtin::BoxAdd to avoid

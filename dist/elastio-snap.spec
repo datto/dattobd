@@ -106,7 +106,7 @@
 
 
 Name:            elastio-snap
-Version:         0.10.16
+Version:         0.10.17
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -583,6 +583,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Fri May 20 2022 Alex Sereda <asereda@elastio.com> - 0.10.17
+- Add package repositories for Fedora 36 and Ubuntu 22.04
+- Support Linux kernel 5.16 - 5.17
+- Fix ability to take snapshots from the multiple devices at one time on kernels 5.9+
+- Allow COW file to be located on non-protected volume
+- Fix memory leak on free of cloned bio
+- Avoid system crash during memory overflow
 
 * Fri Dec 10 2021 Eugene Kovalenko <ikovalenko@elastio.com> - 0.10.16
 - Fix for the module loading after installation by DKMS v. 3.0+
