@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static int dummy_mrf(struct request_queue *q, struct bio *bio){
 	return 0;
 }

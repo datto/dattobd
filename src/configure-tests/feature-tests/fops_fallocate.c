@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	struct file f = { .f_version = 0 };
 	f.f_op->fallocate(&f, 0, 0, 0);

@@ -6,6 +6,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	int flags = BIOSET_NEED_BVECS;
 	(void)flags;

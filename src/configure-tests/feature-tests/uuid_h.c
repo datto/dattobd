@@ -7,6 +7,8 @@
 #include "includes.h"
 #include <linux/uuid.h>
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
 	generate_random_uuid(NULL);
 }
