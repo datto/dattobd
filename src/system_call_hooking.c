@@ -90,16 +90,11 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
                     dev->sd_base_dev != mnt->mnt_sb->s_bdev)
                         continue;
 
-                // if we are unmounting the vfsmount we are using go to dormant
-                // state
-                if (mnt == dattobd_get_mnt(dev->sd_cow->filp)) {
-                        LOG_DEBUG("block device umount detected for device %d",
-                                  i);
-                        auto_transition_dormant(i);
+                LOG_DEBUG("block device umount detected for device %d", i);
+                auto_transition_dormant(i);
 
-                        ret = 0;
-                        goto out;
-                }
+                ret = 0;
+                goto out;
         }
         i = 0;
         ret = -ENODEV;

@@ -91,6 +91,8 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
                 seq_printf(m, "\t\t\t\"minor\": %u,\n", dev->sd_minor);
                 seq_printf(m, "\t\t\t\"cow_file\": \"%s\",\n",
                            dev->sd_cow_path);
+                seq_printf(m, "\t\t\t\"full_cow_path\": \"%s\",\n",
+                           dev->sd_cow_full_path);
                 seq_printf(m, "\t\t\t\"block_device\": \"%s\",\n",
                            dev->sd_bdev_path);
                 seq_printf(m, "\t\t\t\"max_cache\": %lu,\n",
@@ -133,7 +135,8 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
                 if (error)
                         seq_printf(m, "\t\t\t\"error\": %d,\n", error);
 
-                seq_printf(m, "\t\t\t\"state\": %lu\n", dev->sd_state);
+                seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
+                seq_printf(m, "\t\t\t\"resident\": %d\n", test_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags));
                 seq_printf(m, "\t\t}");
         }
 

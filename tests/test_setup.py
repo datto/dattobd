@@ -38,10 +38,11 @@ class TestSetup(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(dattobd.info(self.minor))
 
-    def test_setup_cow_file_on_wrong_device(self):
-        self.assertEqual(dattobd.setup(self.minor, self.device, "/tmp/{}".format(self.cow_file)), errno.EINVAL)
-        self.assertFalse(os.path.exists(self.snap_device))
-        self.assertIsNone(dattobd.info(self.minor))
+    def test_setup_cow_file_on_other_device(self):
+        self.assertEqual(dattobd.setup(self.minor, self.device, "/tmp/{}".format(self.cow_file)), 0)
+        self.addCleanup(dattobd.destroy, self.minor)
+        self.assertTrue(os.path.exists(self.snap_device))
+        self.assertIsNotNone(dattobd.info(self.minor))
 
     def test_setup_unmounted_volume(self):
         util.unmount(self.mount)

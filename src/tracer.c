@@ -24,6 +24,9 @@
 #include <linux/percpu-refcount.h>
 #endif
 
+#define FUSEBLK_MNT_NAME "fuseblk"
+#define FUSEBLK_MNT_LEN 7
+
 #if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 
@@ -159,7 +162,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         unsigned int bytes, pages;
 
         // if we don't need to cow this bio just call the real mrf normally
-        if (!bio_needs_cow(bio, dev->sd_cow_inode))
+        if (!bio_needs_cow(bio, dev))
                 return dattobd_call_mrf(dev->sd_orig_mrf,
                                         dattobd_bio_get_queue(bio), bio);
 
@@ -254,6 +257,14 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio)
         sector_t start_sect = 0, end_sect = bio_sector(bio);
         bio_iter_t iter;
         bio_iter_bvec_t bvec;
+
+        if (!test_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags)) {
+                // if the cow is non-resident, then we don't need to check if
+                // the bio is for the cow file.
+                ret = inc_make_sset(dev, bio_sector(bio),
+                                    bio_size(bio) / SECTOR_SIZE);
+                goto out;
+        }
 
 #ifdef HAVE_ENUM_REQ_OPF
         //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
@@ -361,7 +372,9 @@ static void minor_range_include(unsigned int minor)
 static void __tracer_init(struct snap_device *dev)
 {
         LOG_DEBUG("initializing tracer");
+        smp_mb();
         atomic_set(&dev->sd_fail_code, 0);
+        smp_mb();
         bio_queue_init(&dev->sd_cow_bios);
         bio_queue_init(&dev->sd_orig_bios);
         sset_queue_init(&dev->sd_pending_ssets);
@@ -430,6 +443,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
         int ret;
         uint64_t max_file_size;
         char bdev_name[BDEVNAME_SIZE];
+        char fuseblk_name[] = FUSEBLK_MNT_NAME;
 
         bdevname(bdev, bdev_name);
 
@@ -483,11 +497,23 @@ static int __tracer_setup_cow(struct snap_device *dev,
                 }
         }
 
-        // verify that file is on block device
-        if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
-                ret = -EINVAL;
-                LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
-                goto error;
+        if (file_is_on_bdev(dev->sd_cow->filp, bdev)) {
+                set_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags);
+                /* Cow file should not be on the same device as a fuse fs.
+                 * This is because the typical setup for a fuse device involves
+                 * calling mount() and /then/ setting its ioctl callbacks (open
+                 * is of specific interest). Dormant- or unverified-to-active
+                 * transitions cause a deadlock because open will be called in
+                 * the mount syscall where the fuse device's callbacks won't
+                 * have been set yet. We prevent this from happening by not
+                 * allowing it in the first place. */
+                if (0 == strncmp(bdev->bd_super->s_type->name, fuseblk_name,
+                                 FUSEBLK_MNT_LEN)) {
+                        ret = -EDEADLOCK;
+                        LOG_ERROR(ret, "Cow file cannot be on same volume for"
+                                  " fuse filesystems");
+                        return ret;
+                }
         }
 
         // find the cow file's inode number
@@ -627,6 +653,12 @@ static void __tracer_destroy_cow_path(struct snap_device *dev)
                 kfree(dev->sd_cow_path);
                 dev->sd_cow_path = NULL;
         }
+
+        if (dev->sd_cow_full_path) {
+                LOG_DEBUG("freeing full cow path");
+                kfree(dev->sd_cow_full_path);
+                dev->sd_cow_full_path = NULL;
+        }
 }
 
 static int __tracer_setup_cow_path(struct snap_device *dev,
@@ -635,6 +667,11 @@ static int __tracer_setup_cow_path(struct snap_device *dev,
         int ret;
 
         // get the pathname of the cow file (relative to the mountpoint)
+        LOG_DEBUG("getting absolute pathname of cow file");
+        ret = file_get_absolute_pathname(cow_file, &dev->sd_cow_full_path, NULL);
+        if (ret)
+                goto error;
+
         LOG_DEBUG("getting relative pathname of cow file");
         ret = dentry_get_relative_pathname(dattobd_get_dentry(cow_file),
                                            &dev->sd_cow_path, NULL);
@@ -1579,16 +1616,20 @@ void __tracer_dormant_to_active(struct snap_device *dev,
                                 const char __user *user_mount_path)
 {
         int ret;
+        char *resident_cow_path;
         char *cow_path;
 
         // generate the full pathname
         ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path,
-                                         &cow_path);
+                                         &resident_cow_path);
         if (ret)
                 goto error;
 
+        cow_path = test_bit(SD_FLAG_COW_RESIDENT, &dev->sd_flags) ? resident_cow_path : dev->sd_cow_full_path;
+
         // setup the cow manager
         ret = __tracer_setup_cow_reopen(dev, dev->sd_base_dev, cow_path);
+        kfree(resident_cow_path);
         if (ret)
                 goto error;
 
@@ -1608,13 +1649,9 @@ void __tracer_dormant_to_active(struct snap_device *dev,
         set_bit(ACTIVE, &dev->sd_state);
         clear_bit(UNVERIFIED, &dev->sd_state);
 
-        kfree(cow_path);
-
         return;
 
 error:
         LOG_ERROR(ret, "error transitioning tracer to active state");
-        if (cow_path)
-                kfree(cow_path);
         tracer_set_fail_state(dev, ret);
 }

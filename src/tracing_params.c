@@ -28,7 +28,9 @@ int tp_alloc(struct snap_device *dev, struct bio *bio,
         tp->orig_bio = bio;
         tp->bio_sects.head = NULL;
         tp->bio_sects.tail = NULL;
+        smp_mb();
         atomic_set(&tp->refs, 1);
+        smp_mb();
 
         *tp_out = tp;
         return 0;
@@ -36,7 +38,9 @@ int tp_alloc(struct snap_device *dev, struct bio *bio,
 
 void tp_get(struct tracing_params *tp)
 {
+        smp_mb();
         atomic_inc(&tp->refs);
+        smp_mb();
 }
 
 void tp_put(struct tracing_params *tp)

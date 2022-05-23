@@ -16,9 +16,13 @@
 #define ACTIVE 1
 #define UNVERIFIED 2
 
+// macros for defining the flags of a snap_device (bit offsets)
+#define SD_FLAG_COW_RESIDENT 0 // the cow file exists on the backing device
+
 struct snap_device {
         unsigned int sd_minor; // minor number of the snapshot
         unsigned long sd_state; // current state of the snapshot
+        unsigned long sd_flags; // flags
         unsigned long sd_falloc_size; // space allocated to the cow file (in
                 // megabytes)
         unsigned long sd_cache_size; // maximum cache size (in bytes)
@@ -31,7 +35,8 @@ struct snap_device {
         struct block_device *sd_base_dev; // device being snapshot
         char *sd_bdev_path; // base device file path
         struct cow_manager *sd_cow; // cow manager
-        char *sd_cow_path; // cow file path
+        char *sd_cow_path; // deprecated: cow file path
+        char *sd_cow_full_path; // full cow file path
         struct inode *sd_cow_inode; // cow file inode
         make_request_fn
                 *sd_orig_mrf; // block device's original make request function
