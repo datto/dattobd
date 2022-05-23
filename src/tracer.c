@@ -372,7 +372,9 @@ static void minor_range_include(unsigned int minor)
 static void __tracer_init(struct snap_device *dev)
 {
         LOG_DEBUG("initializing tracer");
+        smp_mb();
         atomic_set(&dev->sd_fail_code, 0);
+        smp_mb();
         bio_queue_init(&dev->sd_cow_bios);
         bio_queue_init(&dev->sd_orig_bios);
         sset_queue_init(&dev->sd_pending_ssets);
@@ -417,7 +419,10 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method)
         if (dev->sd_cow) {
                 LOG_DEBUG("destroying cow manager");
 
-                if (close_method == 0 || close_method == 1) {
+                if (close_method == 0) {
+                        cow_free(dev->sd_cow);
+                        dev->sd_cow = NULL;
+                } else if (close_method == 1) {
                         ret = cow_sync_and_free(dev->sd_cow);
                         dev->sd_cow = NULL;
                 } else if (close_method == 2) {
@@ -1624,6 +1629,7 @@ void __tracer_dormant_to_active(struct snap_device *dev,
 
         // setup the cow manager
         ret = __tracer_setup_cow_reopen(dev, dev->sd_base_dev, cow_path);
+        kfree(resident_cow_path);
         if (ret)
                 goto error;
 
@@ -1643,13 +1649,9 @@ void __tracer_dormant_to_active(struct snap_device *dev,
         set_bit(ACTIVE, &dev->sd_state);
         clear_bit(UNVERIFIED, &dev->sd_state);
 
-        kfree(resident_cow_path);
-
         return;
 
 error:
         LOG_ERROR(ret, "error transitioning tracer to active state");
-        if (resident_cow_path)
-                kfree(resident_cow_path);
         tracer_set_fail_state(dev, ret);
 }

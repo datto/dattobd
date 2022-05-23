@@ -35,8 +35,8 @@ struct snap_device {
         struct block_device *sd_base_dev; // device being snapshot
         char *sd_bdev_path; // base device file path
         struct cow_manager *sd_cow; // cow manager
-        char *sd_cow_path; // cow file path (for resident cow files)
-        char *sd_cow_full_path; // full cow file path (for non-resident cow files)
+        char *sd_cow_path; // deprecated: cow file path
+        char *sd_cow_full_path; // full cow file path
         struct inode *sd_cow_inode; // cow file inode
         make_request_fn
                 *sd_orig_mrf; // block device's original make request function

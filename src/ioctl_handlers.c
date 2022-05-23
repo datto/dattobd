@@ -59,6 +59,7 @@ int __verify_minor(unsigned int minor, int mode)
                 }
 
                 // check that the device is not busy if we care
+                smp_mb();
                 if (mode == 1 && atomic_read(&snap_devices[minor]->sd_refs)) {
                         LOG_ERROR(-EBUSY, "device specified is busy");
                         return -EBUSY;

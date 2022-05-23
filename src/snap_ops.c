@@ -14,7 +14,9 @@ static int __tracer_add_ref(struct snap_device *dev, int ref_cnt)
                 goto error;
         }
 
+        smp_mb();
         atomic_add(ref_cnt, &dev->sd_refs);
+        smp_mb();
 
 error:
         return ret;
