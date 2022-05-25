@@ -3,9 +3,15 @@
 LIBNAME = libelastio-snap.so
 SOVER = 1
 SHARED_CCFLAGS = -fPIC -lc -shared -Wl,-soname,$(LIBNAME).$(SOVER)
-LIBDIR = $(PREFIX)/lib64
 
 SOURCES = libelastio-snap.c
+ifeq (,$(wildcard /etc/debian_version))
+	# rpm-based system
+	LIBDIR = $(PREFIX)/lib64
+else
+	# Debian-based system
+	LIBDIR = $(PREFIX)/lib
+endif
 
 .PHONY: all shared static install uninstall clean
 

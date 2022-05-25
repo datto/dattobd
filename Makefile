@@ -4,8 +4,10 @@ export CC = gcc
 export RM = rm -f
 CFLAGS ?= -Wall
 export CCFLAGS = $(CFLAGS) -std=gnu99
-export PREFIX = /usr/local
+export PREFIX = /usr
 export BASE_DIR = $(abspath .)
+
+EUID := $(shell id -u -r)
 
 BUILDDIR := $(CURDIR)/pkgbuild
 
@@ -18,9 +20,15 @@ PKGBUILDROOT_CREATE_CMD = mkdir -p $(BUILDDIR)/DEBS $(BUILDDIR)/SDEBS $(BUILDDIR
 
 .PHONY: all driver library-shared library-static library application application-shared utils clean install uninstall pkgclean pkgprep deb rpm
 
-all: driver library application utils
+all: check_root driver library application utils
 
-driver:
+check_root:
+ifneq ($(EUID),0)
+	@echo "Run as sudo or root."
+	@exit 1
+endif
+
+driver: check_root
 	$(MAKE) -C src
 
 library-shared:
