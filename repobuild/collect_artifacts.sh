@@ -3,21 +3,26 @@
 dir=$(readlink -f $(dirname $0))
 out=$dir/artifacts
 
+# Use runner architecture to select artifact directories
+ARCH=$(uname -m)
+
 declare -A COPY_DIRS
-COPY_DIRS[rpm]="RPMS/x86_64 RPMS/noarch SRPMS"
+COPY_DIRS[rpm]="RPMS/${ARCH} RPMS/noarch SRPMS"
 COPY_DIRS[deb]="DEBS/**"
 
 declare -A POOLS
-POOLS[rpm]="x86_64/Packages"
+POOLS[rpm]="${ARCH}/Packages"
 POOLS[deb]="pool"
 
 # Make 'info' file with the artifacts details
 make_info () {
 BUILD_NUMBER='local_build'
 [ -n "$GITHUB_RUN_NUMBER" ] && BUILD_NUMBER=$GITHUB_RUN_NUMBER
-[ -n "$DRONE_BILD_NUMBER" ] && BUILD_NUMBER=$DRONE_BILD_NUMBER
+[ -n "$DRONE_BUILD_NUMBER" ] && BUILD_NUMBER=$DRONE_BUILD_NUMBER
 
 SOURCE_BRANCH=`git rev-parse --abbrev-ref HEAD`
+[ "$SOURCE_BRANCH" == "HEAD" ] && \
+    SOURCE_BRANCH=`git branch --remote --no-abbrev --contains | head -n 1 | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p'`
 COMMIT_SHA=`git rev-parse --short HEAD`
 
 mkdir -p $out/$dist_name
@@ -41,6 +46,11 @@ elif `which yum >/dev/null 2>&1` ; then
     pkg_type="rpm"
 fi
 
+# All 3: CentOS, Rocky Linux, Alma Linux are possible hosts to build packages for CentOS
+case $(echo ${dist_name,,}) in
+    almalinux | rocky ) dist_name=CentOS ;;
+esac
+
 if [ -z $dist_ver ] || [ -z $dist_name ]; then
     echo "Unknown Linux distro"
     exit 1
@@ -60,7 +70,6 @@ for d in "${copy_dirs[@]}"; do
     echo $d
     cp -r $dir/../pkgbuild/$d/* $pool
 done
-
 
 # Show tree to the log
 tree -h $out

@@ -57,4 +57,4 @@ def loop_destroy(loop):
 
 def mkfs(device):
     cmd = ["mkfs.ext4", "-F", device]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)

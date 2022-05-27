@@ -41,7 +41,6 @@ if [ ! -f "$SYSTEM_MAP_FILE" ] || [ $(cat "$SYSTEM_MAP_FILE" | wc -l) -lt 10 ]; 
 	fi
 fi
 
-
 echo "generating configurations for kernel-${KERNEL_VERSION}"
 
 rm -f $OUTPUT_FILE

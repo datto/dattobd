@@ -12,7 +12,8 @@ jobs:
   build-packages:
     name: Build Packages
     runs-on:
-      - baremetal
+      - metal
+      - ${{ matrix.arch }}
 
     strategy:
       matrix:
@@ -24,6 +25,25 @@ jobs:
           ubuntu2004, ubuntu2204
         ]
         arch: [ amd64 ]
+        include:
+          - arch: arm64
+            distro: amazon2
+          - arch: arm64
+            distro: fedora35
+          - arch: arm64
+            distro: fedora36
+          - arch: arm64
+            distro: debian10
+          # FIXME: Debian 11 on ARM64 is not yet supported.
+          # See https://github.com/elastio/elastio-snap/issues/124 for more details.
+          #- arch: arm64
+          #  distro: debian11
+          # FIXME: CentOS 8 on ARM64 is not yet supported.
+          # See https://github.com/elastio/elastio-snap/issues/125 for more details.
+          #- arch: arm64
+          #  distro: centos8
+          - arch: arm64
+            distro: ubuntu2204
 
     steps:
       - name: Checkout sources
@@ -47,7 +67,7 @@ jobs:
         run: .github/scripts/start_box.sh
 
       - name: Boot Fedora 32 into kernel 5.9
-        if: "${{ matrix.distro == 'fedora32' }}"
+        if: "${{ matrix.distro == 'fedora32' && matrix.arch == 'amd64' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-core-5.9.16-100.fc32.x86_64.rpm
@@ -56,6 +76,15 @@ jobs:
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-devel-5.9.16-100.fc32.x86_64.rpm
             sudo reboot now' || true
           sleep 5
+        working-directory: ${{env.BOX_DIR}}
+
+      # Amazon 2 has installed devtoolset-8 which upgrades GCC from 7.3.1 to 8.3.1.
+      # The new gcc doesn't compile rpm packages properly, because of the /usr/lib/rpm/redhat/macros provided
+      # by the package system-rpm-config-9.1.0-76.amzn2.0.13.noarch. And this macros has compilation flags applicable
+      # for GCC 7 and already removed from GCC 8. The workaround is to disable devtoolset-8 on the next build step.
+      - name: Remove devtoolset
+        if: "${{ matrix.distro == 'amazon2' && matrix.arch == 'arm64' }}"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo rm /etc/profile.d/enable-llvm-toolset.sh'
         working-directory: ${{env.BOX_DIR}}
 
       - name: Build packages
@@ -71,7 +100,9 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Install kernel module
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make install'
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make install'
+          vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make uninstall'
         working-directory: ${{env.BOX_DIR}}
 
       - name: Run tests (loop device)
@@ -83,9 +114,21 @@ jobs:
 
       - name: Attach qcow2 disk
         run: |
+          ARCH=$(uname -m)
           qemu-img create -f qcow2 ${TEST_IMAGE} 1G
-          virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGE} --target vdb --driver qemu --subdriver qcow2 --targetbus virtio
-          cd $BOX_DIR && vagrant ssh ${{env.INSTANCE_NAME}} -c 'echo -e "n\np\n\n\n\nw" | sudo fdisk /dev/vdb'
+          [ ${ARCH} != "x86_64" ] && VIRSH_FLAGS="--config" || true
+          virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGE} --target vdb --driver qemu --subdriver qcow2 --targetbus virtio ${VIRSH_FLAGS-}
+          # ARM64 boxes don't support "hot plug" w/o reboot
+          if [ ${ARCH} != "x86_64" ]; then
+            virsh destroy --domain ${BOX_DIR##*/}_${INSTANCE_NAME}
+            virsh start --domain ${BOX_DIR##*/}_${INSTANCE_NAME}
+            while ! vagrant ssh ${INSTANCE_NAME} -c 'uptime'; do
+              echo "Waiting..."
+              sleep 1
+            done
+          fi
+          vagrant ssh ${{env.INSTANCE_NAME}} -c 'echo -e "n\np\n\n\n\nw" | sudo fdisk /dev/vdb'
+        working-directory: ${{env.BOX_DIR}}
 
       - name: Run tests (qcow2 disk)
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh /dev/vdb1"
@@ -101,11 +144,16 @@ jobs:
           rm -f ${TEST_IMAGE}
 
       - name: Upload artifacts
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh
-          --source repobuild/artifacts/
-          --bucket artifacts.assur.io
-          --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE}
-          --exclude *GPG-KEY'
+        run: |
+          excl_ptrn="*GPG-KEY"
+          # We have to avoid a race condition when package like elastio-snap-dkms_X.XX.XX-1debian11_all.deb is uploaded from
+          # 2 Debian 11 VMs amd64 and arm64 at the same time to the same location.
+          [ $(uname -m) != "x86_64" ] && [ -f /etc/debian_version ] && excl_ptrn=$excl_ptrn",*_all.deb" || true
+          vagrant ssh ${{env.INSTANCE_NAME}} -c 'AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh \
+            --source repobuild/artifacts/ \
+            --bucket artifacts.assur.io \
+            --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE} \
+            --exclude '"'$excl_ptrn'"''
         working-directory: ${{env.BOX_DIR}}
 
       - name: Destroy a box

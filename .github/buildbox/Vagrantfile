@@ -29,11 +29,18 @@ EOF
 chmod +x /etc/profile.d/set_build_env.sh
 ENV_VARS_SCRIPT
 
-DISTROS = [ "debian8", "debian9", "debian10", "debian11",
-            "amazon2",
-            "centos6", "centos7", "centos8",
-            "fedora31", "fedora32", "fedora34", "fedora35", "fedora36",
-            "ubuntu2004", "ubuntu2204" ]
+DISTRO = {}
+DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11",
+                    "amazon2",
+                    "centos6", "centos7", "centos8",
+                    "fedora31", "fedora32", "fedora34", "fedora35", "fedora36",
+                    "ubuntu2004", "ubuntu2204" ]
+
+DISTRO['arm64'] = [ "debian10", "debian11",
+                    "amazon2",
+                    "centos8",
+                    "fedora35", "fedora36",
+                    "ubuntu2204" ]
 
 # NOTE: This environment variable should be set to enable triggers of the type "action".
 # The actions are used to make a lock around Vagrant::Action::Builtin::BoxAdd to avoid
@@ -44,8 +51,16 @@ ENV['VAGRANT_EXPERIMENTAL']='typed_triggers' if ARGV.include?('up')
 
 Vagrant.configure("2") do |config|
 
-  DISTROS.each do |distro|
-    box = "#{distro}-amd64-build"
+  # Get runner architecture
+  arch =`uname -m`.strip
+  if arch == "x86_64"
+    arch = "amd64"
+  elsif arch == "aarch64"
+    arch = "arm64"
+  end
+
+  DISTRO["#{arch}"].each do |distro|
+    box = "#{distro}-#{arch}-build"
     instance = "#{box}-#{ENV['RUNNER_NUM']}"
     next if ARGV.include?('up') && ARGV.none?("#{instance}")
     config.vm.define "#{instance}", autostart: false do |b|
