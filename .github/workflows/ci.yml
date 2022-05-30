@@ -18,32 +18,32 @@ jobs:
     strategy:
       matrix:
         distro: [
-          debian8, debian9, debian10, debian11,
-          centos7, centos8,
           amazon2,
+          centos7, centos8,
+          debian8, debian9, debian10, debian11,
           fedora31, fedora32, fedora34, fedora35, fedora36,
           ubuntu2004, ubuntu2204
         ]
         arch: [ amd64 ]
         include:
-          - arch: arm64
-            distro: amazon2
-          - arch: arm64
-            distro: fedora35
-          - arch: arm64
-            distro: fedora36
-          - arch: arm64
-            distro: debian10
-          # FIXME: Debian 11 on ARM64 is not yet supported.
-          # See https://github.com/elastio/elastio-snap/issues/124 for more details.
-          #- arch: arm64
-          #  distro: debian11
+          - distro: amazon2
+            arch: arm64
           # FIXME: CentOS 8 on ARM64 is not yet supported.
           # See https://github.com/elastio/elastio-snap/issues/125 for more details.
-          #- arch: arm64
-          #  distro: centos8
-          - arch: arm64
-            distro: ubuntu2204
+          #- distro: centos8
+          #  arch: arm64
+          - distro: debian10
+            arch: arm64
+          # FIXME: Debian 11 on ARM64 is not yet supported.
+          # See https://github.com/elastio/elastio-snap/issues/124 for more details.
+          #- distro: debian11
+          #  arch: arm64
+          - distro: fedora35
+            arch: arm64
+          - distro: fedora36
+            arch: arm64
+          - distro: ubuntu2204
+            arch: arm64
 
     steps:
       - name: Checkout sources
@@ -112,6 +112,12 @@ jobs:
         # 5 minutes seems to be reasonable timeout.
         timeout-minutes: 5
 
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
       - name: Attach qcow2 disk
         run: |
           ARCH=$(uname -m)
@@ -134,6 +140,12 @@ jobs:
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh /dev/vdb1"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 5
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
 
       - name: Detach external drive
         if: always()
