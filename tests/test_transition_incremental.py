@@ -53,7 +53,8 @@ class TestTransitionToIncremental(DeviceTestCase):
         # We want the former to happen, so make the OS sync everything.
 
         os.sync()
-        self.assertEqual(elastio_snap.transition_to_incremental(self.minor), errno.EINVAL)
+        err = elastio_snap.transition_to_incremental(self.minor)
+        self.assertTrue(err == errno.EINVAL or err == errno.EFBIG)
 
         snapdev = elastio_snap.info(self.minor)
         self.assertIsNotNone(snapdev)
