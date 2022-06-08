@@ -97,4 +97,12 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: $set_environment_variables, run: "always"
   config.vm.synced_folder "../../", "/home/elastio/elastio-snap", type: "rsync",
     rsync__args: ["-rLkz", "--delete", "--filter=:- .gitignore"], rsync__exclude: [".vagrant/"]
+
+  # This Vagrantfile can be used for the various box versions, even very old ones. Thus we need
+  # to define the 2 management_network variables here to prevent deletion of the 'vagrant-libvirt'
+  # network on the box destroy.
+  config.vm.provider :libvirt do |domain|
+    domain.management_network_name = "vagrant-libvirt"
+    domain.management_network_keep = "true"
+  end
 end

@@ -31,21 +31,21 @@ The primary intended use case of Elastio-Snap is for backing up live Linux syste
 	elioctl setup-snapshot /dev/sda1 /.elastio 0
 ```
 
-This will create a snapshot of the root volume at `/dev/elastio0` with a backing COW file at `/.elastio`. This file must exist on the volume that will be snapshotted.
+This will create a snapshot of the root volume at `/dev/elastio-snap0` with a backing COW file at `/.elastio`. This file must exist on the volume that will be snapshotted.
 
 3) Copy the image off the block device:
 ```
 	dd if=/dev/elastio-snap0 of=/backups/sda1-bkp bs=1M
 ```
 
-`dd` is a standard image copying tool in linux. Here it simply copies the contents of the `/dev/elastio0` device to an image. Be careful when running this command as it can badly corrupt filesystems if used incorrectly. NEVER execute `dd` with the "of" parameter pointing to a volume that has important data on it. This can take a while to copy the entire volume. See the man page on `dd` for more details.
+`dd` is a standard image copying tool in linux. Here it simply copies the contents of the `/dev/elastio-snap0` device to an image. Be careful when running this command as it can badly corrupt filesystems if used incorrectly. NEVER execute `dd` with the "of" parameter pointing to a volume that has important data on it. This can take a while to copy the entire volume. See the man page on `dd` for more details.
 
 4) Put the snapshot into incremental mode:
 ```
 	elioctl transition-to-incremental 0
 ```
 
-This command requests the driver to move the snapshot (`/dev/elastio0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
+This command requests the driver to move the snapshot (`/dev/elastio-snap0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
 
 5) Continue using your system.
 After the initial backup, the driver will probably be left in incremental mode the vast majority of time.
@@ -63,7 +63,7 @@ This command requires the name of a new COW file to begin tracking changes again
 	update-img /dev/elastio-snap0 /.elastio /backups/sda1-bkp
 ```
 
-Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/elastio0`), the list of changed blocks (`/.elastio` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
+Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/elastio-snap0`), the list of changed blocks (`/.elastio` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
 
 8) Clean up the leftover file:
 ```
