@@ -5231,11 +5231,12 @@ out:
 static int bdev_switch_ownership(const char __user *dir_name, int follow_flags, int ownership)
 {
 	int i, ret = 0;
+	int bdev_found = 0;
 	int lookup_flags = 0;
 	struct path path = {};
-	struct snap_device *dev;
 	struct block_device *bdev;
 	char bdev_name[BDEVNAME_SIZE];
+	struct snap_device *dev = NULL;
 
 	if(!(follow_flags & UMOUNT_NOFOLLOW)) lookup_flags |= LOOKUP_FOLLOW;
 
@@ -5260,12 +5261,16 @@ static int bdev_switch_ownership(const char __user *dir_name, int follow_flags, 
 	bdevname(bdev, bdev_name);
 
 	tracer_for_each(dev, i) {
-		if (!dev) continue;
-		if (dev->sd_base_dev == bdev) break;
+		if (!dev || tracer_read_fail_state(dev)) continue;
+
+		if (dev->sd_base_dev == bdev) {
+			bdev_found = 1;
+			break;
+		}
 	}
 
 	// not found
-	if (!dev) {
+	if (!dev || !bdev_found) {
 		LOG_DEBUG("no active snap device found for %s, skip ownership change", bdev_name);
 		ret = 0;
 		goto out;
