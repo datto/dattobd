@@ -33,7 +33,8 @@ class DeviceTestCase(unittest.TestCase):
             util.dd("/dev/zero", cls.backing_store, 256, bs="1M")
             cls.device = util.loop_create(cls.backing_store)
 
-        util.mkfs(cls.device)
+        cls.fs = os.getenv('TEST_FS', 'ext4')
+        util.mkfs(cls.device, cls.fs)
         os.makedirs(cls.mount, exist_ok=True)
         util.mount(cls.device, cls.mount)
 

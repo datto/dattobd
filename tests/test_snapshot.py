@@ -8,6 +8,7 @@
 
 import errno
 import os
+import platform
 import unittest
 
 import elastio_snap
@@ -41,13 +42,16 @@ class TestSnapshot(DeviceTestCase):
             f.write("jumps over the lazy dog")
 
         os.sync()
-
-        util.mount(self.snap_device, self.snap_mount, opts="ro")
+        # TODO: norecovery option, probably, should not be here after the fix of the elastio/elastio-snap#63
+        opts = "nouuid,norecovery,ro" if (self.fs == "xfs") else "ro"
+        util.mount(self.snap_device, self.snap_mount, opts)
         self.addCleanup(util.unmount, self.snap_mount)
 
         md5_snap = util.md5sum(snapfile)
         self.assertEqual(md5_orig, md5_snap)
 
+    @unittest.skipIf(os.getenv('TEST_FS') == "ext2" and int(platform.release().split(".", 1)[0]) < 4, "Broken on ext2, 3-rd kernels")
+    @unittest.skipIf(os.getenv('TEST_FS') == "xfs", "Broken on XFS, due to ignored os.sync and due to #63.")
     def test_track_writes(self):
         testfile = "{}/testfile".format(self.mount)
 
