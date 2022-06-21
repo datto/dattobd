@@ -45,7 +45,15 @@ struct reconfigure_params{
 };
 
 #define COW_UUID_SIZE 16
+
+// For x86_64 we support 4 KiB pages only
+// For aarch64 we use the size configured in kernel
+#ifdef CONFIG_ARM64_PAGE_SHIFT
+#define COW_BLOCK_LOG_SIZE CONFIG_ARM64_PAGE_SHIFT
+#else
 #define COW_BLOCK_LOG_SIZE 12
+#endif
+
 #define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
 #define COW_HEADER_SIZE 4096
 #define COW_MAGIC ((uint32_t)4776)

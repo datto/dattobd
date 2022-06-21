@@ -30,10 +30,8 @@ jobs:
         include:
           - distro: amazon2
             arch: arm64
-          # FIXME: CentOS 8 on ARM64 is not yet supported.
-          # See https://github.com/elastio/elastio-snap/issues/125 for more details.
-          #- distro: centos8
-          #  arch: arm64
+          - distro: centos8
+            arch: arm64
           - distro: debian10
             arch: arm64
           # FIXME: Debian 11 on ARM64 is not yet supported.

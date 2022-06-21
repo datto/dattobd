@@ -867,7 +867,7 @@ __kernel_ulong_t si_mem_available(void)
 
 //macros for defining sector and block sizes
 #define SECTORS_PER_PAGE (PAGE_SIZE / SECTOR_SIZE)
-#define COW_SECTION_SIZE 4096
+#define COW_SECTION_SIZE PAGE_SIZE
 #define SECTORS_PER_BLOCK (COW_BLOCK_SIZE / SECTOR_SIZE)
 #define SECTOR_TO_BLOCK(sect) ((sect) / SECTORS_PER_BLOCK)
 #define BLOCK_TO_SECTOR(block) ((block) * SECTORS_PER_BLOCK)

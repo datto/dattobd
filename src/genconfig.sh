@@ -12,6 +12,7 @@ OUTPUT_FILE=$SRC_DIR/kernel-config.h
 FEATURE_TEST_DIR="$SRC_DIR/configure-tests/feature-tests"
 FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
+CONFIG_TESTS_FILE="$SRC_DIR/configure-tests/config-tests"
 KERNEL_VERSION=$(uname -r)
 MAX_THREADS=$(echo "$2" | sed -E 's/.*-j\s*([0-9]+).*/\1/')
 if ! [[ "$MAX_THREADS" =~ '^[0-9]+$' ]]; then # if there was no -j flag provided, default to the number of processors
@@ -87,6 +88,20 @@ while read SYMBOL_NAME; do
 	fi
 	echo "#define $MACRO_NAME 0x$SYMBOL_ADDR" >> $OUTPUT_FILE
 done < $SYMBOL_TESTS_FILE
+
+SYSTEM_CONFIG_FILE="/boot/config-$KERNEL_VERSION"
+while read CONFIG_OPTION; do
+	if [ -z "$CONFIG_OPTION" ]; then
+		continue
+	fi
+
+	echo "checking $CONFIG_OPTION"
+	MACRO_NAME="$(echo ${CONFIG_OPTION} | awk '{print toupper($0)}')"
+	CONFIG_VALUE=$(grep "${CONFIG_OPTION}" "${SYSTEM_CONFIG_FILE}" | awk -F"=" '{print $2}')
+	if [ -n "$CONFIG_VALUE" ]; then
+		echo "#define $MACRO_NAME $CONFIG_VALUE" >> $OUTPUT_FILE
+	fi
+done < $CONFIG_TESTS_FILE
 
 echo "" >> $OUTPUT_FILE
 echo "#endif" >> $OUTPUT_FILE
