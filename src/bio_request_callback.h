@@ -23,7 +23,7 @@
 #include "submit_bio.h"
 
 #ifdef USE_BDOPS_SUBMIT_BIO
-#define BIO_REQUEST_TRACKING_PTR_TYPE const struct gendisk
+#define BIO_REQUEST_TRACKING_PTR_TYPE struct gendisk
 #define BIO_REQUEST_CALLBACK_FN submit_bio_fn
 #define SUBMIT_BIO_REAL dattobd_submit_bio_real
 #define GET_BIO_REQUEST_TRACKING_PTR dattobd_get_bd_submit_bio
@@ -34,6 +34,6 @@
 #define SUBMIT_BIO_REAL dattobd_call_mrf_real
 #define GET_BIO_REQUEST_TRACKING_PTR dattobd_get_bd_mrf
 #define SET_BIO_REQUEST_TRACKING_PTR dattobd_set_bd_mrf
-#endif 
+#endif
 
 #endif

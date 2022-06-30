@@ -8,6 +8,7 @@
 
 #include "dattobd.h"
 #include "includes.h"
+#include "callback_refs.h"
 #include "ioctl_handlers.h"
 #include "logging.h"
 #include "proc_seq_file.h"
@@ -304,6 +305,9 @@ static int __init agent_init(void)
         LOG_DEBUG("module init");
 
         mutex_init(&ioctl_mutex);
+
+        // gendisk ref hashtable init
+        gendisk_tracking_init();
 
         calc_max_snap_devices_and_init_minor_range();
 

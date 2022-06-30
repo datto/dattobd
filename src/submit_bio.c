@@ -32,6 +32,11 @@ int dattobd_submit_bio_real(
         return -EFAULT;
     }
     bio->bi_disk = dev->sd_orig_gendisk;
+    LOG_DEBUG(
+            "SUBMIT_BIO_REAL | bdev path: %s | bio partno: %d | ",
+            dev->sd_bdev_path,
+            bio->bi_partno
+    );
     return fn(bio);
 }
 
