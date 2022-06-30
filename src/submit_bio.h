@@ -117,6 +117,7 @@ struct block_device_operations* dattobd_copy_block_device_operations(
  * dattobd_copy_block_device_operations() to make a copy of the fops member, but
  * with the submit_bio function pointer replaced with the one provided.
  *
+ * @bdev: block device of the device being snapshotted.
  * @bi_disk: gendisk to be copied. This would typically be a ptr to the 
  *           real/orig device's gendisk.
  * @submit_bio_fn: Function pointer to set the new gendisk's fops->submit_bio to
@@ -127,6 +128,7 @@ struct block_device_operations* dattobd_copy_block_device_operations(
  * * Returns a pointer to the newly created gendisk struct.
  */
 struct gendisk* dattobd_copy_gendisk(
+    struct block_device* bdev,
     struct gendisk* bi_disk,
     submit_bio_fn* submit_bio_fn);
 

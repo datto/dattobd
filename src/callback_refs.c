@@ -8,9 +8,9 @@
 
 struct gendisk_tracking_data {
         const struct block_device *gtd_disk;
+        struct mutex gtd_gendisk_lock;
         BIO_REQUEST_TRACKING_PTR_TYPE *gtd_orig;
         atomic_t gtd_count;
-
         struct hlist_node node;
 };
 
@@ -43,6 +43,7 @@ int gendisk_fn_get(const struct block_device *disk, const BIO_REQUEST_TRACKING_P
                 }
                 gtd->gtd_disk = disk;
                 gtd->gtd_orig = (BIO_REQUEST_TRACKING_PTR_TYPE*) fn;
+                mutex_init(&gtd->gtd_gendisk_lock);
                 // kzalloc guarantees gtd->gtd_count = { 0 };
                 hash_add(gendisk_tracking_map, &gtd->node, (unsigned long)disk);
         }
@@ -50,6 +51,15 @@ int gendisk_fn_get(const struct block_device *disk, const BIO_REQUEST_TRACKING_P
         atomic_inc(&gtd->gtd_count);
 
         return 0;
+}
+
+int gendisk_fn_lock(const struct block_device* disk)
+{
+    struct gendisk_tracking_data* gtd = get_a_node(disk);
+    if (!gtd) return -ENODEV;
+    mutex_lock(&gtd->gtd_gendisk_lock);
+    return 0;
+    
 }
 
 const BIO_REQUEST_TRACKING_PTR_TYPE* gendisk_fn_put(struct block_device *disk)
@@ -80,4 +90,12 @@ size_t gendisk_fn_refcount(const BIO_REQUEST_TRACKING_PTR_TYPE *fn)
                 if (cur->gtd_orig == fn) ++refcount;
         }
         return refcount;
+}
+
+int gendisk_fn_unlock(const struct block_device* disk)
+{
+    struct gendisk_tracking_data* gtd = get_a_node(disk);
+    if (!gtd) return -ENODEV;
+    mutex_unlock(&gtd->gtd_gendisk_lock);
+    return 0;
 }
