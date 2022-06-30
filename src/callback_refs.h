@@ -28,6 +28,15 @@ void gendisk_tracking_init(void);
 int gendisk_fn_get(const struct block_device* disk, const BIO_REQUEST_TRACKING_PTR_TYPE* fn);
 
 /**
+ * gendisk_fn_lock() - locks the mutex for the given gendisk/mrf
+ *
+ * @disk: The block device to lock the gendisk/mrf for.
+ *
+ * Return: Returns 0 on success, non-zero otherwise.
+ */
+int gendisk_fn_lock(const struct block_device* disk);
+
+/**
  * gendisk_fn_put() - Decrements the reference count and returns gendisk/mrf
  *
  * @disk: The block device being tracked
@@ -44,5 +53,14 @@ const BIO_REQUEST_TRACKING_PTR_TYPE* gendisk_fn_put(struct block_device* disk);
  * Return: Returns the reference count for the given mrf or gendisk.
  */
 size_t gendisk_fn_refcount(const BIO_REQUEST_TRACKING_PTR_TYPE *fn);
+
+/**
+ * gendisk_fn_unlock() - unlocks the mutex for the given gendisk/mrf
+ *
+ * @disk: gendisk or mrf to unlock the gendisk/mrf for.
+ *
+ * Return: Returns 0 on success, non-zero otherwise.
+ */
+int gendisk_fn_unlock(const struct block_device* disk);
 
 #endif // CALLBACK_REFS_H_

@@ -1610,6 +1610,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 dev->sd_orig_fops = (struct block_device_operations*)
                                     dev->sd_orig_gendisk->fops;
                 dev->sd_tracing_gendisk = dattobd_copy_gendisk(
+                        dev->sd_base_dev,
                         dev->sd_orig_gendisk, tracing_fn);
         }
         ret = __tracer_transition_tracing(
