@@ -8,6 +8,7 @@
 
 #include "bio_request_callback.h"
 #include "blkdev.h"
+#include "callback_refs.h"
 #include "cow_manager.h"
 #include "filesystem.h"
 #include "hints.h"
@@ -1209,7 +1210,7 @@ error:
 static int __tracer_transition_tracing(
     struct snap_device *dev,
     struct block_device *bdev,
-    BIO_REQUEST_TRACKING_PTR_TYPE *new_bio_tracking_ptr,
+    const BIO_REQUEST_TRACKING_PTR_TYPE *new_bio_tracking_ptr,
     struct snap_device **dev_ptr)
 {
         int ret;
@@ -1259,6 +1260,7 @@ static int __tracer_transition_tracing(
                 LOG_DEBUG("starting tracing");
                 *dev_ptr = dev;
                 smp_wmb();
+                ret = gendisk_fn_get(bdev, new_bio_tracking_ptr);
                 if(new_bio_tracking_ptr){
 #ifdef USE_BDOPS_SUBMIT_BIO            
                         dattobd_set_gendisk(bdev, new_bio_tracking_ptr);
@@ -1269,6 +1271,7 @@ static int __tracer_transition_tracing(
                 }
         }else{
                 LOG_DEBUG("ending tracing");
+                new_bio_tracking_ptr = gendisk_fn_put(bdev);
                 if (new_bio_tracking_ptr){
 #ifdef USE_BDOPS_SUBMIT_BIO
                         dattobd_set_gendisk(bdev, new_bio_tracking_ptr);
@@ -1341,26 +1344,28 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         smp_rmb();
         tracer_for_each(dev, i)
         {
-                if (!dev || test_bit(UNVERIFIED, &dev->sd_state) ||
-                        !tracer_queue_matches_bio(dev, bio))
-                                continue;
+                if (!tracer_is_bio_for_dev(dev, bio)) continue;
                 // If we get here, then we know this is a device we're managing
                 // and the current bio belongs to said device.
-
                 if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH))
                 {
                         dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
                 }
-                else if (tracer_should_trace_bio(dev, bio)) 
+                else
                 {
-                        if (test_bit(SNAPSHOT, &dev->sd_state))
-                                ret = snap_trace_bio(dev, bio);
-                        else
-                                ret = inc_trace_bio(dev, bio);
-                        goto out;
+                        if (tracer_should_trace_bio(dev, bio))
+                        {
+                                if (test_bit(SNAPSHOT, &dev->sd_state))
+                                        ret = snap_trace_bio(dev, bio);
+                                else
+                                        ret = inc_trace_bio(dev, bio);
+                                goto out;
+                        }
                 }
                 // Now we can submit the bio.
                 ret = SUBMIT_BIO_REAL(dev, bio);
+                goto out;
+                
         } // tracer_for_each(dev, i)
 
 out:
@@ -1594,6 +1599,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
 
         // get the base block device's make_request_fn
         LOG_DEBUG("getting the base block device's make_request_fn");
+
 #ifdef USE_BDOPS_SUBMIT_BIO
         if (!dev->sd_orig_gendisk){
                 // new snapshot (not incremental)
