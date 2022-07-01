@@ -27,14 +27,14 @@ void tracer_set_fail_state(struct snap_device *dev, int error)
 
 bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 {
-    return dev && tracer_sector_matches_bio(dev, bio);
+    return dev && tracer_sector_matches_bio(dev, bio) 
+                && tracer_queue_matches_bio(dev, bio);
 }
 
 bool tracer_should_trace_bio(struct snap_device *dev, struct bio *bio)
 {
     return dev 
             && !test_bit(UNVERIFIED, &dev->sd_state)
-            && tracer_queue_matches_bio(dev, bio)
             && !bio_is_discard(bio)
             && bio_data_dir(bio)
             && bio_size(bio) 
