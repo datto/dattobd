@@ -175,10 +175,15 @@ jobs:
           # We have to avoid a race condition when package like elastio-snap-dkms_X.XX.XX-1debian11_all.deb is uploaded from
           # 2 Debian 11 VMs amd64 and arm64 at the same time to the same location.
           [ $(uname -m) != "x86_64" ] && [ -f /etc/debian_version ] && excl_ptrn=$excl_ptrn",*_all.deb" || true
-          vagrant ssh ${{env.INSTANCE_NAME}} -c 'AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh \
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+          if ! [[ ${SOURCE_BRANCH} =~ ^release ]] && ! [[ ${SOURCE_BRANCH} =~ ^master ]]; then \
+            tag="--tag elastio:dev=true"; \
+          fi; \
+          AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh \
             --source repobuild/artifacts/ \
             --bucket artifacts.assur.io \
             --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE} \
+            ${tag} \
             --exclude '"'$excl_ptrn'"''
         working-directory: ${{env.BOX_DIR}}
 
@@ -200,10 +205,16 @@ jobs:
         run: echo $GITHUB_RUN_NUMBER > latest && cat latest | grep -E '^[0-9]+$'
 
       - name: Upload manifest
-        run: repobuild/upload.sh
-          --source latest
-          --bucket artifacts.assur.io
-          --target /linux/elastio-snap/$(.github/scripts/detect_branch.sh)
+        run: |
+          branch=$(.github/scripts/detect_branch.sh)
+          if ! [[ ${branch} =~ ^release ]] && ! [[ ${branch} =~ ^master ]]; then
+            tag="--tag elastio:dev=true"
+          fi
+          repobuild/upload.sh \
+            --source latest \
+            --bucket artifacts.assur.io \
+            --target /linux/elastio-snap/$branch \
+            ${tag}
 
   dispatch-packaging-repo:
     name: Trigger repo upload
