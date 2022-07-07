@@ -220,6 +220,22 @@ Group:           System Environment/Kernel
 BuildArch:       noarch
 %endif
 
+%if 0%{?debian}
+%if ( "%{_arch}" != "x86_64" && "%{_arch}" != "amd64" ) && ( %{debian} == 11 )
+
+# By default, on arm64, Debian 11 is provided with the kernel with
+# some symbols absent AND with without a System.map file. This makes
+# the elastio-snap driver work without sys_call_table hooking support.
+#
+# As a compromise solution, we install linux-image-$(uname -r)-dbg
+# to make it work properly. This package adds System.map and makes
+# it possible to fetch the address of the system call table
+#
+# Please refer to https://github.com/elastio/devboxes/pull/230
+Requires:        linux-image-%(uname -r)-dbg
+%endif
+%endif
+
 %if 0%{?rhel} >= 6 || 0%{?fedora} >= 23 || 0%{?suse_version} >= 1315
 Requires(preun): dkms >= 2.3
 Requires:        dkms >= 2.3

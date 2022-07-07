@@ -34,10 +34,8 @@ jobs:
             arch: arm64
           - distro: debian10
             arch: arm64
-          # FIXME: Debian 11 on ARM64 is not yet supported.
-          # See https://github.com/elastio/elastio-snap/issues/124 for more details.
-          #- distro: debian11
-          #  arch: arm64
+          - distro: debian11
+            arch: arm64
           - distro: fedora35
             arch: arm64
           - distro: fedora36
@@ -75,6 +73,15 @@ jobs:
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-5.9.16-100.fc32.x86_64.rpm
             sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-devel-5.9.16-100.fc32.x86_64.rpm
             sudo reboot now' || true
+          sleep 5
+        working-directory: ${{env.BOX_DIR}}
+
+      # Please refer to https://github.com/elastio/devboxes/pull/230
+      - name: Download debug package for Debian 11
+        if: "${{ matrix.distro == 'debian11' && matrix.arch == 'arm64' }}"
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+            sudo apt-get install -y linux-image-$(uname -r)-dbg' || true
           sleep 5
         working-directory: ${{env.BOX_DIR}}
 
