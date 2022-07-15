@@ -561,7 +561,7 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 #if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined HAVE_BDOPS_SUBMIT_BIO
 	// Linux kernel version 5.16+
 	// submit_bio function in the block_device_operations structure has changed its return type to VOID.
-	// See https://github.com/torvalds/linux/commit/3e08773c3841e9db7a520908cc2b136a77d275ff#diff79b436371fdb3ddf0e7ad9bd4c9afe05160f7953438e650a77519b882904c56bR1181	
+	// See https://github.com/torvalds/linux/commit/3e08773c3841e9db7a520908cc2b136a77d275ff#diff79b436371fdb3ddf0e7ad9bd4c9afe05160f7953438e650a77519b882904c56bR1181
 	#define USE_BDOPS_SUBMIT_BIO
 
 	// Prototype bdev->fops->submit_bio but with the name already used in the code
@@ -814,6 +814,21 @@ __kernel_ulong_t si_mem_available(void)
 }
 #endif
 
+#ifndef HAVE_BIO_FREE_PAGES
+static void bio_free_pages(struct bio *bio){
+	bio_iter_t iter;
+	bio_iter_bvec_t bvec;
+	struct page *bv_page;
+
+	bio_for_each_segment(bvec, bio, iter) {
+		bv_page = bio_iter_page(bio, iter);
+		if (bv_page) {
+			__free_page(bv_page);
+		}
+	}
+}
+#endif
+
 /*********************************MACRO/PARAMETER DEFINITIONS*******************************/
 
 
@@ -842,13 +857,18 @@ __kernel_ulong_t si_mem_available(void)
 #define tracer_for_each(dev, i) for(i = ACCESS_ONCE(lowest_minor), dev = ACCESS_ONCE(snap_devices[i]); i <= ACCESS_ONCE(highest_minor); i++, dev = ACCESS_ONCE(snap_devices[i]))
 #define tracer_for_each_full(dev, i) for(i = 0, dev = ACCESS_ONCE(snap_devices[i]); i < elastio_snap_max_snap_devices; i++, dev = ACCESS_ONCE(snap_devices[i]))
 
+#ifdef USE_BDOPS_SUBMIT_BIO
+//returns true if tracing struct's base device fops matches that of bio
+#define tracer_matches_bio(dev, bio) (elastio_snap_get_bd_ops(dev->sd_base_dev) == elastio_snap_bio_bi_disk(bio)->fops)
+#else
 //returns true if tracing struct's base device queue matches that of bio
-#define tracer_queue_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == elastio_snap_bio_get_queue(bio))
+#define tracer_matches_bio(dev, bio) (bdev_get_queue((dev)->sd_base_dev) == elastio_snap_bio_get_queue(bio))
+#endif
 
 //returns true if tracing struct's sector range matches the sector of the bio
 #define tracer_sector_matches_bio(dev, bio) (bio_sector(bio) >= (dev)->sd_sect_off && bio_sector(bio) < (dev)->sd_sect_off + (dev)->sd_size)
 
-//should be called along with *_queue_matches_bio to be valid. returns true if bio is a write, has a size,
+//should be called along with tracer_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
 #define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !bio_is_discard(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
@@ -2746,16 +2766,7 @@ static void bio_destructor_snap_dev(struct bio *bio){
 #endif
 
 static void bio_free_clone(struct bio *bio){
-	bio_iter_t iter;
-	bio_iter_bvec_t bvec;
-	struct page *bv_page;
-
-	bio_for_each_segment(bvec, bio, iter) {
-		bv_page = bio_iter_page(bio, iter);
-		if (bv_page) {
-			__free_page(bv_page);
-		}
-	}
+	bio_free_pages(bio);
 	bio_put(bio);
 }
 
@@ -3421,7 +3432,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 
 	smp_rmb();
 	tracer_for_each(dev, i){	// for each snap device
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_queue_matches_bio(dev, bio)) continue;
+		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
 		if(elastio_snap_bio_op_flagged(bio, ELASTIO_SNAP_PASSTHROUGH)){
@@ -3561,7 +3572,6 @@ static int find_orig_mrf(struct block_device *bdev, make_request_fn **mrf){
 static int find_orig_fops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf){
 	int i;
 	struct snap_device *dev;
-	struct request_queue *q = bdev_get_queue(bdev);
 	struct block_device_operations *orig_ops = elastio_snap_get_bd_ops(bdev);
 	make_request_fn *orig_mrf = orig_ops->submit_bio;
 
@@ -3573,19 +3583,26 @@ static int find_orig_fops(struct block_device *bdev, struct block_device_operati
 			}
 
 			orig_mrf = elastio_snap_null_mrf;
-			LOG_DEBUG("original mrf is empty, set to elastio_snap_null_mrf");
+			LOG_DEBUG("original mrf is empty, set to elastio_snap_null_mrf = %p; orig ops = %p", orig_mrf, orig_ops);
+		}
+		else {
+			LOG_DEBUG("original mrf is not empty = %p; orig ops = %p", orig_mrf, orig_ops);
 		}
 
 		*ops = orig_ops;
 		*mrf = orig_mrf;
 		return 0;
 	}
+	else {
+		LOG_DEBUG("original mrf is already replaced with the tracing_mrf = %p", tracing_mrf);
+	}
 
 	tracer_for_each(dev, i){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
-		if(q == bdev_get_queue(dev->sd_base_dev)){
+		if(orig_ops == elastio_snap_get_bd_ops(dev->sd_base_dev)){
 			*ops = dev->sd_orig_ops;
 			*mrf = dev->sd_orig_mrf;
+			LOG_DEBUG("fount original mrf in tracer_for_each for already traced dev. orig mrf = %p; orig ops = %p", mrf, ops);
 			return 0;
 		}
 	}
@@ -3599,7 +3616,11 @@ static int find_orig_fops(struct block_device *bdev, struct block_device_operati
 static int __tracer_should_reset_mrf(const struct snap_device *dev){
 	int i;
 	struct snap_device *cur_dev;
+#ifndef USE_BDOPS_SUBMIT_BIO
 	struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
+#else
+	struct block_device_operations *ops = elastio_snap_get_bd_ops(dev->sd_base_dev);
+#endif
 
 	if(elastio_snap_get_bd_mrf(dev->sd_base_dev) != tracing_mrf) return 0;
 	if(dev != snap_devices[dev->sd_minor]) return 0;
@@ -3608,7 +3629,11 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 	if(snap_devices){
 		tracer_for_each(cur_dev, i){
 			if(!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) || cur_dev == dev) continue;
+#ifndef USE_BDOPS_SUBMIT_BIO
 			if(q == bdev_get_queue(cur_dev->sd_base_dev)) return 0;
+#else
+			if(ops == elastio_snap_get_bd_ops(cur_dev->sd_base_dev)) return 0;
+#endif
 		}
 	}
 
@@ -4225,7 +4250,7 @@ static void __tracer_setup_tracing_unverified(struct snap_device *dev, unsigned 
 
 
 static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
-	int ret;
+	int ret = 0;
 
 	dev->sd_minor = minor;
 	minor_range_include(minor);
@@ -4234,15 +4259,15 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 	LOG_DEBUG("getting the base block device's make_request_fn");
 #ifndef USE_BDOPS_SUBMIT_BIO
 	ret = find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_mrf);
-#else
-	ret = find_orig_fops(dev->sd_base_dev, &dev->sd_orig_ops, &dev->sd_orig_mrf);
-#endif
 	if(ret) goto error;
 
-#ifndef USE_BDOPS_SUBMIT_BIO
 	ret = __tracer_transition_tracing(dev, dev->sd_base_dev, tracing_mrf, &snap_devices[minor]);
 #else
 	if (!dev->sd_tracing_ops) {
+		ret = find_orig_fops(dev->sd_base_dev, &dev->sd_orig_ops, &dev->sd_orig_mrf);
+		if(ret) goto error;
+
+		LOG_DEBUG("allocating tracing ops for device with minor %i", minor);
 		dev->sd_tracing_ops = kmalloc(sizeof(struct block_device_operations), GFP_KERNEL);
 		if (!dev->sd_tracing_ops) {
 			ret = -ENOMEM;
@@ -4255,9 +4280,13 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 		// set tracing_mrf as submit_bio and owner. all other content is already there copied from the original structure
 		dev->sd_tracing_ops->owner = THIS_MODULE;
 		dev->sd_tracing_ops->submit_bio = tracing_mrf;
+
+		ret = __tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops, &snap_devices[minor]);
+	}
+	else {
+		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
 	}
 
-	ret = __tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops, &snap_devices[minor]);
 #endif
 
 	if(ret) goto error;

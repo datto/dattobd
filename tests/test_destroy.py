@@ -40,6 +40,9 @@ class TestDestroy(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(elastio_snap.info(self.minor))
 
+    @unittest.skipIf(int(platform.release().split(".")[0]) == 5
+                     and int(platform.release().split(".")[1]) == 10,
+                     "Broken on Debian 11 with kernel 5.10 (see #147)")
     def test_destroy_dormant_snapshot(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
 
@@ -51,6 +54,9 @@ class TestDestroy(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(elastio_snap.info(self.minor))
 
+    @unittest.skipIf(int(platform.release().split(".")[0]) == 5
+                     and int(platform.release().split(".")[1]) == 10,
+                     "Broken on Debian 11 with kernel 5.10 (see #147)")
     def test_destroy_dormant_incremental(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)

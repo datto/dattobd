@@ -18,6 +18,9 @@ jobs:
       FS: ext2 ext3 ext4 xfs
 
     strategy:
+      # Do not cancel all jobs when one is failing. The CI of the driver is fast.
+      # But the fast failure hinders to observe possible errors on other distros.
+      fail-fast: false
       matrix:
         distro: [
           amazon2,
@@ -94,6 +97,24 @@ jobs:
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo rm /etc/profile.d/enable-llvm-toolset.sh'
         working-directory: ${{env.BOX_DIR}}
 
+      - name: Install LVM and RAID tools
+        if: "${{ matrix.distro != 'debian8' }}"
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+            if $(which apt-get >/dev/null 2>&1); then
+              sudo apt-get install -y lvm2 mdadm;
+            else
+              # Fedora has rather weak mirrors. But we do not want to have failing builds because of this.
+              for i in {1..5}; do
+                sudo yum install -y lvm2 mdadm && break
+                echo "Failed to install LVM and RAID packages. Retrying..."
+                sleep 5
+              done
+              mdadm -V
+            fi
+          '
+        working-directory: ${{env.BOX_DIR}}
+
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
         working-directory: ${{env.BOX_DIR}}
@@ -132,16 +153,56 @@ jobs:
 
       - name: Show dmesg
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
-      - name: Attach qcow2 disk
+      - name: Run tests on LVM (loop device)
+        # FIXME: Enable tests on all distros after resolution of #147, #143, #138
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        run: |
+          for fs in ${FS[*]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --lvm"
+          done
+        working-directory: ${{env.BOX_DIR}}
+        # For now tests are taking 10-20 seconds per 1 fs on amd64 and about 2 minutes on arm64. But they can hang.
+        # 10 minutes seems to be reasonable timeout.
+        timeout-minutes: 10
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
+      - name: Run tests on RAID (loop device)
+        # FIXME: Enable tests on all distros after resolution of #146, #147, #143, #138
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        run: |
+          for fs in ${FS[*]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
+          done
+        working-directory: ${{env.BOX_DIR}}
+        # For now tests are taking 10-20 seconds per 1 fs on amd64 and about 2 minutes on arm64. But they can hang.
+        # 10 minutes seems to be reasonable timeout.
+        timeout-minutes: 10
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
+      - name: Attach qcow2 disks
         run: |
           ARCH=$(uname -m)
-          qemu-img create -f qcow2 ${TEST_IMAGE} 1G
+          TEST_IMAGES=(${TEST_IMAGES})
+          TEST_DRIVES=(${TEST_DRIVES})
           [ ${ARCH} != "x86_64" ] && VIRSH_FLAGS="--config" || true
-          virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGE} --target vdb --driver qemu --subdriver qcow2 --targetbus virtio ${VIRSH_FLAGS-}
+          for i in ${!TEST_IMAGES[*]}; do
+            qemu-img create -f qcow2 ${TEST_IMAGES[i]} 1G
+            virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGES[i]} --target ${TEST_DRIVES[i]} --driver qemu --subdriver qcow2 --targetbus virtio ${VIRSH_FLAGS-}
+          done
           # ARM64 boxes don't support "hot plug" w/o reboot
           if [ ${ARCH} != "x86_64" ]; then
             virsh destroy --domain ${BOX_DIR##*/}_${INSTANCE_NAME}
@@ -151,7 +212,9 @@ jobs:
               sleep 1
             done
           fi
-          vagrant ssh ${{env.INSTANCE_NAME}} -c 'echo -e "n\np\n\n\n\nw" | sudo fdisk /dev/vdb'
+          for drive in ${TEST_DRIVES[@]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "echo -e \"n\\np\\n\\n\\n\\nw\" | sudo fdisk /dev/$drive"
+          done
         working-directory: ${{env.BOX_DIR}}
 
       - name: Run tests (qcow2 disk)
@@ -164,17 +227,52 @@ jobs:
 
       - name: Show dmesg
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
-      - name: Detach external drive
+      - name: Run tests on LVM (qcow2 disks)
+        # FIXME: Enable tests on all distros after resolution of #147, #143, #138
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        run: |
+          for fs in ${FS[*]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --lvm"
+          done
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 10
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
+      - name: Run tests on RAID (qcow2 disks)
+        # FIXME: Enable tests on all distros after resolution of #146, #147, #143, #138
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        run: |
+          for fs in ${FS[*]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --raid"
+          done
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 10
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
+      - name: Detach external drives
         if: always()
         run: |
-          if virsh domblklist ${BOX_DIR##*/}_${INSTANCE_NAME} --details | grep "file" | awk '{ print $NF }' | grep ${TEST_IMAGE} ; then
-              virsh detach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} ${TEST_IMAGE}
-          fi
-          rm -f ${TEST_IMAGE}
+          TEST_IMAGES=(${TEST_IMAGES})
+          for test_image in ${TEST_IMAGES[@]}; do
+            if virsh domblklist ${BOX_DIR##*/}_${INSTANCE_NAME} --details | grep "file" | awk '{ print $NF }' | grep ${test_image} ; then
+                virsh detach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} ${test_image}
+            fi
+            rm -f ${TEST_IMAGE}
+          done
 
       - name: Upload artifacts
         run: |

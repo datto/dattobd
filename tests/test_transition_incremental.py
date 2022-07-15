@@ -8,6 +8,7 @@
 
 import errno
 import os
+import platform
 import unittest
 
 import elastio_snap
@@ -37,6 +38,10 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), errno.EINVAL)
 
+    @unittest.skipIf((os.getenv('LVM') or os.getenv('RAID'))
+                     and os.getenv('TEST_FS') == "xfs"
+                     and int(platform.release().split(".")[0]) == 5,
+                     "Broken on LVM/raid with XFS, kernels 5.9+ (see #143) and kernel 5.8 (see #145)")
     def test_transition_fs_sync_cow_full(self):
         scratch = "{}/scratch".format(self.mount)
         falloc = 50
@@ -62,6 +67,10 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertEqual(snapdev["error"], -errno.EFBIG)
         self.assertEqual(snapdev["state"], 3)
 
+    @unittest.skipIf((os.getenv('LVM') or os.getenv('RAID'))
+                     and os.getenv('TEST_FS') == "xfs"
+                     and int(platform.release().split(".")[0]) == 5,
+                     "Broken on LVM/raid with XFS, kernels 5.9+ (see #143) and kernel 5.8 (see #145)")
     def test_transition_mod_sync_cow_full(self):
         scratch = "{}/scratch".format(self.mount)
         falloc = 50
