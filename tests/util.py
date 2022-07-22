@@ -8,6 +8,7 @@
 
 import hashlib
 import subprocess
+import sys
 import time
 
 
@@ -19,9 +20,27 @@ def mount(device, path, opts=None):
     subprocess.check_call(cmd, timeout=10)
 
 
-def unmount(path):
+def unmount(path, retry_on_dev_busy=True):
     cmd = ["umount", path]
-    subprocess.check_call(cmd, timeout=10)
+    # subprocess.run is introduced in Python 3.5
+    if not retry_on_dev_busy or sys.version_info <= (3, 5):
+        subprocess.check_call(cmd, timeout=10)
+    else:
+        # The retries on device busy error are necessary on Ubuntu 22.04, kernel 5.15
+        # for the tests test_destroy_unverified_incremental and test_destroy_unverified_snapshot.
+        # See https://github.com/elastio/elastio-snap/issues/138
+        retries = 3
+        for retry in range(retries):
+            p = subprocess.run(cmd, timeout=20, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if p.returncode == 0:
+                break
+            elif retry + 1 < retries and "busy" not in p.stderr.decode():
+                print("Command umount " + path + " has failed (" + str(p.returncode) + "): " + p.stderr.decode())
+                raise subprocess.CalledProcessError(p.returncode, cmd, "Command failed")
+            elif retry + 1 == retries:
+                raise subprocess.CalledProcessError(p.returncode, cmd, "Command failed " + str(retries) + "times")
+            else:
+                time.sleep(1)
 
 
 def dd(ifile, ofile, count, **kwargs):
@@ -104,21 +123,21 @@ def parted_create_lvm_raid_partitions(devices, kind):
     partitions=[]
     for device in devices:
         cmd = ["wipefs", "--all", "--force", "--quiet", device]
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=30)
         cmd = ["parted", "--script", device, "mklabel gpt"]
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=30)
         cmd = ["parted", "--script", device, "mkpart '" + part_type + "' 0% 100%"]
         subprocess.check_call(cmd, timeout=30)
         cmd = ["parted", "--script", device, "set 1 " + kind + " on"]
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=30)
         cmd = ["partprobe", device]
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=30)
         settle()
         part = get_last_partition(device)
         # mdadm rarely and randomly complains on create about superblock
         # let's clean it up and do not care about return code
         cmd = ["wipefs", "--all", "--force", "--quiet", part]
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=30)
         partitions.append(part)
 
     return partitions

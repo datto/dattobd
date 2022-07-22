@@ -98,18 +98,22 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Install LVM and RAID tools
+        # Debian 8 is old even EOLed and it's hard to install something on it. We are keepend it just to avoid
+        # regression bugs on the old 3.16 kernel. All LVM/RAID tests are switched off on Debian 8 in the file below.
         if: "${{ matrix.distro != 'debian8' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             if $(which apt-get >/dev/null 2>&1); then
-              sudo apt-get install -y lvm2 mdadm;
+              sudo apt-get install -y lvm2 mdadm
             else
               # Fedora has rather weak mirrors. But we do not want to have failing builds because of this.
+              set +e
               for i in {1..5}; do
                 sudo yum install -y lvm2 mdadm && break
                 echo "Failed to install LVM and RAID packages. Retrying..."
                 sleep 5
               done
+              set -e
               mdadm -V
             fi
           '
@@ -133,11 +137,10 @@ jobs:
           vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make uninstall'
         working-directory: ${{env.BOX_DIR}}
 
-      # FIXME: enable tests on XFS for all distros.
-      # See https://github.com/elastio/elastio-snap/issues/139 about Debian 8
-      # See https://github.com/elastio/elastio-snap/issues/138 about Ubuntu 22.04
+      # FIXME: Enable tests on XFS for Debian 8. See https://github.com/elastio/elastio-snap/issues/139
+      # If we want to do that for EOLed distro.
       - name: Ignore XFS tests
-        if: "${{ matrix.distro == 'debian8' || matrix.distro == 'ubuntu2204' }}"
+        if: "${{ matrix.distro == 'debian8' }}"
         run:
           echo FS="ext2 ext3 ext4" >> $GITHUB_ENV
 
@@ -158,8 +161,11 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (loop device)
-        # FIXME: Enable tests on all distros after resolution of #147, #143, #138
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        # Debian 8 has reached EOL and has no lvm2 tools installed.
+        # But in theory we can enable tests on Debian 8 after resolution of #139.
+        # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
+        #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --lvm"
@@ -176,8 +182,9 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (loop device)
-        # FIXME: Enable tests on all distros after resolution of #146, #147, #143, #138
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        # FIXME: Enable tests on Debian 9 after resolution of #146.
+        # And Debian 8 has reached EOL and has no mdadm tools installed.
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
@@ -232,8 +239,11 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (qcow2 disks)
-        # FIXME: Enable tests on all distros after resolution of #147, #143, #138
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        # Debian 8 has reached EOL and has no lvm2 tools installed.
+        # But in theory we can enable tests on Debian 8 after resolution of #139.
+        # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
+        #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --lvm"
@@ -248,8 +258,9 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (qcow2 disks)
-        # FIXME: Enable tests on all distros after resolution of #146, #147, #143, #138
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' && matrix.distro != 'debian11' && matrix.distro != 'ubuntu2204' && matrix.distro != 'fedora32' }}"
+        # FIXME: Enable tests on Debian 9 after resolution of #146.
+        # And Debian 8 has reached EOL and has no mdadm tools installed.
+        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --raid"

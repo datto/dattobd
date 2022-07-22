@@ -816,12 +816,18 @@ __kernel_ulong_t si_mem_available(void)
 
 #ifndef HAVE_BIO_FREE_PAGES
 static void bio_free_pages(struct bio *bio){
-	bio_iter_t iter;
-	bio_iter_bvec_t bvec;
 	struct page *bv_page;
 
-	bio_for_each_segment(bvec, bio, iter) {
-		bv_page = bio_iter_page(bio, iter);
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+	struct bio_vec *bvec;
+	bio_for_each_segment_all(bvec, bio, iter) {
+#else
+	int i = 0;
+	struct bio_vec *bvec;
+	bio_for_each_segment_all(bvec, bio, i) {
+#endif
+		bv_page = bvec->bv_page;
 		if (bv_page) {
 			__free_page(bv_page);
 		}
@@ -2982,32 +2988,41 @@ out:
 
 static int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio){
 	int ret;
-	bio_iter_t iter;
-	bio_iter_bvec_t bvec;
 	char *data;
 	sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
 
+	/*
+	 * Previously we iterated using bio_for_each_segment(), which
+	 * caused problems in case if our bio was split by the system.
+	 * It is replaced with bio_for_each_segment_all() as we own the
+	 * bio and can guarantee that we have access to its bvecs
+	 */
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+	struct bio_vec *bvec;
 	//iterate through the bio and handle each segment (which is guaranteed to be block aligned)
-	bio_for_each_segment(bvec, bio, iter){
+	bio_for_each_segment_all(bvec, bio, iter) {
+#else
+	int i = 0;
+	struct bio_vec *bvec;
+	bio_for_each_segment_all(bvec, bio, i) {
+#endif
 		//find the start and end block
 		start_block = end_block;
-		end_block = start_block + (bio_iter_len(bio, iter) / COW_BLOCK_SIZE);
-
+		end_block = start_block + (bvec->bv_len / COW_BLOCK_SIZE);
 		//map the page into kernel space
-		data = kmap(bio_iter_page(bio, iter));
-
+		data = kmap(bvec->bv_page);
 		//loop through the blocks in the page
 		for(; start_block < end_block; start_block++){
 			//pas the block to the cow manager to be handled
 			ret = cow_write_current(dev->sd_cow, start_block, data);
 			if(ret){
-				kunmap(bio_iter_page(bio, iter));
+				kunmap(bvec->bv_page);
 				goto error;
 			}
 		}
-
 		//unmap the page
-		kunmap(bio_iter_page(bio, iter));
+		kunmap(bvec->bv_page);
 	}
 
 	return 0;
@@ -3197,7 +3212,6 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	for(map = tp->bio_sects.head; map != NULL && map->bio != NULL; map = map->next) {
 		if(bio == map->bio){
 			bio_sector(bio) = map->sect - dev->sd_sect_off;
-			bio_size(bio) = map->size;
 			bio_idx(bio) = 0;
 			break;
 		}
