@@ -15,7 +15,7 @@
 #include <linux/ioctl.h>
 #include <linux/limits.h>
 
-#define ELASTIO_SNAP_VERSION "0.10.15"
+#define ELASTIO_SNAP_VERSION "0.11.0"
 #define ELASTIO_IOCTL_MAGIC 'A' // 0x41
 
 struct setup_params{

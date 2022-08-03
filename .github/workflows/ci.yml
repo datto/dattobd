@@ -104,6 +104,7 @@ jobs:
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             if $(which apt-get >/dev/null 2>&1); then
+              sudo apt-get update
               sudo apt-get install -y lvm2 mdadm
             else
               # Fedora has rather weak mirrors. But we do not want to have failing builds because of this.

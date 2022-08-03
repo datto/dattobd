@@ -106,7 +106,7 @@
 
 
 Name:            elastio-snap
-Version:         0.10.17
+Version:         0.11.0
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -599,6 +599,21 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Wed Aug 3 2022 Eugene Kovalenko <ikovalenko@elastio.com> - 0.11.0
+- Added support of Linux kernel 5.18 as on Fedora 36
+
+* Fri Jul 22 2022 Stanislav Barantsev <sbarantsev@elastio.com>
+- Fixed data corruption if bio request was split (LVM/RAID)
+
+* Fri Jul 15 2022 Eugene Kovalenko <ikovalenko@elastio.com>
+- Added support for LVM and software RAID on Linux kernels 5.8+
+- Modified tests to cover ext2/3/4, XFS filesystems
+
+* Fri Jun 10 2022 Stanislav Barantsev <sbarantsev@elastio.com>
+- Fixed syscall table location and dormant snapshots functionality after umount/mount
+- Added support of arm64 architecture
+- Fixed default library installation path and added permissions check before build
 
 * Fri May 20 2022 Alex Sereda <asereda@elastio.com> - 0.10.17
 - Add package repositories for Fedora 36 and Ubuntu 22.04

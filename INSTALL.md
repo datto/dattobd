@@ -1,8 +1,22 @@
 # elastio-snap INSTALL
 
 ## From Repositories
-Elastio Software Inc. provides repositories for x86_64 editions of the RHEL/CentOS starting from the version 7, Amazon Linux 2, Fedora 31 and newer, Debian 8 and newer, and Ubuntu LTS starting from the version 16.04.
-We recommend that you install the kernel module from Elastio's repositories.
+Elastio Software Inc. provides repositories for the RHEL/CentOS starting from the version 7, Amazon Linux 2, Fedora 31 and newer, Debian 8 and newer, and Ubuntu LTS starting from the version 16.04.  
+We recommend that you install the kernel module from Elastio's repositories.  
+
+Elastio provides repositories for the following Linux distributions and architectures:  
+
+|             Distro Name            |  Distro Ver | x86_64 | aarch64 |
+|:----------------------------------:|------------:|:------:|:-------:|
+| RHEL/CentOS                        |           7 | +      | -       |
+| RHEL/CentOS/Alma Linux/Rocky Linux |           8 | +      | +       |
+| Amazon Linux                       |           2 | +      | +       |
+| Fedora                             |       31-34 | +      | -       |
+|                                    |       35-36 | +      | +       |
+| Debian                             |         8-9 | +      | -       |
+|                                    |       10-11 | +      | +       |
+| Ubuntu                             | 16.04-18.04 | +      | -       |
+|                                    | 20.04-22.04 | +      | +       |
 
 ### Repository package installation for RPM-based systems
 
@@ -48,9 +62,9 @@ sudo yum install kernel-devel-$(uname -r) kernel-devel dkms-elastio-snap elastio
 
 ### Repository package installation for DEB-based systems
 
-#### Debian / Ubuntu LTS
+#### Debian 8 - 11 / Ubuntu 16.04 - 21.10
 The repository install package `elastio-repo` is available for Debian 8 (jessie) and newer.
-The same packages are applicable for Ubuntu LTS starting from 16.04 (xenial) and newer.
+The same packages are applicable for Ubuntu starting from 16.04 (xenial) and newer.
 ```bash
 # Install prerequisites. This is not necessary in the most cases except pure docker.
 sudo apt-get update
@@ -64,6 +78,18 @@ debian_ver=$(grep VERSION_ID /etc/os-release | tr -cd [0-9])
 # Download repo package and install it
 wget https://repo.assur.io/master/linux/deb/Debian/${debian_ver}/pool/elastio-repo_0.0.2-1debian${debian_ver}_all.deb
 sudo dpkg -i elastio-repo_0.0.2-1debian${debian_ver}_all.deb
+sudo apt-get update
+```
+#### Ubuntu 22.04
+The `elastio-repo` repository package is available for Ubuntu 22.04. This is a separate package for a separate repository, and not the same as for Debian 11, as it was for older versions of Debian/Ubuntu.
+```bash
+# Install prerequisites. This is not necessary in the most cases except pure docker.
+sudo apt-get update
+sudo apt-get install wget gnupg
+
+# Download repo package and install it
+wget https://repo.assur.io/master/linux/deb/Ubuntu/2204/pool/elastio-repo_0.0.2-1ubuntu22.04_all.deb
+sudo dpkg -i elastio-repo_0.0.2-1ubuntu22.04_all.deb
 sudo apt-get update
 ```
 

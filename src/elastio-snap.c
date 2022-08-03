@@ -2776,14 +2776,18 @@ static void bio_free_clone(struct bio *bio){
 	bio_put(bio);
 }
 
-static int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp, struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
+static int bio_make_read_clone(struct block_device *bdev, struct bio_set *bs, struct tracing_params *tp, struct bio *orig_bio, sector_t sect, unsigned int pages, struct bio **bio_out, unsigned int *bytes_added){
 	int ret;
 	struct bio *new_bio;
 	struct page *pg;
 	unsigned int i, bytes, total = 0, actual_pages = (pages > BIO_MAX_PAGES)? BIO_MAX_PAGES : pages;
 
 	//allocate bio clone
+#ifdef HAVE_BIO_ALLOC_BIOSET_5
+	new_bio = bio_alloc_bioset(bdev, actual_pages, orig_bio->bi_opf, GFP_NOIO, bs);
+#else
 	new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
+#endif
 	if(!new_bio){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating bio clone - bs = %p, pages = %u", bs, pages);
@@ -3317,7 +3321,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 
 retry:
 	//allocate and populate read bio clone. This bio may not have all the pages we need due to queue restrictions
-	ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages, &new_bio, &bytes);
+	ret = bio_make_read_clone(dev->sd_base_dev, dev_bioset(dev), tp, bio, start_sect, pages, &new_bio, &bytes);
 	if(ret) goto error;
 
 	//set pointers for read clone
