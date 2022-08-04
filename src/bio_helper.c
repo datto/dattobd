@@ -687,7 +687,6 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
 #endif
 
         // populate read bio
-        tp_get(tp);
         new_bio->bi_private = tp;
         new_bio->bi_end_io = on_bio_read_complete;
         dattobd_bio_copy_dev(new_bio, orig_bio);
@@ -717,6 +716,9 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
 
         *bytes_added = total;
         *bio_out = new_bio;
+        
+        // increase ref when everything is fine
+        tp_get(tp);
         return 0;
 
 error:
