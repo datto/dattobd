@@ -194,7 +194,11 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         // across contexts
         ret = tp_alloc(dev, bio, &tp);
         if (ret)
-                goto error;
+        {
+                LOG_ERROR(ret, "error tracing bio for snapshot");
+                tracer_set_fail_state(dev, ret);
+                goto call_orig;
+        }
 
         while (1) {
                 // allocate and populate read bio clone. This bio may not have all the
@@ -246,6 +250,8 @@ error:
 
         if (tp)
                 tp_put(tp);
+        
+        return 0;
 
 call_orig:
 
