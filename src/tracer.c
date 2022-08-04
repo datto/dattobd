@@ -171,11 +171,11 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         struct tracing_params *tp = NULL;
         sector_t start_sect, end_sect;
         unsigned int bytes, pages;
+        struct bio_list bio_list;
 
         // if we don't need to cow this bio just call the real mrf normally
         if (!bio_needs_cow(bio, dev->sd_cow_inode))
-                return dattobd_call_mrf(dev->sd_orig_mrf,
-                                        dattobd_bio_get_queue(bio), bio);
+                goto call_orig;
 
         // the cow manager works in 4096 byte blocks, so read clones must also
         // be 4096 byte aligned
@@ -188,41 +188,48 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                    dev->sd_sect_off;
         pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
 
+        bio_list_init(&bio_list);
+
         // allocate tracing_params struct to hold all pointers we will need
         // across contexts
         ret = tp_alloc(dev, bio, &tp);
         if (ret)
                 goto error;
 
-retry:
-        // allocate and populate read bio clone. This bio may not have all the
-        // pages we need due to queue restrictions
-        ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages,
-                                  &new_bio, &bytes);
-        if (ret)
-                goto error;
+        while (1) {
+                // allocate and populate read bio clone. This bio may not have all the
+                // pages we need due to queue restrictions
+                ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages,
+                                        &new_bio, &bytes);
+                if (ret)
+                        goto error;
 
-        // set pointers for read clone
-        ret = tp_add(tp, new_bio);
-        if (ret)
-                goto error;
+                bio_list_add(&bio_list, new_bio);
 
-        atomic64_inc(&dev->sd_submitted_cnt);
-        smp_wmb();
+                // set pointers for read clone
+                ret = tp_add(tp, new_bio);
+                if (ret)
+                        goto error;
 
-        // submit the bios
-        dattobd_submit_bio(new_bio);
+                smp_wmb();
 
-        // if our bio didn't cover the entire clone we must keep creating bios
-        // until we have
-        if (bytes / PAGE_SIZE < pages) {
-                start_sect += bytes / SECTOR_SIZE;
-                pages -= bytes / PAGE_SIZE;
-                goto retry;
+                // if our bio didn't cover the entire clone we must keep creating bios
+                // until we have
+                if (bytes / PAGE_SIZE < pages) {
+                        start_sect += bytes / SECTOR_SIZE;
+                        pages -= bytes / PAGE_SIZE;
+                        continue;
+                }
+                
+                break;
         }
-
-        // drop our reference to the tp
-        tp_put(tp);
+        
+        while ((new_bio = bio_list_pop(&bio_list))) {
+                atomic64_inc(&dev->sd_submitted_cnt);
+                // drop our reference to the tp
+                tp_put(tp);
+                dattobd_submit_bio(new_bio);
+        }
 
         return 0;
 
@@ -231,14 +238,19 @@ error:
         tracer_set_fail_state(dev, ret);
 
         // clean up the bio we allocated (but did not submit)
-        if (new_bio)
+        bio_list_for_each(new_bio, &bio_list)
+        {
                 bio_free_clone(new_bio);
+                tp_put(tp);
+        }
+
         if (tp)
                 tp_put(tp);
 
-        // this function only returns non-zero if the real mrf does not. Errors
-        // set the fail state.
-        return 0;
+call_orig:
+
+        return dattobd_call_mrf(dev->sd_orig_mrf,
+                                        dattobd_bio_get_queue(bio), bio);
 }
 
 /**
