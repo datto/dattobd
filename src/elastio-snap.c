@@ -2893,8 +2893,12 @@ error:
 
 static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	int ret, mode;
-	bio_iter_t iter;
-	bio_iter_bvec_t bvec;
+	struct bio_vec *bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+#else
+	int i = 0;
+#endif
 	void *orig_private;
 	bio_end_io_t *orig_end_io;
 	char *data;
@@ -2938,20 +2942,24 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 		cur_sect = bio_sector(bio);
 
 		//iterate over all the segments and fill the bio. this more complex than writing since we don't have the block aligned guarantee
-		bio_for_each_segment(bvec, bio, iter){
+#ifdef HAVE_BVEC_ITER_ALL
+		bio_for_each_segment_all(bvec, bio, iter) {
+#else
+		bio_for_each_segment_all(bvec, bio, i) {
+#endif
 			//map the page into kernel space
-			data = kmap(bio_iter_page(bio, iter));
+			data = kmap(bvec->bv_page);
 
 			cur_block = (cur_sect * SECTOR_SIZE) / COW_BLOCK_SIZE;
 			block_off = (cur_sect * SECTOR_SIZE) % COW_BLOCK_SIZE;
-			bvec_off = bio_iter_offset(bio, iter);
+			bvec_off = bvec->bv_offset;
 
-			while(bvec_off < bio_iter_offset(bio, iter) + bio_iter_len(bio, iter)){
-				bytes_to_copy = min(bio_iter_offset(bio, iter) + bio_iter_len(bio, iter) - bvec_off, COW_BLOCK_SIZE - block_off);
+			while(bvec_off < bvec->bv_offset + bvec->bv_len){
+				bytes_to_copy = min(bvec->bv_offset + bvec->bv_len - bvec_off, COW_BLOCK_SIZE - block_off);
 				//check if the mapping exists
 				ret = cow_read_mapping(dev->sd_cow, cur_block, &block_mapping);
 				if(ret){
-					kunmap(bio_iter_page(bio, iter));
+					kunmap(bvec->bv_page);
 					goto out;
 				}
 
@@ -2959,7 +2967,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 				if(block_mapping){
 					ret = cow_read_data(dev->sd_cow, data + bvec_off, block_mapping, block_off, bytes_to_copy);
 					if(ret){
-						kunmap(bio_iter_page(bio, iter));
+						kunmap(bvec->bv_page);
 						goto out;
 					}
 				}
@@ -2971,7 +2979,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 			}
 
 			//unmap the page from kernel space
-			kunmap(bio_iter_page(bio, iter));
+			kunmap(bvec->bv_page);
 		}
 	}
 

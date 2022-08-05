@@ -183,9 +183,8 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (loop device)
-        # FIXME: Enable tests on Debian 9 after resolution of #146.
-        # And Debian 8 has reached EOL and has no mdadm tools installed.
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' }}"
+        # Debian 8 has reached EOL and has no mdadm tools installed.
+        if: "${{ matrix.distro != 'debian8' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
@@ -259,9 +258,8 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (qcow2 disks)
-        # FIXME: Enable tests on Debian 9 after resolution of #146.
-        # And Debian 8 has reached EOL and has no mdadm tools installed.
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'debian9' }}"
+        # Debian 8 has reached EOL and has no mdadm tools installed.
+        if: "${{ matrix.distro != 'debian8' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --raid"
