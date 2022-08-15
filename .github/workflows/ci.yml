@@ -88,6 +88,22 @@ jobs:
           sleep 5
         working-directory: ${{env.BOX_DIR}}
 
+      # For some reason we have too new (unofficial) xfsprogs installed on Debian 8. Replace them with the official ones.
+      - name: Reinstall xfsprogs on Debian 8
+        if: "${{ matrix.distro == 'debian8' }}"
+        run: |
+          vagrant ssh ${{env.INSTANCE_NAME}} -c '
+            set +e
+            for i in {1..5}; do
+              sudo apt-get install --reinstall -y xfsprogs xfslibs-dev && break
+              echo "Failed to install xfsprogs xfslibs-dev packages. Retrying..."
+              sleep 5
+            done
+            set -e
+            dpkg -l xfsprogs'
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 5
+
       # Amazon 2 has installed devtoolset-8 which upgrades GCC from 7.3.1 to 8.3.1.
       # The new gcc doesn't compile rpm packages properly, because of the /usr/lib/rpm/redhat/macros provided
       # by the package system-rpm-config-9.1.0-76.amzn2.0.13.noarch. And this macros has compilation flags applicable
@@ -98,14 +114,12 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Install LVM and RAID tools
-        # Debian 8 is old even EOLed and it's hard to install something on it. We are keepend it just to avoid
-        # regression bugs on the old 3.16 kernel. All LVM/RAID tests are switched off on Debian 8 in the file below.
-        if: "${{ matrix.distro != 'debian8' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             if $(which apt-get >/dev/null 2>&1); then
+              export DEBIAN_FRONTEND=noninteractive
               sudo apt-get update
-              sudo apt-get install -y lvm2 mdadm
+              sudo -E apt-get install -y lvm2 mdadm
             else
               # Fedora has rather weak mirrors. But we do not want to have failing builds because of this.
               set +e
@@ -119,6 +133,7 @@ jobs:
             fi
           '
         working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 5
 
       - name: Build packages
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'make ${PKG_TYPE}'
@@ -138,13 +153,6 @@ jobs:
           vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make uninstall'
         working-directory: ${{env.BOX_DIR}}
 
-      # FIXME: Enable tests on XFS for Debian 8. See https://github.com/elastio/elastio-snap/issues/139
-      # If we want to do that for EOLed distro.
-      - name: Ignore XFS tests
-        if: "${{ matrix.distro == 'debian8' }}"
-        run:
-          echo FS="ext2 ext3 ext4" >> $GITHUB_ENV
-
       - name: Run tests (loop device)
         run: |
           for fs in ${FS[*]}; do
@@ -162,11 +170,9 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (loop device)
-        # Debian 8 has reached EOL and has no lvm2 tools installed.
-        # But in theory we can enable tests on Debian 8 after resolution of #139.
         # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
         #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
+        if: "${{ matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --lvm"
@@ -183,8 +189,6 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (loop device)
-        # Debian 8 has reached EOL and has no mdadm tools installed.
-        if: "${{ matrix.distro != 'debian8' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
@@ -239,11 +243,9 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (qcow2 disks)
-        # Debian 8 has reached EOL and has no lvm2 tools installed.
-        # But in theory we can enable tests on Debian 8 after resolution of #139.
         # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
         #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
-        if: "${{ matrix.distro != 'debian8' && matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
+        if: "${{ matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --lvm"
@@ -258,8 +260,6 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (qcow2 disks)
-        # Debian 8 has reached EOL and has no mdadm tools installed.
-        if: "${{ matrix.distro != 'debian8' }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --raid"

@@ -145,8 +145,12 @@ def parted_create_lvm_raid_partitions(devices, kind):
 
 def mdadm_zero_superblock(partition):
     cmd = ["mdadm", "--zero-superblock", partition]
-    # We don't care about the possible errors
-    subprocess.run(cmd, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # subprocess.run is introduced in Python 3.5
+    if sys.version_info <= (3, 5):
+        subprocess.check_call(cmd, timeout=10)
+    else:
+        # We don't care about the possible errors
+        subprocess.run(cmd, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def assemble_mirror_lvm(devices, seed):
@@ -206,20 +210,24 @@ def assemble_mirror_raid(devices, seed):
     raid_dev = "/dev/md" + str(seed)
     cmd = ["mdadm", "--create", "--quiet", "--auto=yes", "--force", "--metadata=0.90", raid_dev, "--level=1", "--raid-devices=" + str(len(partitions))]
     cmd += partitions
-    retries = 3
-    for retry in range(retries):
-        udev_stop_exec_queue()
-        time.sleep(1)
-        rc = subprocess.run(cmd, timeout=20).returncode
-        udev_start_exec_queue()
-        if rc == 0:
-            break
-        elif retry + 1 < retries:
-            subprocess.run(["mdadm", "--stop", "--quiet", raid_dev], timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            for part in partitions:
-                mdadm_zero_superblock(part)
-        elif retry + 1 == retries:
-            raise subprocess.CalledProcessError(rc, cmd, "Command failed " + str(retries) + "times")
+    # subprocess.run is introduced in Python 3.5
+    if sys.version_info <= (3, 5):
+        subprocess.check_call(cmd, timeout=20)
+    else:
+        retries = 3
+        for retry in range(retries):
+            udev_stop_exec_queue()
+            time.sleep(1)
+            rc = subprocess.run(cmd, timeout=20).returncode
+            udev_start_exec_queue()
+            if rc == 0:
+                break
+            elif retry + 1 < retries:
+                subprocess.run(["mdadm", "--stop", "--quiet", raid_dev], timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                for part in partitions:
+                    mdadm_zero_superblock(part)
+            elif retry + 1 == retries:
+                raise subprocess.CalledProcessError(rc, cmd, "Command failed " + str(retries) + "times")
 
     return raid_dev
 
