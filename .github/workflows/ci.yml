@@ -209,9 +209,10 @@ jobs:
           ARCH=$(uname -m)
           TEST_IMAGES=(${TEST_IMAGES})
           TEST_DRIVES=(${TEST_DRIVES})
+          [ ${ARCH} == "x86_64" ] && SZ="1G" || SZ="256M"
           [ ${ARCH} != "x86_64" ] && VIRSH_FLAGS="--config" || true
           for i in ${!TEST_IMAGES[*]}; do
-            qemu-img create -f qcow2 ${TEST_IMAGES[i]} 1G
+            qemu-img create -f qcow2 ${TEST_IMAGES[i]} $SZ
             virsh attach-disk --domain ${BOX_DIR##*/}_${INSTANCE_NAME} --source ${TEST_IMAGES[i]} --target ${TEST_DRIVES[i]} --driver qemu --subdriver qcow2 --targetbus virtio ${VIRSH_FLAGS-}
           done
           # ARM64 boxes don't support "hot plug" w/o reboot
@@ -248,10 +249,10 @@ jobs:
         if: "${{ matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
-            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --lvm"
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --lvm"
           done
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Show dmesg
         if: always()
@@ -262,7 +263,21 @@ jobs:
       - name: Run tests on RAID (qcow2 disks)
         run: |
           for fs in ${FS[*]}; do
-            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -d /dev/vdc1 -f $fs --raid"
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --raid"
+          done
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 15
+
+      - name: Show dmesg
+        if: always()
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        working-directory: ${{env.BOX_DIR}}
+        timeout-minutes: 1
+
+      - name: Run tests multipart (qcow2 disk)
+        run: |
+          for fs in ${FS[*]}; do
+            vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -f $fs -t test_multipart"
           done
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 10

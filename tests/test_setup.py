@@ -84,6 +84,9 @@ class TestSetup(DeviceTestCase):
 
         cmd = ["findmnt", "/", "-n", "-o", "SOURCE"]
         device = subprocess.check_output(cmd, timeout=10, shell=False).rstrip().decode("utf-8")
+        # Convert LVM logical volume name (if it is) to the kernel bdev name
+        cmd = ["readlink", "-f", device]
+        device = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
         snap_device = "/dev/elastio-snap{}".format(minor)
         cow_file = "cow"
 

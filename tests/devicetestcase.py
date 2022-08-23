@@ -19,9 +19,9 @@ class DeviceTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.minor = randint(0, 23)
-        r=[]
-        cls.backing_stores=[]
-        cls.devices=[]
+        seeds = []
+        cls.backing_stores = []
+        cls.devices = []
 
         cls.kmod = kmod.Module("../src/elastio-snap.ko")
         cls.kmod.load(debug=1)
@@ -37,10 +37,10 @@ class DeviceTestCase(unittest.TestCase):
                 # And then mdadm will fail to create a mirror from these "2 different" loop devices, because 2nd will always race 'device busy' error.
                 # So, let's verify the difference of these random numbers )
                 while True:
-                    ra = randint(0, 999)
-                    if not ra in r: break
-                r.append(ra)
-                cls.backing_stores.append("/tmp/disk_{0:03d}.img".format(r[i]))
+                    r = randint(0, 999)
+                    if not r in seeds: break
+                seeds.append(r)
+                cls.backing_stores.append("/tmp/disk_{0:03d}.img".format(seeds[i]))
                 util.dd("/dev/zero", cls.backing_stores[i], 256, bs="1M")
                 cls.devices.append(util.loop_create(cls.backing_stores[i]))
 

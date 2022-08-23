@@ -26,15 +26,17 @@ usage()
     echo "                      A loopback device is used by default, if this parameter is not specified."
     echo "  -l | --lvm        : Run tests on the mirrored LVM device. Two loopback devices will be used to create a mirror."
     echo "  -r | --raid       : Run tests on the mirrored RAID device. Two loopback devices will be used to create a mirror."
+    echo "  -t | --testcase   : Run tests of the specific test-case 'test_transition_incremental'."
     echo "  -h | --help       : Show this usage help."
 }
 
 while [ "$1" != "" ]; do
     case $1 in
-        -d | --device)      shift && TEST_DEVICES+=($1) ;;
+        -d | --device)      shift && test_devices+=($1) ;;
         -f | --filesystem)  shift && TEST_FS=$1 ;;
         -l | --lvm)         export LVM=mirror ;;
         -r | --raid)        export RAID=mirror ;;
+        -t | --testcase)    shift && test_case=$1 ;;
         -h | --help)        usage && exit ;;
         *)                  echo "Wrong arguments!"
                             usage && exit 15 ;;
@@ -53,14 +55,13 @@ if [ ${#test_devices[@]} -ne 0 ]; then
             echo "The script's argument $test_device seems to be not a block device."
             exit 1
         fi
+        if ! lsblk $test_device -l -o TYPE -n | grep -q disk >/dev/null 2>&1 && ([ -n "$LVM" ] || [ -n "$RAID" ]); then
+            echo "The script's argument $test_device is not a disk (maybe partition). The disks are expected for LVM/RAID configuration."
+            exit 1
+        fi
     done
 
     export TEST_DEVICES=$(echo ${test_devices[*]})
-fi
-
-if [ -n "$TEST_DEVICE" ] && ! lsblk $TEST_DEVICE >/dev/null 2>&1; then
-    echo "The script's argumet $TEST_DEVICE seems to be not a block device."
-    exit 1
 fi
 
 if [ -n "${TEST_FS+set}" ] && [ -z "${TEST_FS}" ]; then
@@ -96,7 +97,7 @@ echo
 dmesg -c &> /dev/null
 >| dmesg.log
 
-python3 -m unittest -v
+python3 -m unittest -v $test_case
 ret=$?
 dmesg > dmesg.log
 
