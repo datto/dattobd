@@ -263,6 +263,9 @@ jobs:
       - name: Run tests on RAID (qcow2 disks)
         run: |
           for fs in ${FS[*]}; do
+            # An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on
+            # mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
+            [ ${{ matrix.distro }} == debian8 ] && [ $fs == xfs ] && continue
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --raid"
           done
         working-directory: ${{env.BOX_DIR}}
