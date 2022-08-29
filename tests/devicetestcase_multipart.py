@@ -19,8 +19,8 @@ from random import randint
 class DeviceTestCaseMultipart(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # For now let's hardcode 2 partitions
-        cls.part_count = 2
+        # For now let's hardcode 7 partitions
+        cls.part_count = 7
         cls.minors = []
         for i in range(cls.part_count):
             # Unexpectedly randint can generate 2 same numbers in a row.
