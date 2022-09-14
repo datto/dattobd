@@ -2755,8 +2755,7 @@ static int tracing_ops_alloc(struct snap_device *dev) {
 
 	memcpy(trops->bd_ops, elastio_snap_get_bd_ops(dev->sd_base_dev), sizeof(struct block_device_operations));
 
-	// Set tracing_mrf as submit_bio and owner. All other content is already there copied from the original structure.
-	trops->bd_ops->owner = THIS_MODULE;
+	// Set tracing_mrf as submit_bio. All other content is already there copied from the original structure.
 	trops->bd_ops->submit_bio = tracing_mrf;
 	atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;

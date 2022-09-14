@@ -170,9 +170,6 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (loop device)
-        # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
-        #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
-        if: "${{ matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --lvm"
@@ -244,9 +241,6 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (qcow2 disks)
-        # FIXME: - Enable tests on Ubuntu 20.04 after fix of #149;
-        #        - Enable tests on Ubuntu 22.04 arm64 after fix of #150.
-        if: "${{ matrix.distro != 'ubuntu2004' && !(matrix.distro == 'ubuntu2204' && matrix.arch == 'arm64') }}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --lvm"
