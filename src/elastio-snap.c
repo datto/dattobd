@@ -5340,103 +5340,6 @@ out:
 	return ret;
 }
 
-// The function below is called to gain or restore the ownership over a block device and resolves
-// the following bug related to the dormant snapshot functionality:
-//
-// [ Issue https://github.com/elastio/elastio-snap/issues/126 ]
-//
-//  - at the first mount, the block device is owned by the parent driver
-//  - after the snapshot creation, we update ownership to elastio driver
-//  - because of this, v5.13+ kernels did additional module_put() for our module at umount
-//
-//  To resolve this, when active and umount, we switch the ownership back to the parent, hence
-//  making the umount independent from the perspective of the elastio driver. When the device
-//  is mounted again, re-gain ownership over it.
-//
-//  Apart from it, we do this to prevent the kernel from freeing our block_device_operations
-//  installed (f.e, if the device is removed from the system)
-
-#define OWNERSHIP_TO_PARENT 0
-#define OWNERSHIP_TO_DRIVER 1
-
-static int bdev_switch_ownership(const char __user *dir_name, int follow_flags, int ownership)
-{
-	int i, ret = 0;
-	int bdev_found = 0;
-	int lookup_flags = 0;
-	struct path path = {};
-	struct block_device *bdev;
-	char bdev_name[BDEVNAME_SIZE];
-	struct snap_device *dev = NULL;
-
-	if(!(follow_flags & UMOUNT_NOFOLLOW)) lookup_flags |= LOOKUP_FOLLOW;
-
-	ret = user_path_at(AT_FDCWD, dir_name, lookup_flags, &path);
-	if(ret){
-		ret = -EINVAL;
-		LOG_DEBUG("error finding path");
-		goto out;
-	}else if(path.dentry != path.mnt->mnt_root){
-		ret = -ENODEV;
-		LOG_DEBUG("path specified isn't a mount point");
-		goto out;
-	}
-
-	bdev = path.mnt->mnt_sb->s_bdev;
-	if(!bdev){
-		ret = -ENODEV;
-		LOG_DEBUG("path specified isn't mounted on a block device");
-		goto out;
-	}
-
-	bdevname(bdev, bdev_name);
-
-	tracer_for_each(dev, i) {
-		if (!dev || tracer_read_fail_state(dev)) continue;
-
-		if (dev->sd_base_dev == bdev) {
-			bdev_found = 1;
-			break;
-		}
-	}
-
-	// not found
-	if (!dev || !bdev_found) {
-		LOG_DEBUG("no active snap device found for %s, skip ownership change", bdev_name);
-		ret = 0;
-		goto out;
-	}
-
-	switch (ownership) {
-		// umount
-		case OWNERSHIP_TO_PARENT:
-			LOG_DEBUG("restoring ownership over %s", bdev_name);
-#ifdef USE_BDOPS_SUBMIT_BIO
-			__tracer_transition_tracing(NULL, dev->sd_base_dev, dev->sd_orig_ops, NULL);
-#else
-			__tracer_transition_tracing(NULL, dev->sd_base_dev, dev->sd_orig_mrf, NULL);
-#endif
-			break;
-		// mount
-		case OWNERSHIP_TO_DRIVER:
-			LOG_DEBUG("re-gaining ownership over %s", bdev_name);
-#ifdef USE_BDOPS_SUBMIT_BIO
-			__tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops->bd_ops, NULL);
-#else
-			__tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_orig_mrf, NULL);
-#endif
-			break;
-		default:
-			ret = -EINVAL;
-			LOG_ERROR(ret, "invalid ownership mode specified");
-			goto out;
-	}
-
-out:
-	path_put(&path);
-	return ret;
-}
-
 static int handle_bdev_mount_event(const char __user *dir_name, int follow_flags, unsigned int *idx_out, int mount_writable){
 	int ret, lookup_flags = 0;
 	char *pathname = NULL;
@@ -5505,7 +5408,6 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 		elastio_snap_blkdev_put(bdev);
 
 		LOG_DEBUG("umount call failed, reactivating tracer %u", idx);
-		bdev_switch_ownership(dir_name, 0, OWNERSHIP_TO_DRIVER);
 		auto_transition_active(idx, dir_name);
 		return;
 	}
@@ -5626,8 +5528,6 @@ static asmlinkage long mount_hook(char __user *dev_name, char __user *dir_name, 
 		if(!sys_ret) handle_bdev_mounted_writable(dir_name, &idx);
 	}
 
-	if (!sys_ret) bdev_switch_ownership(dir_name, real_flags, OWNERSHIP_TO_DRIVER);
-
 	LOG_DEBUG("mount returned: %ld", sys_ret);
 
 	return sys_ret;
@@ -5682,7 +5582,6 @@ static asmlinkage long umount_hook(char __user *name, int flags){
 
 	kfree(buff_dev_name);
 
-	bdev_switch_ownership(name, flags, OWNERSHIP_TO_PARENT);
 	ret = handle_bdev_mount_nowrite(name, flags, &idx);
 
 #ifdef USE_ARCH_MOUNT_FUNCS
