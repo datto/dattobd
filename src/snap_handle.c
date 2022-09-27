@@ -56,7 +56,7 @@ static int snap_read_bio_get_mode(const struct snap_device *dev,
                         curr_byte = curr_end_byte;
                         curr_end_byte += min(
                                 COW_BLOCK_SIZE - (curr_byte % COW_BLOCK_SIZE),
-                                ((uint64_t)bio_iter_len(bio, iter)));
+                                ((uint64_t)bio_iter_len(bio, iter) - bytes));
 
                         // check if the mapping exists
                         ret = cow_read_mapping(dev->sd_cow,
