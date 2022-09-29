@@ -23,7 +23,16 @@
 #include "submit_bio.h"
 
 #ifdef USE_BDOPS_SUBMIT_BIO
-#define BIO_REQUEST_TRACKING_PTR_TYPE struct gendisk
+
+#ifdef CONFIG_X86
+// length of `% call __fentry__` on x86_64 - uses a 1 byte op and 4 byte
+// relative address
+#define FENTRY_CALL_INSTR_BYTES 5
+#else
+#pragma error "Unsupported architecture"
+#endif
+
+#define BIO_REQUEST_TRACKING_PTR_TYPE submit_bio_fn
 #define BIO_REQUEST_CALLBACK_FN submit_bio_fn
 #define SUBMIT_BIO_REAL dattobd_submit_bio_real
 #define GET_BIO_REQUEST_TRACKING_PTR dattobd_get_bd_submit_bio

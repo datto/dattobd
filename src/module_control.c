@@ -177,6 +177,8 @@ static void agent_exit(void)
 
         restore_system_call_table();
 
+        unregister_tracer_filter();
+
         unregister_ioctl_control_interface();
 
         unregister_sequential_file_in_proc();
@@ -332,6 +334,12 @@ static int __init agent_init(void)
         ret = register_ioctl_control_interface();
         if (ret) {
                 LOG_ERROR(ret, "error registering control device");
+                goto error;
+        }
+
+        ret = register_tracer_filter();
+        if (ret) {
+                LOG_ERROR(ret, "error registering i/o tracing");
                 goto error;
         }
 

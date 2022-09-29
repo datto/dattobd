@@ -27,20 +27,11 @@ struct snap_device {
         unsigned long sd_cache_size; // maximum cache size (in bytes)
         atomic_t sd_refs; // number of users who have this device open
         atomic_t sd_fail_code; // failure return code
+        atomic_t sd_active; // boolean for whether the snap device is set up and ready to trace i/o
         sector_t sd_sect_off; // starting sector of base block device
         sector_t sd_size; // size of device in sectors
         struct request_queue *sd_queue; // snap device request queue
         struct gendisk *sd_gd; // snap device gendisk
-#ifdef USE_BDOPS_SUBMIT_BIO
-        // Block device's gendisk structure holding the original submit_bio.
-        struct gendisk *sd_orig_gendisk;
-        struct blk_mq_tag_set *sd_tag_set;
-        // Gendisk structure used for tracing with the submit_bio function
-        // pointer set to our own tracing callback.
-        struct gendisk *sd_tracing_gendisk;
-        // Original bdops (fops member of gendisk from orig. device).
-        struct block_device_operations* sd_orig_fops;
-#endif
         struct block_device *sd_base_dev; // device being snapshot
         char *sd_bdev_path; // base device file path
         struct cow_manager *sd_cow; // cow manager

@@ -28,6 +28,9 @@ struct bio;
 
 /************************SETUP / DESTROY FUNCTIONS************************/
 
+int register_tracer_filter(void);
+int unregister_tracer_filter(void);
+
 int tracer_alloc(struct snap_device **dev_ptr);
 void tracer_destroy(struct snap_device *dev);
 
