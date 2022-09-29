@@ -23,7 +23,6 @@
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/blk-mq.h>
-#include <linux/ftrace.h>
 #ifdef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #include <linux/percpu-refcount.h>
@@ -951,21 +950,6 @@ static int __tracer_bioset_init(struct snap_device *dev)
 #endif
 }
 
-static blk_status_t tracing_queue_rq(struct blk_mq_hw_ctx *hctx, 
-        const struct blk_mq_queue_data *bd)
-{
-        struct request *rq = bd->rq;
-        blk_mq_start_request(rq);
-        blk_mq_complete_request(rq);
-        return BLK_STS_OK;
-}
-
-static const struct blk_mq_ops tracing_mq_ops = {
-    .queue_rq = tracing_queue_rq,
-    .init_request = NULL, // move snap thread initialization here?
-    .complete = NULL
-}; /// @todo move me somewhere appropriate along with the rest of the mq stuff.
-
 /**
  * __tracer_setup_snap() - Allocates &struct snap_device fields for use when
  *                         tracking an active snapshot.  Also sets up the
@@ -1167,6 +1151,7 @@ int tracer_registered = 0;
 int register_tracer_filter(void)
 {
         int ret = 0;
+#ifdef USE_BDOPS_SUBMIT_BIO
         ret = ftrace_set_filter(
                 &ops_submit_bio_noacct,
                 funcname_submit_bio_noacct,
@@ -1178,6 +1163,7 @@ int register_tracer_filter(void)
         }
 
         ret = register_ftrace_function(&ops_submit_bio_noacct);
+#endif
         tracer_registered = 1;
         return ret;
 }
@@ -1186,7 +1172,9 @@ int unregister_tracer_filter(void)
 {
         if (tracer_registered) {
                 tracer_registered = 0;
+#ifdef USE_BDOPS_SUBMIT_BIO
                 return unregister_ftrace_function(&ops_submit_bio_noacct);
+#endif
         }
         return 0;
 }
@@ -1211,7 +1199,7 @@ int unregister_tracer_filter(void)
 static int __tracer_transition_tracing(
     struct snap_device *dev,
     struct block_device *bdev,
-    const BIO_REQUEST_TRACKING_PTR_TYPE *new_bio_tracking_ptr,
+    BIO_REQUEST_CALLBACK_FN *new_bio_tracking_ptr,
     struct snap_device **dev_ptr)
 {
         int ret;
@@ -1261,24 +1249,24 @@ static int __tracer_transition_tracing(
                 LOG_DEBUG("starting tracing");
                 *dev_ptr = dev;
                 smp_wmb();
-                ret = gendisk_fn_get(bdev, new_bio_tracking_ptr);
-                if(new_bio_tracking_ptr){
 #ifndef USE_BDOPS_SUBMIT_BIO
+                ret = mrf_get(bdev, new_bio_tracking_ptr);
+                if(new_bio_tracking_ptr){
                         bdev->bd_disk->queue->make_request_fn = 
                                 new_bio_tracking_ptr;
-#endif
-                        atomic_inc(&(*dev_ptr)->sd_active);
                 }
+#endif
+                atomic_inc(&(*dev_ptr)->sd_active);
         }else{
                 LOG_DEBUG("ending tracing");
-                new_bio_tracking_ptr = gendisk_fn_put(bdev);
-                if (new_bio_tracking_ptr){
+                atomic_dec(&(*dev_ptr)->sd_active);
 #ifndef USE_BDOPS_SUBMIT_BIO
+                new_bio_tracking_ptr = mrf_put(bdev);
+                if (new_bio_tracking_ptr){
                         bdev->bd_disk->queue->make_request_fn =
                                 new_bio_tracking_ptr;
-#endif
-                        atomic_dec(&(*dev_ptr)->sd_active);
                 }
+#endif
                 *dev_ptr = dev;
                 smp_wmb();
         }
@@ -1432,7 +1420,9 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
     struct snap_device *cur_dev;
     struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
 
+#ifndef USE_BDOPS_SUBMIT_BIO
     if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev) != tracing_fn) return 0;
+#endif
     if (dev != snap_devices[dev->sd_minor]) return 0;
 
     //return 0 if there is another device tracing the same queue as dev.

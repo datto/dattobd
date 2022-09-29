@@ -8,59 +8,36 @@
 #define CALLBACK_REFS_H_
 
 #include "includes.h"
+#include "bio_helper.h"
 #include "bio_request_callback.h"
 
-/**
- * gendisk_tracking_init() - Initialize gendisk/mrf tracking.
- *
- * Initializes the hash table used for gendisk/mrf reference counting.
- */
-void gendisk_tracking_init(void);
+#ifndef USE_BDOPS_SUBMIT_BIO
 
 /**
- * gendisk_fn_get() - Increments the reference count for given gendisk or mrf.
+ * mrf_tracking_init() - Initialize mrf tracking.
+ *
+ * Initializes the hash table used for mrf reference counting.
+ */
+void mrf_tracking_init(void);
+
+/**
+ * mrf_get() - Increments the reference count for given mrf.
  *
  * @disk: The block device being tracked.
- * @fn: The gendisk or mrf to inc the reference count for.
+ * @fn: The mrf to inc the reference count for.
  *
  * Return: 0 on success. Non-zero otherwise.
  */
-int gendisk_fn_get(const struct block_device* disk, const BIO_REQUEST_TRACKING_PTR_TYPE* fn);
+int mrf_get(const struct block_device* disk, BIO_REQUEST_CALLBACK_FN* fn);
 
 /**
- * gendisk_fn_lock() - locks the mutex for the given gendisk/mrf
- *
- * @disk: The block device to lock the gendisk/mrf for.
- *
- * Return: Returns 0 on success, non-zero otherwise.
- */
-int gendisk_fn_lock(const struct block_device* disk);
-
-/**
- * gendisk_fn_put() - Decrements the reference count and returns gendisk/mrf
+ * mrf_put() - Decrements the reference count and returns mrf
  *
  * @disk: The block device being tracked
  * 
- * Return: Returns the mrf or gendisk for the block device or NULL on error.
+ * Return: Returns the mrf for the block device or NULL on error.
  */
-const BIO_REQUEST_TRACKING_PTR_TYPE* gendisk_fn_put(struct block_device* disk);
+const BIO_REQUEST_CALLBACK_FN* mrf_put(struct block_device* disk);
 
-/**
- * gendisk_fn_refcount() - Get reference count for an mrf/gendisk
- *
- * @fn: The gendisk or make_request_fn to get the refcount for.
- *
- * Return: Returns the reference count for the given mrf or gendisk.
- */
-size_t gendisk_fn_refcount(const BIO_REQUEST_TRACKING_PTR_TYPE *fn);
-
-/**
- * gendisk_fn_unlock() - unlocks the mutex for the given gendisk/mrf
- *
- * @disk: gendisk or mrf to unlock the gendisk/mrf for.
- *
- * Return: Returns 0 on success, non-zero otherwise.
- */
-int gendisk_fn_unlock(const struct block_device* disk);
-
+#endif // USE_BDOPS_SUBMIT_BIO
 #endif // CALLBACK_REFS_H_

@@ -308,8 +308,10 @@ static int __init agent_init(void)
 
         mutex_init(&ioctl_mutex);
 
-        // gendisk ref hashtable init
-        gendisk_tracking_init();
+#ifndef USE_BDOPS_SUBMIT_BIO
+        // mrf ref hashtable init
+        mrf_tracking_init();
+#endif
 
         calc_max_snap_devices_and_init_minor_range();
 
