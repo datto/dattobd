@@ -15,36 +15,21 @@
 
 #ifdef USE_BDOPS_SUBMIT_BIO
 
+/*
+ * For ftrace to work, each function has a preamble that calls a "function" (asm
+ * snippet) called __fentry__ which then triggers the callbacks. If we want to
+ * recurse without triggering ftrace, we'll need to skip this preamble. Don't
+ * worry, the stack pointer manipulation is right after the call.
+ */
+blk_qc_t (*dattobd_submit_bio_noacct_passthrough)(struct bio *) =
+	(blk_qc_t(*)(struct bio *))((unsigned long)(submit_bio_noacct) +
+        FENTRY_CALL_INSTR_BYTES);
+
 int dattobd_submit_bio_real(
     struct snap_device* dev,
     struct bio *bio)
 {
-    BIO_REQUEST_CALLBACK_FN *fn = NULL;
-    int ret = 0;
-    gendisk_fn_lock(dev->sd_base_dev);
-    if (!dev)
-    {
-        LOG_ERROR(-EFAULT,
-                  "Missing snap_device when calling dattobd_call_submit_bio");
-        gendisk_fn_unlock(dev->sd_base_dev);
-        return -EFAULT;
-    }
-    fn = dev->sd_orig_request_fn;
-    if (!fn)
-    {
-        LOG_ERROR(-EFAULT, "error finding original_mrf");
-        gendisk_fn_unlock(dev->sd_base_dev);
-        return -EFAULT;
-    }
-    bio->bi_disk = dev->sd_orig_gendisk;
-    LOG_DEBUG(
-            "SUBMIT_BIO_REAL | bdev path: %s | bio partno: %d | ",
-            dev->sd_bdev_path,
-            bio->bi_partno
-    );
-    ret = fn(bio);
-    gendisk_fn_unlock(dev->sd_base_dev);
-    return ret;
+    return dattobd_submit_bio_noacct_passthrough(bio);
 }
 
 submit_bio_fn* dattobd_get_bd_submit_bio(struct block_device *bdev)

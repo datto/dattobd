@@ -198,11 +198,7 @@ int snap_mrf_thread(void *data)
 
                 // submit the original bio to the block IO layer
                 dattobd_bio_op_set_flag(bio, DATTOBD_PASSTHROUGH);
-#ifdef HAVE_BDOPS_SUBMIT_BIO
-                smp_wmb();
-                if (dev->sd_orig_gendisk)
-                    bio->bi_disk = dev->sd_orig_gendisk;
-#endif
+
                 // blk_qc_t (*)(struct request_queue *, struct bio *)’ 
                 // {aka ‘unsigned int (*)(struct request_queue *, struct bio *)’} but argument is of type ‘struct snap_device *’
                 ret = SUBMIT_BIO_REAL(
