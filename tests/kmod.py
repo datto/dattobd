@@ -5,8 +5,10 @@
 # Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
-import errno
 import os
+import sys
+import time
+import errno
 import subprocess
 
 
@@ -32,11 +34,27 @@ class Module(object):
 
     def unload(self):
         cmd = ["rmmod", self.name]
-        subprocess.check_call(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=self.timeout)
+
+        if sys.version_info <= (3, 5):
+            subprocess.check_call(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=self.timeout)
+        else:
+            retries = 3
+            for retry in range(retries):
+                p = subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=self.timeout)
+
+                if p.returncode == 0:
+                    break
+                else:
+                    print("Couldn't unload the driver")
+                    time.sleep(1)
 
     def info(self):
         cmd = ["modinfo", self.path]

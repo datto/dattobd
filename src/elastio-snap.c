@@ -1121,7 +1121,16 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio);
 #endif
 
 static const struct block_device_operations snap_ops = {
-	.owner = THIS_MODULE,
+	/**
+	 * The 'owner' field is commented as it has proven itself
+	 * to cause problems with module refcount getting
+	 * unexpectedly incremented in rare situations.
+	 *
+	 * The issue was described here:
+	 * https://github.com/elastio/elastio-snap/issues/169
+	 */
+
+	/* .owner = THIS_MODULE, */
 	.open = snap_open,
 	.release = snap_release,
 #ifdef USE_BDOPS_SUBMIT_BIO
