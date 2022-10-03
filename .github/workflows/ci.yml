@@ -163,9 +163,9 @@ jobs:
         # 10 minutes seems to be reasonable timeout.
         timeout-minutes: 10
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -179,9 +179,9 @@ jobs:
         # 10 minutes seems to be reasonable timeout.
         timeout-minutes: 10
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -195,9 +195,9 @@ jobs:
         # 10 minutes seems to be reasonable timeout.
         timeout-minutes: 10
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -234,9 +234,9 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 10
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -248,9 +248,9 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 15
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -265,9 +265,9 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 15
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
@@ -279,9 +279,9 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 10
 
-      - name: Show dmesg
+      - name: Show debug information
         if: always()
-        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c"
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 1
 
