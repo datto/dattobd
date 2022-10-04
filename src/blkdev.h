@@ -7,6 +7,8 @@
 #ifndef BLKDEV_H_
 #define BLKDEV_H_
 
+#include "includes.h"
+
 struct block_device;
 
 #ifdef HAVE_BLKDEV_PUT_1
@@ -16,7 +18,15 @@ struct block_device;
 #define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
-#ifndef HAVE_PART_NR_SECTS_READ
+#ifndef bdev_whole
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+#define bdev_whole(bdev) ((bdev)->bd_contains)
+#endif
+
+#ifndef HAVE_HD_STRUCT
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+#define dattobd_bdev_size(bdev) (bdev_nr_sectors(bdev))
+#elif !defined HAVE_PART_NR_SECTS_READ
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
 #define dattobd_bdev_size(bdev) ((bdev)->bd_part->nr_sects)
 #else

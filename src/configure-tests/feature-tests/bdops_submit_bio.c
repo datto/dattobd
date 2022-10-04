@@ -8,6 +8,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static blk_qc_t snap_submit_bio(struct bio *bio)
 {
 	return BLK_QC_T_NONE;
