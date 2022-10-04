@@ -713,8 +713,8 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
 
         // check if device represents a partition, calculate size and offset
         LOG_DEBUG("calculating block device size and offset");
-        if (dev->sd_base_dev->bd_contains != dev->sd_base_dev) {
-                dev->sd_sect_off = dev->sd_base_dev->bd_part->start_sect;
+        if (bdev_whole(dev->sd_base_dev) != dev->sd_base_dev) {
+                dev->sd_sect_off = get_start_sect(dev->sd_base_dev);
                 dev->sd_size = dattobd_bdev_size(dev->sd_base_dev);
         } else {
                 dev->sd_sect_off = 0;
@@ -1136,10 +1136,17 @@ error:
         return ret;
 }
 
+#ifdef HAVE_FTRACE_REGS
+static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
+        unsigned long parent_ip,
+        struct ftrace_ops *fops,
+        struct ftrace_regs *fregs);
+#else
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
         unsigned long parent_ip,
         struct ftrace_ops *fops,
         struct pt_regs *fregs);
+#endif
 
 unsigned char* funcname_submit_bio_noacct = "submit_bio_noacct";
 struct ftrace_ops ops_submit_bio_noacct = {
@@ -1204,7 +1211,7 @@ static int __tracer_transition_tracing(
 {
         int ret;
         struct super_block *origsb = dattobd_get_super(bdev);
-        #ifndef HAVE_FREEZE_SUPER
+        #ifdef HAVE_FREEZE_SB
         struct super_block *sb = NULL;
         #endif
         char bdev_name[BDEVNAME_SIZE];
@@ -1224,6 +1231,8 @@ static int __tracer_transition_tracing(
                         return ret;
                 }
 #else
+#ifdef HAVE_FREEZE_SB
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
                 sb = freeze_bdev(bdev);
                 if(!sb){
                         LOG_ERROR(-EFAULT, "error freezing '%s': null",
@@ -1236,6 +1245,14 @@ static int __tracer_transition_tracing(
                         dattobd_drop_super(origsb);
                         return (int)PTR_ERR(sb);
                 }
+#else
+                ret = freeze_bdev(bdev);
+                if (ret) {
+                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+                        dattobd_drop_super(origsb);
+                        return -ret;
+                }
+#endif
 #endif
         }
         else{
@@ -1349,6 +1366,15 @@ out:
         MRF_RETURN(ret);
 }
 
+#ifdef HAVE_FTRACE_REGS
+static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
+        unsigned long parent_ip,
+        struct ftrace_ops *fops,
+        struct ftrace_regs *fregs)
+{
+        ftrace_instruction_pointer_set(fregs, (unsigned long)tracing_fn);
+}
+#else
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
         unsigned long parent_ip,
         struct ftrace_ops *fops,
@@ -1356,6 +1382,7 @@ static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
 {
         fregs->ip = (unsigned long)tracing_fn;
 }
+#endif
 
 #ifndef USE_BDOPS_SUBMIT_BIO
 
