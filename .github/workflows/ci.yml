@@ -199,7 +199,7 @@ jobs:
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Attach qcow2 disks
         run: |
