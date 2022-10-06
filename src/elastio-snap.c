@@ -1077,6 +1077,7 @@ struct snap_device{
 #endif
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
+	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -1110,6 +1111,7 @@ static void elastio_snap_proc_stop(struct seq_file *m, void *v);
 static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
 static int elastio_snap_proc_release(struct inode *inode, struct file *file);
 
+#define WAIT_SUBMITTED_BIOS_MSEC 500
 // wait msec value to be at least 100 msec as wait loop uses it by msleep of (100) timeout pieces
 #define ELASTIO_SNAP_WAIT_FOR_RELEASE_MSEC              500
 #define ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT   100
@@ -3224,6 +3226,7 @@ static int snap_cow_thread(void *data){
 				}
 			}
 
+			atomic64_inc(&dev->sd_processed_cnt);
 			bio_free_clone(bio);
 		}
 	}
@@ -3342,6 +3345,18 @@ error:
 	tracer_set_fail_state(dev, ret);
 	tp_put(tp);
 	bio_free_clone(bio);
+}
+
+/** Resolves issue https://github.com/elastio/elastio-snap/issues/170 */
+static inline void wait_for_bio_complete(struct snap_device *dev)
+{
+	struct bio_queue *bq = &dev->sd_cow_bios;
+	if (!wait_event_interruptible_timeout(bq->event,
+			atomic64_read(&dev->sd_submitted_cnt) == atomic64_read(&dev->sd_processed_cnt),
+			msecs_to_jiffies(WAIT_SUBMITTED_BIOS_MSEC))) {
+		LOG_WARN("failed wait for all submitted BIOs to be processed after %d ms. bio submitted = %lld, bio processed = %lld",
+				WAIT_SUBMITTED_BIOS_MSEC, atomic64_read(&dev->sd_submitted_cnt), atomic64_read(&dev->sd_processed_cnt));
+	}
 }
 
 #ifdef HAVE_BIO_ENDIO_INT
@@ -4251,6 +4266,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 
 	atomic64_set(&dev->sd_submitted_cnt, 0);
 	atomic64_set(&dev->sd_received_cnt, 0);
+	atomic64_set(&dev->sd_processed_cnt, 0);
 
 	return 0;
 
@@ -4793,6 +4809,8 @@ static int ioctl_destroy(unsigned int minor){
 	}
 
 	dev = snap_devices[minor];
+	wait_for_bio_complete(dev);
+
 	tracer_destroy(snap_devices[minor]);
 	kfree(dev);
 
@@ -4810,6 +4828,7 @@ static int ioctl_transition_inc(unsigned int minor){
 	if(ret) goto error;
 
 	dev = snap_devices[minor];
+	wait_for_bio_complete(dev);
 
 	//check that the device is not in the fail state
 	ret = tracer_read_fail_state(dev);
@@ -4849,6 +4868,7 @@ static int ioctl_transition_snap(unsigned int minor, const char *cow_path, unsig
 	if(ret) goto error;
 
 	dev = snap_devices[minor];
+	wait_for_bio_complete(dev);
 
 	//check that the device is not in the fail state
 	if(tracer_read_fail_state(dev)){
@@ -4885,6 +4905,7 @@ static int ioctl_reconfigure(unsigned int minor, unsigned long cache_size){
 	if(ret) goto error;
 
 	dev = snap_devices[minor];
+	wait_for_bio_complete(dev);
 
 	//check that the device is not in the fail state
 	if(tracer_read_fail_state(dev)){
