@@ -1212,43 +1212,31 @@ static int __tracer_transition_tracing(
 
         bdevname(bdev, bdev_name);
         if(origsb){
+                dattobd_drop_super(origsb);
 
                 //freeze and sync block device
                 LOG_DEBUG("freezing '%s'", bdev_name);
-#ifdef HAVE_FREEZE_SUPER
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34)
-                ret = freeze_super(origsb);
-                if (ret){
-                        LOG_ERROR((ret), "error freezing super for '%s': error", bdev_name);
-                        dattobd_drop_super(origsb);
-                        return ret;
-                }
-#else
 #ifdef HAVE_FREEZE_SB
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
                 sb = freeze_bdev(bdev);
                 if(!sb){
                         LOG_ERROR(-EFAULT, "error freezing '%s': null",
                                   bdev_name);
-                        dattobd_drop_super(origsb);
                         return -EFAULT;
                 }else if(IS_ERR(sb)){
                         LOG_ERROR((int)PTR_ERR(sb),
                                   "error freezing '%s': error", bdev_name);
-                        dattobd_drop_super(origsb);
                         return (int)PTR_ERR(sb);
                 }
 #else
                 ret = freeze_bdev(bdev);
                 if (ret) {
                         LOG_ERROR(ret, "error freezing '%s'", bdev_name);
-                        dattobd_drop_super(origsb);
                         return -ret;
                 }
 #endif
-#endif
         }
-        else{
+        else {
                 LOG_WARN(
                         "warning: no super found for device '%s', "
                         "unable to freeze it",
@@ -1280,7 +1268,7 @@ static int __tracer_transition_tracing(
                 smp_wmb();
         }
         if(origsb){
-                //, the block device
+                // thaw the block device
                 LOG_DEBUG("thawing '%s'", bdev_name);
 #ifdef HAVE_THAW_BDEV_INT
                 ret = thaw_bdev(bdev, sb);
@@ -1293,7 +1281,6 @@ static int __tracer_transition_tracing(
                         // point, and we've replaced the mrf. pretend we 
                         // succeeded so we don't break the block device
                 }
-                dattobd_drop_super(origsb);
         }
         return 0;
 }

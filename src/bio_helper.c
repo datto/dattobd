@@ -667,8 +667,13 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         unsigned int i;
         unsigned int bytes;
         unsigned int total = 0;
+#ifdef BIO_MAX_PAGES
         unsigned int actual_pages =
                 (pages > BIO_MAX_PAGES) ? BIO_MAX_PAGES : pages;
+#else
+        unsigned int actual_pages =
+                (pages > BIO_MAX_VECS) ? BIO_MAX_VECS : pages;
+#endif
 
         // allocate bio clone, instruct the allocator to not make I/O requests
         // while trying to allocate memory to prevent any possible lock
