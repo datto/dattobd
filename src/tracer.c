@@ -1267,7 +1267,6 @@ static int __tracer_transition_tracing(
                 *dev_ptr = dev;
                 smp_wmb();
 #ifndef USE_BDOPS_SUBMIT_BIO
-                ret = mrf_get(bdev, new_bio_tracking_ptr);
                 if(new_bio_tracking_ptr){
                         bdev->bd_disk->queue->make_request_fn = 
                                 new_bio_tracking_ptr;
@@ -1680,6 +1679,13 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
         if (ret)
                 goto error;
 
+#ifndef USE_BDOPS_SUBMIT_BIO
+        // retain an association between the original mrf and the block device
+        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        if (ret)
+                goto error;
+#endif
+
         // setup the snapshot values
         ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
         if (ret)
@@ -2028,6 +2034,13 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
         if (ret)
                 goto error;
 
+#ifndef USE_BDOPS_SUBMIT_BIO
+        // retain an association between the original mrf and the block device
+        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        if (ret)
+                goto error;
+#endif
+
         // setup the snapshot values
         ret = __tracer_setup_snap(dev, minor, dev->sd_base_dev, dev->sd_size);
         if (ret)
@@ -2110,6 +2123,13 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
         ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
         if (ret)
                 goto error;
+
+#ifndef USE_BDOPS_SUBMIT_BIO
+        // retain an association between the original mrf and the block device
+        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        if (ret)
+                goto error;
+#endif
 
         // setup the cow thread and run it
         ret = __tracer_setup_inc_cow_thread(dev, minor);
