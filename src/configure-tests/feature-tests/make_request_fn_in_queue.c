@@ -8,6 +8,8 @@
 
 #include "includes.h"
 
+MODULE_LICENSE("GPL");
+
 static inline void dummy(void){
     make_request_fn *mk_rq_fn;
     struct request_queue q = {
