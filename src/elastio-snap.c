@@ -138,6 +138,9 @@ struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE
 struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
+struct gendisk* (*elastio_snap_alloc_disk_node)(struct request_queue *q, int node_id, struct lock_class_key *lkclass) = (__ALLOC_DISK_NODE_ADDR != 0) ?
+	(struct gendisk* (*)(struct request_queue *q, int node_id, struct lock_class_key *lkclass)) (__ALLOC_DISK_NODE_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
 #ifndef HAVE_BLKDEV_GET_BY_PATH
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
@@ -4121,7 +4124,11 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 #endif
 		if(dev->sd_queue){
 			LOG_DEBUG("freeing request queue");
+#ifdef HAVE_BLK_CLEANUP_QUEUE
 			blk_cleanup_queue(dev->sd_queue);
+#else
+			blk_put_queue(dev->sd_queue);
+#endif
 			dev->sd_queue = NULL;
 		}
 		put_disk(dev->sd_gd);
@@ -4130,7 +4137,11 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 
 	if(dev->sd_queue){
 		LOG_DEBUG("freeing request queue");
+#ifdef HAVE_BLK_CLEANUP_QUEUE
 		blk_cleanup_queue(dev->sd_queue);
+#else
+		blk_put_queue(dev->sd_queue);
+#endif
 		dev->sd_queue = NULL;
 	}
 
@@ -4158,8 +4169,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	}
 
 	//allocate request queue
-#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	LOG_DEBUG("allocating queue and setting up make request function");
+#ifdef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 	dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
 #else
 	dev->sd_queue = elastio_blk_alloc_queue(GFP_KERNEL);
@@ -4201,13 +4212,23 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	// alloc_disk function has been disappeared starting from the kernel 5.15
 	dev->sd_gd = alloc_disk(1);
 #else
-	dev->sd_gd = __alloc_disk_node(dev->sd_queue, NUMA_NO_NODE, &sd_bio_compl_lkclass);
+	/** 
+	 * Current approach to creating disk is way too obsolete
+	 * and will be replaced by the modern block device API:
+	 *
+	 * https://github.com/elastio/elastio-snap/issues/180
+	 */
+	dev->sd_gd = elastio_snap_alloc_disk_node(dev->sd_queue, NUMA_NO_NODE, &sd_bio_compl_lkclass);
 #endif
 	if(!dev->sd_gd){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating gendisk");
 		goto error;
 	}
+
+#ifndef HAVE_BLK_CLEANUP_QUEUE
+	set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
+#endif
 
 	//initialize gendisk and request queue values
 	LOG_DEBUG("initializing gendisk");
