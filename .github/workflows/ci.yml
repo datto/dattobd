@@ -1,8 +1,12 @@
 ---
 name: ci
 on:
-  - push
-  - pull_request_target
+  push:
+    branches:
+      - master
+      - 'release**'
+      - 'debug/**'
+  pull_request: ~
 
 env:
   AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
