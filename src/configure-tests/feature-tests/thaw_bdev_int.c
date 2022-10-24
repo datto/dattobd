@@ -5,7 +5,6 @@
  */
 
 #include "includes.h"
-MODULE_LICENSE("GPL");
 
 MODULE_LICENSE("GPL");
 
