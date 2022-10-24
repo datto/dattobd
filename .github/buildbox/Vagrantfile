@@ -32,13 +32,15 @@ ENV_VARS_SCRIPT
 DISTRO = {}
 DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11",
                     "amazon2",
-                    "centos6", "centos7", "centos8",
+                    "centos7", "centos8", "centos9",
+                    "alma8", "alma9",
                     "fedora31", "fedora32", "fedora34", "fedora35", "fedora36",
                     "ubuntu2004", "ubuntu2204" ]
 
 DISTRO['arm64'] = [ "debian10", "debian11",
                     "amazon2",
-                    "centos8",
+                    "centos8", "centos9",
+                    "alma8", "alma9",
                     "fedora35", "fedora36",
                     "ubuntu2204" ]
 
