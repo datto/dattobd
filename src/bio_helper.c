@@ -12,6 +12,9 @@
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/bio.h>
+#ifdef HAVE_CGROUPS
+#include <linux/blk-cgroup.h>
+#endif
 
 /**
  * dattobd_bio_get_queue() - Gets the request queue for the given block
@@ -698,6 +701,12 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
         bio_sector(new_bio) = sect;
         bio_idx(new_bio) = 0;
+#ifdef HAVE_CGROUPS
+        if (orig_bio->bi_blkg) {
+                blkg_get(orig_bio->bi_blkg);
+                new_bio->bi_blkg = orig_bio->bi_blkg;
+        }
+#endif
 
         // fill the bio with pages
         for (i = 0; i < actual_pages; i++) {
