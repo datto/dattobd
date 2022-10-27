@@ -968,37 +968,44 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
+        // allocate a gendisk struct
+        LOG_DEBUG("allocating gendisk");
+#ifdef HAVE_BLK_ALLOC_DISK
+        dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+#else
+        dev->sd_gd = alloc_disk(1);
+#endif
+        if (!dev->sd_gd) {
+                ret = -ENOMEM;
+                LOG_ERROR(ret, "error allocating gendisk");
+                goto error;
+        }
+
         // allocate request queue
         LOG_DEBUG("allocating queue"); 
-#ifndef HAVE_BLK_ALLOC_QUEUE
+#ifdef HAVE_BLK_ALLOC_QUEUE_1
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
         dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
-#else
-#ifdef HAVE_BLK_ALLOC_QUEUE_RH_2 // el8
+#elif defined HAVE_BLK_ALLOC_QUEUE_RH_2 // el8
         dev->sd_queue = blk_alloc_queue_rh(snap_mrf, NUMA_NO_NODE);
-#else
+#elif defined HAVE_BLK_ALLOC_QUEUE_2
         dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
+#elif !defined HAVE_BLK_ALLOC_DISK
+        //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+        dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
+#else
+        dev->sd_queue = dev->sd_gd->queue;
 #endif
-#endif
+
         if (!dev->sd_queue) {
                 ret = -ENOMEM;
                 LOG_ERROR(ret, "error allocating request queue");
                 goto error;
         }
 
-// For the Linux kernel version 5.9+:
-// The snap_mrf function is already set in the block_device_operations snap_ops struct
-// as submit_bio func. So, the request handler is already registered.
-// See a line below "dev->sd_gd->fops = &snap_ops;"
-#ifndef HAVE_BLK_ALLOC_QUEUE
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
-        // register request handler
-        
-        
-#ifndef USE_BDOPS_SUBMIT_BIO
+#if !defined HAVE_BLK_ALLOC_QUEUE && !defined USE_BDOPS_SUBMIT_BIO
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
-#endif
 #endif
 
         // give our request queue the same properties as the base device's
@@ -1012,21 +1019,13 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 blk_queue_merge_bvec(dev->sd_queue, snap_merge_bvec);
 #endif
 
-        // allocate a gendisk struct
-        LOG_DEBUG("allocating gendisk");
-        dev->sd_gd = alloc_disk(1);
-        if (!dev->sd_gd) {
-                ret = -ENOMEM;
-                LOG_ERROR(ret, "error allocating gendisk");
-                goto error;
-        }
-
         // initialize gendisk and request queue values
         LOG_DEBUG("initializing gendisk");
         dev->sd_queue->queuedata = dev;
         dev->sd_gd->private_data = dev;
         dev->sd_gd->major = major;
         dev->sd_gd->first_minor = minor;
+        dev->sd_gd->minors = 1;
         dev->sd_gd->fops = get_snap_ops();
         dev->sd_gd->queue = dev->sd_queue;
 
