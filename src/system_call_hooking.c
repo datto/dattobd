@@ -470,6 +470,7 @@ asmlinkage long oldumount_hook(char __user *name)
  */
 void **find_sys_call_table(void)
 {
+#if PRINTK_ADDR
         long long offset;
         void **sct;
 
@@ -494,6 +495,9 @@ void **find_sys_call_table(void)
         LOG_DEBUG("system call table located at 0x%p", sct);
 
         return sct;
+#else
+        return NULL;
+#endif
 }
 
 /**
