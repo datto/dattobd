@@ -662,12 +662,6 @@ int file_truncate(struct file *filp, loff_t len)
         dentry = dattobd_get_dentry(filp);
         inode = dentry->d_inode;
 
-        ret = locks_verify_truncate(inode, filp, len);
-        if (ret) {
-                LOG_ERROR(ret, "error verifying truncation is possible");
-                goto error;
-        }
-
 #ifdef HAVE_SB_START_WRITE
         //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
         sb_start_write(inode->i_sb);
