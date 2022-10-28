@@ -902,7 +902,11 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 
         if (dev->sd_gd) {
                 LOG_DEBUG("freeing gendisk");
+#ifdef GENHD_FL_UP
                 if (dev->sd_gd->flags & GENHD_FL_UP)
+#else
+                if (disk_live(dev->sd_gd))
+#endif
                         del_gendisk(dev->sd_gd);
                 put_disk(dev->sd_gd);
                 dev->sd_gd = NULL;
