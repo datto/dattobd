@@ -35,7 +35,7 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
         smp_mb();
         active = atomic_read(&dev->sd_active);
 
-        return tracer_sector_matches_bio(dev, bio) 
+        return !test_bit(UNVERIFIED, &dev->sd_state)
                 && tracer_queue_matches_bio(dev, bio)
                 && active;
 }
@@ -43,9 +43,9 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 bool tracer_should_trace_bio(struct snap_device *dev, struct bio *bio)
 {
         return dev 
-                && !test_bit(UNVERIFIED, &dev->sd_state)
                 && !bio_is_discard(bio)
                 && bio_data_dir(bio)
                 && bio_size(bio) 
-                && !tracer_read_fail_state(dev);
+                && !tracer_read_fail_state(dev)
+                && tracer_sector_matches_bio(dev, bio); 
 }
