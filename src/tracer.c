@@ -1127,6 +1127,7 @@ error:
         return ret;
 }
 
+#ifdef USE_BDOPS_SUBMIT_BIO
 #ifdef HAVE_FTRACE_REGS
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
         unsigned long parent_ip,
@@ -1144,6 +1145,7 @@ struct ftrace_ops ops_submit_bio_noacct = {
 	.func = ftrace_handler_submit_bio_noacct,
 	.flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_PERMANENT | FTRACE_OPS_FL_IPMODIFY
 };
+#endif
 
 int tracer_registered = 0;
 int register_tracer_filter(void)
@@ -1356,6 +1358,7 @@ out:
         MRF_RETURN(ret);
 }
 
+#ifdef USE_BDOPS_SUBMIT_BIO
 #ifdef HAVE_FTRACE_REGS
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
         unsigned long parent_ip,
@@ -1372,6 +1375,7 @@ static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
 {
         fregs->ip = (unsigned long)tracing_fn;
 }
+#endif
 #endif
 
 #ifndef USE_BDOPS_SUBMIT_BIO
