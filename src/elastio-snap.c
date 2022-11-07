@@ -3420,11 +3420,33 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	struct tracing_params *tp = NULL;
 	sector_t start_sect, end_sect;
 	unsigned int bytes, pages;
+	int max_sectors;
 
 	//if we don't need to cow or physical memory usage has exceeded threshold or
 	//	COW file state is failed, this bio just call the real mrf normally
 	if (!bio_needs_cow(bio, dev) || memory_is_too_low(dev) || tracer_read_cow_fail_state(dev)) {
 		return elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
+	}
+
+	max_sectors = queue_max_sectors(bdev_get_queue(dev->sd_base_dev));
+	if (bio_sectors(bio) > max_sectors) {
+#ifdef HAVE_BIO_SPLIT_4
+		struct bio *split = bio_split(bio, max_sectors,
+				GFP_NOIO, dev_bioset(dev));
+		bio_chain(split, bio);
+#ifdef HAVE_GENERIC_MAKE_REQUEST
+		generic_make_request(bio);
+#else
+		submit_bio_noacct(bio);
+#endif
+		bio = split;
+#else
+		struct bio_pair *bp = bio_split(bio, max_sectors);
+		snap_trace_bio(dev, &bp->bio1);
+		snap_trace_bio(dev, &bp->bio2);
+		bio_pair_release(bp);
+		return 0;
+#endif
 	}
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
@@ -3461,7 +3483,6 @@ retry:
 #else
 	elastio_snap_submit_bio(new_bio);
 #endif
-
 	//if our bio didn't cover the entire clone we must keep creating bios until we have
 	if(bytes / PAGE_SIZE < pages){
 		start_sect += bytes / SECTOR_SIZE;
