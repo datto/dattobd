@@ -24,21 +24,21 @@ The primary intended use case of Dattobd is for backing up live Linux systems. T
 
 2) Create a snapshot:
 
-	dbdctl setup-snapshot /dev/sda1 /.datto 0
+	```dbdctl setup-snapshot /dev/sda1 /.datto 0```
 
 
 This will create a snapshot of the root volume at `/dev/datto0` with a backing COW file at `/.datto`. This file must exist on the volume that will be snapshotted.
 
 3) Copy the image off the block device:
 
-	dd if=/dev/datto0 of=/backups/sda1-bkp bs=1M
+	```dd if=/dev/datto0 of=/backups/sda1-bkp bs=1M```
 
 
 `dd` is a standard image copying tool in linux. Here it simply copies the contents of the `/dev/datto0` device to an image. Be careful when running this command as it can badly corrupt filesystems if used incorrectly. NEVER execute `dd` with the "of" parameter pointing to a volume that has important data on it. This can take a while to copy the entire volume. See the man page on `dd` for more details.
 
 4) Put the snapshot into incremental mode:
 
-	dbdctl transition-to-incremental 0
+	```dbdctl transition-to-incremental 0```
 
 
 This command requests the driver to move the snapshot (`/dev/datto0`) to incremental mode. From this point on, the driver will only track the addresses of blocks that have changed (without the data itself). This mode is less system intensive, but is important for later when we wish to update the `/backups/sda1-bkp` to reflect a later snapshot of the filesystem.
@@ -49,21 +49,21 @@ After the initial backup, the driver will probably be left in incremental mode t
 
 6) Move the incremental back to snapshot mode:
 
-	dbdctl transition-to-snapshot /.datto1 0
+	```dbdctl transition-to-snapshot /.datto1 0```
 
 
 This command requires the name of a new COW file to begin tracking changes again (here we chose `/.datto1`). At this point the driver is finished with our `/.datto` file we created in step 2. The `/.datto` file now contains a list of the blocks that have changed since our initial snapshot. We will use this in the next step to update our backed up image. It is important to not use the same file name that we specified in step 2 for this command. Otherwise, we would overwrite our list of changed blocks.
 
 7) Copy the changes:
 
-	update-img /dev/datto0 /.datto /backups/sda1-bkp
+	```update-img /dev/datto0 /.datto /backups/sda1-bkp```
 
 
 Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/datto0`), the list of changed blocks (`/.datto` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
 
 8) Clean up the leftover file:
 
-	rm /.datto
+	```rm /.datto```
 
 
 9) Go back to step 4 and repeat:
