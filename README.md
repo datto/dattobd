@@ -24,7 +24,9 @@ The primary intended use case of Dattobd is for backing up live Linux systems. T
 
 2) Create a snapshot:
 
-	```dbdctl setup-snapshot /dev/sda1 /.datto 0```
+	```
+	dbdctl setup-snapshot /dev/sda1 /.datto 0
+	```
 
 
 This will create a snapshot of the root volume at `/dev/datto0` with a backing COW file at `/.datto`. This file must exist on the volume that will be snapshotted.
