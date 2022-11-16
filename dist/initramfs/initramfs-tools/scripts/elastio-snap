@@ -14,7 +14,7 @@ case $1 in
         ;;
 esac
 
-modprobe elastio-sanp
+modprobe elastio-snap
 
 rbd="${ROOT#block:}"
 if [ -n "$rbd" ]; then
@@ -34,7 +34,7 @@ if [ -n "$rbd" ]; then
             ;;
     esac
 
-    echo "elastio-sanp: root block device = $rbd" > /dev/kmsg
+    echo "elastio-snap: root block device = $rbd" > /dev/kmsg
 
     # Device might not be ready
     if [ ! -b "$rbd" ]; then
@@ -44,7 +44,7 @@ if [ -n "$rbd" ]; then
     # Kernel cmdline might not specify rootfstype
     [ -z "$ROOTFSTYPE" ] && ROOTFSTYPE=$(blkid -s TYPE -o value $rbd)
 
-    echo "elastio-sanp: mounting $rbd as $ROOTFSTYPE" > /dev/kmsg
+    echo "elastio-snap: mounting $rbd as $ROOTFSTYPE" > /dev/kmsg
     blockdev --setro $rbd
     mount -t $ROOTFSTYPE -o ro $rbd /etc/elastio/dla/mnt > /dev/kmsg
     udevadm settle
@@ -52,7 +52,7 @@ if [ -n "$rbd" ]; then
     if [ -x /sbin/elastio_reload ]; then
         /sbin/elastio_reload
     else
-        echo "elastio-sanp: error: cannot reload tracking data: missing /sbin/elastio_reload" > /dev/kmsg
+        echo "elastio-snap: error: cannot reload tracking data: missing /sbin/elastio_reload" > /dev/kmsg
     fi
 
     umount -f /etc/elastio/dla/mnt > /dev/kmsg
