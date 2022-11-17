@@ -46,16 +46,20 @@ if [ -n "$rbd" ]; then
 
     echo "elastio-snap: mounting $rbd as $ROOTFSTYPE" > /dev/kmsg
     blockdev --setro $rbd
-    mount -t $ROOTFSTYPE -o ro $rbd /etc/elastio/dla/mnt > /dev/kmsg
-    udevadm settle
+    if mount -t $ROOTFSTYPE -o ro $rbd /etc/elastio/dla/mnt > /dev/kmsg ; then
+        udevadm settle
 
-    if [ -x /sbin/elastio_reload ]; then
-        /sbin/elastio_reload
+        if [ -x /sbin/elastio_reload ]; then
+            /sbin/elastio_reload
+        else
+            echo "elastio-snap: error: cannot reload tracking data: missing /sbin/elastio_reload" > /dev/kmsg
+        fi
+
+        umount -f /etc/elastio/dla/mnt > /dev/kmsg
     else
-        echo "elastio-snap: error: cannot reload tracking data: missing /sbin/elastio_reload" > /dev/kmsg
+        echo "elastio-snap: error: cannot reload tracking data: rootfs cannot be mount as readonly" > /dev/kmsg
     fi
 
-    umount -f /etc/elastio/dla/mnt > /dev/kmsg
     blockdev --setrw $rbd
 fi
 
