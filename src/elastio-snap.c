@@ -2823,7 +2823,7 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	bio_iter_bvec_t bvec;
 
 	if (!test_bit(COW_ON_BDEV, &dev->sd_cow_state)) {
-		return 0;
+		return 1;
 	}
 
 #ifdef HAVE_ENUM_REQ_OPF
