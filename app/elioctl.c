@@ -15,6 +15,8 @@
 
 #include "libelastio-snap.h"
 
+#define UNVERIFIED_STATE 4
+
 static void print_help(int status){
 	printf("Usage:\n");
 	printf("\telioctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor>\n");
@@ -24,6 +26,8 @@ static void print_help(int status){
 	printf("\telioctl transition-to-incremental <minor>\n");
 	printf("\telioctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\telioctl reconfigure [-c <cache size>] <minor>\n");
+	printf("\telioctl info <minor>\n");
+	printf("\telioctl get-free-minor\n");
 	printf("\telioctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
@@ -37,7 +41,10 @@ static int parse_ul(const char *str, unsigned long *out){
 
 	//check that string is an integer number and has a length
 	do{
-		if(!isdigit(*c)) goto error;
+		if(!isdigit(*c)){
+			errno = EINVAL;
+			goto error;
+		}
 		c++;
 	}while(*c);
 
@@ -65,7 +72,10 @@ static int parse_ui(const char *str, unsigned int *out){
 
 	//check that string is an integer number and has a length
 	do{
-		if(!isdigit(*c)) goto error;
+		if(!isdigit(*c)){
+			errno = EINVAL;
+			goto error;
+		}
 		c++;
 	}while(*c);
 
@@ -316,6 +326,83 @@ error:
 	return 0;
 }
 
+static int handle_info(int argc, char **argv){
+	int ret;
+	int i;
+	unsigned int minor;
+	struct elastio_snap_info info;
+
+	if(argc != 2){
+		errno = EINVAL;
+		goto error;
+	}
+
+	ret = parse_ui(argv[1], &minor);
+	if(ret) goto error;
+
+	ret = elastio_snap_info(minor, &info);
+	if(ret == 0) {
+		printf("{\n");
+		printf("\t\"minor\": %u,\n", info.minor);
+		printf("\t\"cow_file\": \"%s\",\n", info.cow);
+		printf("\t\"block_device\": \"%s\",\n", info.bdev);
+		printf("\t\"max_cache\": %lu,\n", info.cache_size);
+
+		if((info.state & UNVERIFIED_STATE) == 0) {
+			printf("\t\"fallocate\": %llu,\n", info.falloc_size);
+
+			printf("\t\"seq_id\": %llu,\n", info.seqid);
+
+			printf("\t\"uuid\": \"");
+			for(i = 0; i < COW_UUID_SIZE; i++) {
+				printf("%02x", (unsigned char)info.uuid[i]);
+			}
+			printf("\",\n");
+
+			if(info.version > COW_VERSION_0) {
+				printf("\t\"version\": %llu,\n", info.version);
+				printf("\t\"nr_changed_blocks\": %llu,\n", info.nr_changed_blocks);
+			}
+		}
+
+		if(info.error) printf("\t\"error\": %d,\n", info.error);
+
+		printf("\t\"state\": %lu\n", info.state);
+		printf("}\n");
+	}
+
+	return ret;
+
+error:
+	perror("error interpreting info parameters");
+	print_help(-1);
+	return 0;
+}
+
+static int handle_get_free_minor(int argc){
+	int minor;
+
+	if(argc != 1){
+		errno = EINVAL;
+		goto error;
+	}
+
+	minor = elastio_snap_get_free_minor();
+	if(minor < 0) {
+		return minor;
+	}
+
+	printf("%i\n", minor);
+
+	return 0;
+
+error:
+	perror("error interpreting get_free_minor parameters");
+	print_help(-1);
+	return 0;
+}
+
+
 int main(int argc, char **argv){
 	int ret = 0;
 
@@ -336,6 +423,8 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "transition-to-incremental")) ret = handle_transition_inc(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "transition-to-snapshot")) ret = handle_transition_snap(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
+	else if(!strcmp(argv[1], "info")) ret = handle_info(argc - 1, argv + 1);
+	else if(!strcmp(argv[1], "get-free-minor")) ret = handle_get_free_minor(argc - 1);
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
 

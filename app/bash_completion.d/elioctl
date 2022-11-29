@@ -4,7 +4,7 @@ _elioctl()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="setup-snapshot reload-snapshot reload-incremental destroy transition-to-incremental transition-to-snapshot reconfigure help"
+    opts="setup-snapshot reload-snapshot reload-incremental destroy transition-to-incremental transition-to-snapshot reconfigure info get-free-minor help"
 
     if [[ ${cur} == * ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

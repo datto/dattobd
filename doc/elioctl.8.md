@@ -63,6 +63,18 @@ Cleanly and completely removes the snapshot or incremental, unlinking the associ
 
 Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.
 
+### info
+
+`elioctl info <minor>`
+
+Allows you to get information about snapshot.
+
+### get-free-minor
+
+`elioctl get-free-minor`
+
+Allows you to get free minor value.
+
 ### EXAMPLES
 
 `# elioctl setup-snapshot /dev/sda1 /var/backup/elastio 4`
@@ -92,6 +104,29 @@ After a reboot, this command may be performed in the early stages of boot, befor
 `# elioctl reload-incremental /dev/sda5 /var/backup/elastio1 4`
 
 This will act the same as `reload-snapshot`, but for a device that was left in incremental mode.
+
+`# elioctl info 4`
+
+This will output information about snapshot.
+```
+{
+        "minor": 4,
+        "cow_file": "/var/backup/elastio1",
+        "block_device": "/dev/sda1",
+        "max_cache": 10,
+        "fallocate": 10485760,
+        "seq_id": 1,
+        "uuid": "e86eb4fe68e84b7d90a477e02d1311a3",
+        "version": 1,
+        "nr_changed_blocks": 1536,
+        "error": -27,
+        "state": 3
+}
+```
+
+`elioctl get-free-minor`
+
+This will output first free minor value.
 
 ## Bugs
 

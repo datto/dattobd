@@ -126,7 +126,7 @@ jobs:
             if $(which apt-get >/dev/null 2>&1); then
               export DEBIAN_FRONTEND=noninteractive
               sudo apt-get update
-              sudo -E apt-get install -y lvm2 mdadm
+              sudo -E apt-get install -y --force-yes lvm2 mdadm
             else
               # Fedora has rather weak mirrors. But we do not want to have failing builds because of this.
               set +e
