@@ -106,7 +106,7 @@
 
 
 Name:            elastio-snap
-Version:         0.11.0
+Version:         0.11.1
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -599,6 +599,29 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Thu Dec 15 2022 Stanislav Barantsev <sbarantsev@elastio.com> - 0.11.1
+- Fixed memory overflow on slow storages by splitting large bio requests in advance, if necessary
+- Fixed module compilation on 5.19.13
+- Fixed issue with sync when CoW is full on Fedora 35
+
+* Tue Nov 29 2022 Konstantin Germanov <kgermanov@axcient.com>
+- Shared all API to elioctl CLI: added commands `info` and `get-free-minor`
+- Fixed functionality of the redirected CoW file to another partition
+- Fixed rootfs mount on boot by typo fix in initramfs script
+- Adjusted appearance of errors in /proc/elastio-snap-info
+
+* Mon Oct 24 2022 Eugene Kovalenko <ikovalenko@elastio.com>
+- Added support for CentOS Stream 9
+
+* Wed Sep 14 2022 Stanislav Barantsev <sbarantsev@elastio.com>
+- Fixed refcnt become -1 at the snapshot creation on XFS
+- Fixed attempt to access beyond end of device
+- Fix slab cache kernel warnings on rmmod
+
+* Tue Aug 23 2022 Eugene Kovalenko <ikovalenko@elastio.com>
+- Fixed driver stuck processing BIOs on ext4 RAID1 volume on Debian 9
+- Fixed kernel panic on snapshot destroy for a partition (not a disk)
 
 * Wed Aug 3 2022 Eugene Kovalenko <ikovalenko@elastio.com> - 0.11.0
 - Added support of Linux kernel 5.18 as on Fedora 36

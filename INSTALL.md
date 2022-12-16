@@ -9,7 +9,7 @@ Elastio provides repositories for the following Linux distributions and architec
 |             Distro Name            |  Distro Ver | x86_64 | aarch64 |
 |:----------------------------------:|------------:|:------:|:-------:|
 | RHEL/CentOS                        |           7 | +      | -       |
-| RHEL/CentOS/Alma Linux/Rocky Linux |           8 | +      | +       |
+| RHEL/CentOS/Alma Linux/Rocky Linux |         8-9 | +      | +       |
 | Amazon Linux                       |           2 | +      | +       |
 | Fedora                             |       31-34 | +      | -       |
 |                                    |       35-36 | +      | +       |
