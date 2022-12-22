@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include "libelastio-snap.h"
 
-int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size){
+int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long fallocated_space, unsigned long cache_size, bool ignore_snap_errors){
 	int fd, ret;
 	struct setup_params sp;
 
@@ -23,6 +23,7 @@ int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsig
 	sp.cow = cow;
 	sp.fallocated_space = fallocated_space;
 	sp.cache_size = cache_size;
+	sp.ignore_snap_errors = ignore_snap_errors;
 
 	ret = ioctl(fd, IOCTL_SETUP_SNAP, &sp);
 
@@ -30,7 +31,7 @@ int elastio_snap_setup_snapshot(unsigned int minor, char *bdev, char *cow, unsig
 	return ret;
 }
 
-int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsigned long cache_size, bool ignore_snap_errors){
 	int fd, ret;
 	struct reload_params rp;
 
@@ -41,6 +42,7 @@ int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsi
 	rp.bdev = bdev;
 	rp.cow = cow;
 	rp.cache_size = cache_size;
+	rp.ignore_snap_errors = ignore_snap_errors;
 
 	ret = ioctl(fd, IOCTL_RELOAD_SNAP, &rp);
 
@@ -48,7 +50,7 @@ int elastio_snap_reload_snapshot(unsigned int minor, char *bdev, char *cow, unsi
 	return ret;
 }
 
-int elastio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size){
+int elastio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, unsigned long cache_size, bool ignore_snap_errors){
 	int fd, ret;
 	struct reload_params rp;
 
@@ -59,6 +61,7 @@ int elastio_snap_reload_incremental(unsigned int minor, char *bdev, char *cow, u
 	rp.bdev = bdev;
 	rp.cow = cow;
 	rp.cache_size = cache_size;
+	rp.ignore_snap_errors = ignore_snap_errors;
 
 	ret = ioctl(fd, IOCTL_RELOAD_INC, &rp);
 

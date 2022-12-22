@@ -71,10 +71,11 @@ class TestSetup(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], 0)
-        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
         self.assertEqual(snapdev["cow"], "/{}".format(self.cow_file))
         self.assertEqual(snapdev["bdev"], self.device)
         self.assertEqual(snapdev["version"], 1)
+        self.assertEqual(snapdev["ignore_snap_errors"], False)
 
     def test_setup_2_volumes(self):
         # Setup device #1 at the root volume
@@ -99,13 +100,14 @@ class TestSetup(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], 0)
-        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
         self.assertEqual(snapdev["cow"], "/{}".format(cow_file))
         self.assertEqual(snapdev["bdev"], device)
         self.assertEqual(snapdev["version"], 1)
+        self.assertEqual(snapdev["ignore_snap_errors"], False)
 
         # Setup device number 2, as ususally on an external disk or on a loopback device
-        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, ignore_snap_errors=True), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
         # Check the 2nd snapshot device
@@ -115,10 +117,11 @@ class TestSetup(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], 0)
-        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
         self.assertEqual(snapdev["cow"], "/{}".format(self.cow_file))
         self.assertEqual(snapdev["bdev"], self.device)
         self.assertEqual(snapdev["version"], 1)
+        self.assertEqual(snapdev["ignore_snap_errors"], True)
 
         # Destroy 1st snapshot device
         self.assertEqual(elastio_snap.destroy(minor), 0)

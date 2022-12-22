@@ -19,9 +19,9 @@
 
 static void print_help(int status){
 	printf("Usage:\n");
-	printf("\telioctl setup-snapshot [-c <cache size>] [-f fallocate] <block device> <cow file> <minor>\n");
-	printf("\telioctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>\n");
-	printf("\telioctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>\n");
+	printf("\telioctl setup-snapshot [-c <cache size>] [-f fallocate] [-i (ignore snap errors)] <block device> <cow file> <minor>\n");
+	printf("\telioctl reload-snapshot [-c <cache size>] [-i (ignore snap errors)] <block device> <cow file> <minor>\n");
+	printf("\telioctl reload-incremental [-c <cache size>] [-i (ignore snap errors)] <block device> <cow file> <minor>\n");
 	printf("\telioctl destroy <minor>\n");
 	printf("\telioctl transition-to-incremental <minor>\n");
 	printf("\telioctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
@@ -31,7 +31,10 @@ static void print_help(int status){
 	printf("\telioctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
-	printf("note: if the -c or -f options are not specified for any given call, module defaults are used.\n");
+	printf("note:\n");
+	printf("  * if the -c or -f options are not specified for any given call, module defaults are used.\n");
+	printf("  * -i allows to not propagate IO errors on snapshot read operations when the snapshot is in the failed state.\n");
+	printf("    it should be specified to avoid SIGBUS on an error while reading the snapshot device as a memory-mapped file.\n");
 	exit(status);
 }
 
@@ -101,10 +104,11 @@ static int handle_setup_snap(int argc, char **argv){
 	int ret, c;
 	unsigned int minor;
 	unsigned long cache_size = 0, fallocated_space = 0;
+	bool ignore_snap_errors = false;
 	char *bdev, *cow;
 
-	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "c:f:")) != -1){
+	//get cache size, fallocated space and ignore errors on snap dev params, if given
+	while((c = getopt(argc, argv, "c:f:i")) != -1){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
@@ -113,6 +117,9 @@ static int handle_setup_snap(int argc, char **argv){
 		case 'f':
 			ret = parse_ul(optarg, &fallocated_space);
 			if(ret) goto error;
+			break;
+		case 'i':
+			ignore_snap_errors = true;
 			break;
 		default:
 			errno = EINVAL;
@@ -131,7 +138,7 @@ static int handle_setup_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return elastio_snap_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size);
+	return elastio_snap_setup_snapshot(minor, bdev, cow, fallocated_space, cache_size, ignore_snap_errors);
 
 error:
 	perror("error interpreting setup snapshot parameters");
@@ -144,13 +151,17 @@ static int handle_reload_snap(int argc, char **argv){
 	unsigned int minor;
 	unsigned long cache_size = 0;
 	char *bdev, *cow;
+	bool ignore_snap_errors = false;
 
-	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "c:")) != -1){
+	//get cache size, ignore_errors if given
+	while((c = getopt(argc, argv, "c:i")) != -1){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
 			if(ret) goto error;
+			break;
+		case 'i':
+			ignore_snap_errors = true;
 			break;
 		default:
 			errno = EINVAL;
@@ -169,7 +180,7 @@ static int handle_reload_snap(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return elastio_snap_reload_snapshot(minor, bdev, cow, cache_size);
+	return elastio_snap_reload_snapshot(minor, bdev, cow, cache_size, ignore_snap_errors);
 
 error:
 	perror("error interpreting reload snapshot parameters");
@@ -182,13 +193,17 @@ static int handle_reload_inc(int argc, char **argv){
 	unsigned int minor;
 	unsigned long cache_size = 0;
 	char *bdev, *cow;
+	bool ignore_snap_errors = false;
 
-	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "c:")) != -1){
+	//get cache size, ignore_errors and fallocated space params, if given
+	while((c = getopt(argc, argv, "c:i")) != -1){
 		switch(c){
 		case 'c':
 			ret = parse_ul(optarg, &cache_size);
 			if(ret) goto error;
+			break;
+		case 'i':
+			ignore_snap_errors = true;
 			break;
 		default:
 			errno = EINVAL;
@@ -207,7 +222,7 @@ static int handle_reload_inc(int argc, char **argv){
 	ret = parse_ui(argv[optind + 2], &minor);
 	if(ret) goto error;
 
-	return elastio_snap_reload_incremental(minor, bdev, cow, cache_size);
+	return elastio_snap_reload_incremental(minor, bdev, cow, cache_size, ignore_snap_errors);
 
 error:
 	perror("error interpreting reload incremental parameters");
@@ -261,7 +276,7 @@ static int handle_transition_snap(int argc, char **argv){
 	unsigned long fallocated_space = 0;
 	char *cow;
 
-	//get cache size and fallocated space params, if given
+	//get fallocated space param, if given
 	while((c = getopt(argc, argv, "f:")) != -1){
 		switch(c){
 		case 'f':
@@ -367,7 +382,8 @@ static int handle_info(int argc, char **argv){
 
 		if(info.error) printf("\t\"error\": %d,\n", info.error);
 
-		printf("\t\"state\": %lu\n", info.state);
+		printf("\t\"state\": %lu,\n", info.state);
+		printf("\t\"ignore_snap_errors\": %i\n", info.ignore_snap_errors);
 		printf("}\n");
 	}
 

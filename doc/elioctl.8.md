@@ -19,23 +19,26 @@ This manual page describes `elioctl` briefly. More detail is available in the Gi
     -f fallocate
          Specify the maximum size of the COW file on disk.
 
+    -i
+         Specify to ignore IO errors while reading a snapshot device in case of any error. This is useful to avoid SIGBUS when using the snapshot devise as a memory-mapped file.
+
 ## SUB-COMMANDS
 
 ### setup-snapshot
 
-`elioctl setup-snapshot [-c <cache size>] [-f <fallocate>] <block device> <cow file path> <minor>`
+`elioctl setup-snapshot [-c <cache size>] [-f <fallocate>] [-i] <block device> <cow file path> <minor>`
 
 Sets up a snapshot of `<block device>`, saving all COW data to `<cow file path>`. The snapshot device will be `/dev/elastio-snap<minor>`. The minor number will be used as a reference number for all other `elioctl` commands. `<cow file path>` must be a path on the `<block device>`.
 
 ### reload-snapshot
 
-`elioctl reload-snapshot [-c <cache size>] <block device> <cow file> <minor>`
+`elioctl reload-snapshot [-c <cache size>] [-i] <block device> <cow file> <minor>`
 
 Reloads a snapshot. This command is meant to be run before the block device is mounted, after a reboot or after the driver is unloaded. It notifies the kernel driver to expect the block device specified to come back online. This command requires that the snapshot was cleanly unmounted in snapshot mode beforehand. If this is not the case, the snapshot will be put into the failure state once it attempts to come online. The minor number will be used as a reference number for all other `elioctl` commands.
 
 ### reload-incremental
 
-`elioctl reload-incremental [-c <cache size>] <block device> <cow file> <minor>`
+`elioctl reload-incremental [-c <cache size>] [-i] <block device> <cow file> <minor>`
 
 Reloads a block device that was in incremental mode. See `reload-snapshot` for restrictions.
 

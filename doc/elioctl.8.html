@@ -94,25 +94,28 @@
 
 -f fallocate
      Specify the maximum size of the COW file on disk.
+
+-i
+     Specify to ignore IO errors while reading a snapshot device in case of any error. This is useful to avoid SIGBUS when using the snapshot devise as a memory-mapped file.
 </code></pre>
 
 <h2 id="SUB-COMMANDS">SUB-COMMANDS</h2>
 
 <h3 id="setup-snapshot">setup-snapshot</h3>
 
-<p><code>elioctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] &lt;block device> &lt;cow file path> &lt;minor></code></p>
+<p><code>elioctl setup-snapshot [-c &lt;cache size>] [-f &lt;fallocate>] [-i] &lt;block device> &lt;cow file path> &lt;minor></code></p>
 
 <p>Sets up a snapshot of <code>&lt;block device></code>, saving all COW data to <code>&lt;cow file path></code>. The snapshot device will be <code>/dev/elastio-snap&lt;minor></code>. The minor number will be used as a reference number for all other <code>elioctl</code> commands. <code>&lt;cow file path></code> must be a path on the <code>&lt;block device></code>.</p>
 
 <h3 id="reload-snapshot">reload-snapshot</h3>
 
-<p><code>elioctl reload-snapshot [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
+<p><code>elioctl reload-snapshot [-c &lt;cache size>] [-i] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
 <p>Reloads a snapshot. This command is meant to be run before the block device is mounted, after a reboot or after the driver is unloaded. It notifies the kernel driver to expect the block device specified to come back online. This command requires that the snapshot was cleanly unmounted in snapshot mode beforehand. If this is not the case, the snapshot will be put into the failure state once it attempts to come online. The minor number will be used as a reference number for all other <code>elioctl</code> commands.</p>
 
 <h3 id="reload-incremental">reload-incremental</h3>
 
-<p><code>elioctl reload-incremental [-c &lt;cache size>] &lt;block device> &lt;cow file> &lt;minor></code></p>
+<p><code>elioctl reload-incremental [-c &lt;cache size>] [-i] &lt;block device> &lt;cow file> &lt;minor></code></p>
 
 <p>Reloads a block device that was in incremental mode. See <code>reload-snapshot</code> for restrictions.</p>
 

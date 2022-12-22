@@ -61,7 +61,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], -errno.EFBIG)
-        self.assertEqual(snapdev["state"], 3)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
 
     def test_transition_mod_sync_cow_full(self):
         scratch = "{}/scratch".format(self.mount)
@@ -86,7 +86,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], -errno.EFBIG)
-        self.assertEqual(snapdev["state"], 2)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE)
 
 
 if __name__ == "__main__":

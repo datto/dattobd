@@ -106,7 +106,7 @@
 
 
 Name:            elastio-snap
-Version:         0.11.1
+Version:         0.12.0
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -599,6 +599,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Wed Dec 21 2022 Eugene Kovalenko <ikovalenko@elastio.com> - 0.12.0
+- Simplified error handling, got rid of sd_memory_fail_code and sd_cow_fail_state snapshot struct members
+- Added arg to some IOCTLs and lib funcs to switch off IO errors on read of a snap device in the failed state (helps to avoid SIGBUS on mem-mapped snap device)
 
 * Thu Dec 15 2022 Stanislav Barantsev <sbarantsev@elastio.com> - 0.11.1
 - Fixed memory overflow on slow storages by splitting large bio requests in advance, if necessary

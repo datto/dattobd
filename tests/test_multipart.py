@@ -42,7 +42,7 @@ class TestMultipart(DeviceTestCaseMultipart):
             self.assertIsNotNone(snapdev)
 
             self.assertEqual(snapdev["error"], 0)
-            self.assertEqual(snapdev["state"], 3)
+            self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
             self.assertEqual(snapdev["cow"], "/{}".format(self.cow_file))
             self.assertEqual(snapdev["bdev"], self.devices[i])
             self.assertEqual(snapdev["version"], 1)
