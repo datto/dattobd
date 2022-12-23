@@ -74,29 +74,16 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: .github/scripts/start_box.sh
 
-      - name: Boot Fedora 32, 35, 36 into original kernel version
-        if: "${{ matrix.distro == 'fedora32' || matrix.distro == 'fedora35' || matrix.distro == 'fedora36' }}"
+      - name: Boot Fedora 32 into kernel 5.9
+        if: "${{ matrix.distro == 'fedora32' && matrix.arch == 'amd64' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            set -x
-            arch=$(rpm --eval \%_arch)
-            ver=$(rpm -E \%fedora)
-            case $ver in
-              32) k_ver=5.9.16
-                  k_patch=100
-              ;;
-              35) k_ver=5.15.18
-                  k_patch=200
-              ;;
-              36) k_ver=5.17.14
-                  k_patch=300
-              ;;
-            esac
-            for package in "kernel-core" "kernel-modules" "kernel" "kernel-devel"; do
-              sudo yum localinstall -y https://kojipkgs.fedoraproject.org/packages/kernel/${k_ver}/${k_patch}.fc${ver}/${arch}/${package}-${k_ver}-${k_patch}.fc${ver}.${arch}.rpm
-            done
-            '
-          vagrant reload ${{env.INSTANCE_NAME}}
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-core-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-modules-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-5.9.16-100.fc32.x86_64.rpm
+            sudo yum localinstall -y https://kojipkgs.fedoraproject.org//packages/kernel/5.9.16/100.fc32/x86_64/kernel-devel-5.9.16-100.fc32.x86_64.rpm
+            sudo reboot now' || true
+          sleep 5
         working-directory: ${{env.BOX_DIR}}
 
       # Please refer to https://github.com/elastio/devboxes/pull/230
@@ -136,7 +123,6 @@ jobs:
       - name: Install LVM and RAID tools
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            set -x
             if $(which apt-get >/dev/null 2>&1); then
               export DEBIAN_FRONTEND=noninteractive
               sudo apt-get update

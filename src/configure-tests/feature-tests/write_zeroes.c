@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2020 Elastio Software Inc.
+ * Copyright (C) 2022 Elastio Software Inc.
  */
 
-// kernel_version >= 5.19
+// kernel_version >= 4.10
 
 #include "includes.h"
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-	struct request_queue *q;
-	blk_cleanup_queue(q);
+		int n = (int)REQ_OP_WRITE_ZEROES;
+		(void)n;
 }
+
