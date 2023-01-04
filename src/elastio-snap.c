@@ -9,7 +9,7 @@
 #include "kernel-config.h"
 #include "elastio-snap.h"
 
-//current lowest supported kernel = 2.6.18
+//current lowest supported kernel = 3.10
 
 //basic information
 MODULE_LICENSE("GPL");
@@ -414,31 +414,7 @@ static void elastio_snap_bio_endio(struct bio *bio, int err){
 #define UMOUNT_NOFOLLOW 0
 #endif
 
-#if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
-
-#ifndef min_not_zero
-#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
-#endif
-
-int blk_stack_limits(struct request_queue *t, struct request_queue *b, sector_t offset){
-	t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
-	t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-	t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
-	t->seg_boundary_mask = min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-	t->max_phys_segments = min_not_zero(t->max_phys_segments, b->max_phys_segments);
-	t->max_hw_segments = min_not_zero(t->max_hw_segments, b->max_hw_segments);
-	t->max_segment_size = min_not_zero(t->max_segment_size, b->max_segment_size);
-	return 0;
-}
-
-int elastio_snap_bdev_stack_limits(struct request_queue *t, struct block_device *bdev, sector_t start){
-	struct request_queue *bq = bdev_get_queue(bdev);
-	start += get_start_sect(bdev);
-	return blk_stack_limits(t, bq, start << 9);
-}
-
-#elif !defined(HAVE_BDEV_STACK_LIMITS)
+#if !defined(HAVE_BDEV_STACK_LIMITS)
 //#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 
 int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
@@ -463,10 +439,6 @@ static int kern_path(const char *name, unsigned int flags, struct path *path){
 	}
 	return ret;
 }
-#endif
-
-#ifndef HAVE_BLK_SET_DEFAULT_LIMITS
-#define blk_set_default_limits(ql)
 #endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG

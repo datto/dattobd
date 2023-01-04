@@ -108,7 +108,7 @@ These packages will install and configure the kernel module to start during the 
 
 ### Dependencies
 
-Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below. The lowest supported kernel is 2.6.18.
+Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below. The lowest supported kernel is 3.10.
 
 #### Debian/Ubuntu
 ```
