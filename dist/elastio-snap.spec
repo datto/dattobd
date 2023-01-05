@@ -6,6 +6,9 @@
 # Location to install kernel module sources
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
+# Location for systemd shutdown script
+%global _systemd_shutdown /lib/systemd/system-shutdown
+
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
@@ -398,6 +401,10 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 %endif
 %endif
 
+# Install systemd shutdown script
+mkdir -p %{buildroot}%{_systemd_shutdown}
+install -m 755 dist/system-shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/umount_rootfs.shutdown
+
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
 
@@ -514,6 +521,9 @@ rm -rf %{buildroot}
 %endif
 %endif
 %endif
+# Install systemd shutdown script
+%{_systemd_shutdown}/umount_rootfs.shutdown
+
 %doc README.md doc/STRUCTURE.md
 %if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}

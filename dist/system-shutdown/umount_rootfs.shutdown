@@ -1,0 +1,5 @@
+#!/bin/sh
+
+sync
+mount -o remount,ro /
+umount /
