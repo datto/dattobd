@@ -109,7 +109,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.0
+Version:         0.12.1
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -609,6 +609,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Wed Jan 4 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.1
+- Fixed module compilation on Linux 6.0.14 for complete Fedora 37 support
+- Implemented 6.0.X Linux kernel support
+
+* Wed Dec 23 2022 Konstantin Germanov <kgermanov@axcient.com>
+- Added sytemd shutdown script for consistency of the rootfs in snapshots
 
 * Wed Dec 21 2022 Eugene Kovalenko <ikovalenko@elastio.com> - 0.12.0
 - Simplified error handling, got rid of sd_memory_fail_code and sd_cow_fail_state snapshot struct members

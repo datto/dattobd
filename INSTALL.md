@@ -12,7 +12,7 @@ Elastio provides repositories for the following Linux distributions and architec
 | RHEL/CentOS/Alma Linux/Rocky Linux |         8-9 | +      | +       |
 | Amazon Linux                       |           2 | +      | +       |
 | Fedora                             |       31-34 | +      | -       |
-|                                    |       35-36 | +      | +       |
+|                                    |       35-37 | +      | +       |
 | Debian                             |         8-9 | +      | -       |
 |                                    |       10-11 | +      | +       |
 | Ubuntu                             | 16.04-18.04 | +      | -       |
@@ -108,7 +108,7 @@ These packages will install and configure the kernel module to start during the 
 
 ### Dependencies
 
-Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below. The lowest supported kernel is 3.10.
+Note that this build process, while it _should_ work with any distribution, has only been tested with the distributions below. The lowest supported kernel is 3.10.0.
 
 #### Debian/Ubuntu
 ```
