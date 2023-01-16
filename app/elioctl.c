@@ -16,6 +16,7 @@
 #include "libelastio-snap.h"
 
 #define UNVERIFIED_STATE 4
+#define COW_ON_BDEV (1 << 1)
 
 static void print_help(int status){
 	printf("Usage:\n");
@@ -383,7 +384,8 @@ static int handle_info(int argc, char **argv){
 		if(info.error) printf("\t\"error\": %d,\n", info.error);
 
 		printf("\t\"state\": %lu,\n", info.state);
-		printf("\t\"ignore_snap_errors\": %i\n", info.ignore_snap_errors);
+		printf("\t\"ignore_snap_errors\": %i,\n", info.ignore_snap_errors);
+		printf("\t\"cow_on_bdev\": %s\n", (info.flags & COW_ON_BDEV) != 0 ? "true" : "false");
 		printf("}\n");
 	}
 

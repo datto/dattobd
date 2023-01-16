@@ -42,10 +42,17 @@ class TestDestroy(DeviceTestCase):
 
     def test_destroy_dormant_snapshot(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        info = elastio_snap.info(self.minor)
+        self.assertEqual(info["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
 
         util.unmount(self.mount)
         self.addCleanup(os.remove, self.cow_full_path)
         self.addCleanup(util.mount, self.device, self.mount)
+
+        info = elastio_snap.info(self.minor)
+        self.assertEqual(info["state"], elastio_snap.State.SNAPSHOT)
 
         self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))
@@ -53,11 +60,18 @@ class TestDestroy(DeviceTestCase):
 
     def test_destroy_dormant_incremental(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
+
+        info = elastio_snap.info(self.minor)
+        self.assertEqual(info["state"], elastio_snap.State.ACTIVE)
 
         util.unmount(self.mount)
         self.addCleanup(os.remove, self.cow_full_path)
         self.addCleanup(util.mount, self.device, self.mount)
+
+        info = elastio_snap.info(self.minor)
+        self.assertEqual(info["state"], 0)
 
         self.assertEqual(elastio_snap.destroy(self.minor), 0)
         self.assertFalse(os.path.exists(self.snap_device))

@@ -14,6 +14,9 @@ ffi.cdef("""
 #define COW_UUID_SIZE 16
 #define PATH_MAX 4096
 
+//macros for defining the flags
+#define COW_ON_BDEV 1
+
 //macros for defining the state of a tracing struct (bit offsets)
 #define SNAPSHOT 0
 #define ACTIVE 1
@@ -21,6 +24,7 @@ ffi.cdef("""
 
 struct elastio_snap_info {
     unsigned int minor;
+    unsigned int flags;
     unsigned long state;
     int error;
     unsigned long cache_size;
@@ -44,6 +48,11 @@ int elastio_snap_reconfigure(unsigned int minor, unsigned long cache_size);
 int elastio_snap_info(unsigned int minor, struct elastio_snap_info *info);
 int elastio_snap_get_free_minor(void);
 """)
+
+
+class Flags:
+    COW_ON_BDEV = 2
+
 
 lib = ffi.dlopen("../lib/libelastio-snap.so")
 
@@ -155,6 +164,7 @@ def info(minor):
 
     return {
         "minor": minor,
+        "flags": di.flags,
         "state": di.state,
         "error": di.error,
         "cache_size": di.cache_size,

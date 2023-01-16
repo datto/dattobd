@@ -83,6 +83,7 @@ struct cow_header{
 
 struct elastio_snap_info{
 	unsigned int minor;
+	unsigned int flags;
 	unsigned long state;
 	int error;
 	unsigned long cache_size;

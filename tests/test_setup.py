@@ -76,6 +76,7 @@ class TestSetup(DeviceTestCase):
         self.assertEqual(snapdev["bdev"], self.device)
         self.assertEqual(snapdev["version"], 1)
         self.assertEqual(snapdev["ignore_snap_errors"], False)
+        self.assertEqual(snapdev["flags"], elastio_snap.Flags.COW_ON_BDEV)
 
     def test_setup_2_volumes(self):
         # Setup device #1 at the root volume
@@ -105,6 +106,7 @@ class TestSetup(DeviceTestCase):
         self.assertEqual(snapdev["bdev"], device)
         self.assertEqual(snapdev["version"], 1)
         self.assertEqual(snapdev["ignore_snap_errors"], False)
+        self.assertEqual(snapdev["flags"], elastio_snap.Flags.COW_ON_BDEV)
 
         # Setup device number 2, as ususally on an external disk or on a loopback device
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, ignore_snap_errors=True), 0)
@@ -122,6 +124,7 @@ class TestSetup(DeviceTestCase):
         self.assertEqual(snapdev["bdev"], self.device)
         self.assertEqual(snapdev["version"], 1)
         self.assertEqual(snapdev["ignore_snap_errors"], True)
+        self.assertEqual(snapdev["flags"], elastio_snap.Flags.COW_ON_BDEV)
 
         # Destroy 1st snapshot device
         self.assertEqual(elastio_snap.destroy(minor), 0)

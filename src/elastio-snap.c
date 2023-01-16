@@ -1723,6 +1723,19 @@ static int pathname_concat(const char *pathname1, const char *pathname2, char **
 	return 0;
 }
 
+static inline bool pathname_exists(const char *pathname){
+	int ret;
+	struct path path = {};
+
+	ret = kern_path(pathname, LOOKUP_FOLLOW, &path);
+	if(ret){
+		return false;
+	}
+
+	path_put(&path);
+	return true;
+}
+
 static int user_mount_pathname_concat(const char __user *user_mount_path, const char *rel_path, char **path_out){
 	int ret;
 	char *mount_path;
@@ -3544,6 +3557,12 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 
+	if (!test_bit(COW_ON_BDEV, &dev->sd_cow_state)){
+		// if the cow is non-resident, then we don't need to check if
+		// the bio is for the cow file.
+		ret = inc_make_sset(dev, bio_sector(bio), bio_size(bio) / SECTOR_SIZE);
+		goto out;
+	}
 #if (defined HAVE_ENUM_REQ_OPF) || \
 	(defined HAVE_ENUM_REQ_OP && defined HAVE_WRITE_ZEROES)
 	// HAVE_ENUM_REQ_OPF: KERNEL_VERSION >= 4.10 && KERNEL_VERSION <= 5.19
@@ -4003,6 +4022,7 @@ static void __tracer_copy_base_dev(const struct snap_device *src, struct snap_de
 	dest->sd_sect_off = src->sd_sect_off;
 	dest->sd_base_dev = src->sd_base_dev;
 	dest->sd_bdev_path = src->sd_bdev_path;
+	dest->sd_cow_state = src->sd_cow_state;
 	dest->sd_ignore_snap_errors = src->sd_ignore_snap_errors;
 }
 
@@ -4045,17 +4065,28 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev) {
 	return ret;
 }
 
-static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, const char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, const uint8_t *uuid, uint64_t seqid, int open_method){
+static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev, const char __user *user_mount_path, const char *cow_path, sector_t size, unsigned long fallocated_space, unsigned long cache_size, const uint8_t *uuid, uint64_t seqid, int open_method){
 	int ret;
 	uint64_t max_file_size;
 	char bdev_name[BDEVNAME_SIZE];
+	char *cow_path_full = (char *)cow_path;
 
 	elastio_snap_bdevname(bdev, bdev_name);
 
+	if(user_mount_path){
+		ret = user_mount_pathname_concat(user_mount_path, cow_path, &cow_path_full);
+		if(ret) goto error;
+
+		if(!pathname_exists(cow_path_full)){
+			kfree(cow_path_full);
+			cow_path_full = (char *)cow_path;
+		}
+	}
+
 	if(open_method == 3){
 		//reopen the cow manager
-		LOG_DEBUG("reopening the cow manager with file '%s'", cow_path);
-		ret = cow_reopen(dev->sd_cow, cow_path);
+		LOG_DEBUG("reopening the cow manager with file '%s'", cow_path_full);
+		ret = cow_reopen(dev->sd_cow, cow_path_full);
 		if(ret) goto error;
 	}else{
 		if(!cache_size) dev->sd_cache_size = elastio_snap_cow_max_memory_default;
@@ -4075,12 +4106,12 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 			//create and open the cow manager
 			LOG_DEBUG("creating cow manager");
-			ret = cow_init(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, uuid, seqid, &dev->sd_cow);
+			ret = cow_init(cow_path_full, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, uuid, seqid, &dev->sd_cow);
 			if(ret) goto error;
 		}else{
 			//reload the cow manager
 			LOG_DEBUG("reloading cow manager");
-			ret = cow_reload(cow_path, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, (open_method == 2), &dev->sd_cow);
+			ret = cow_reload(cow_path_full, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, (open_method == 2), &dev->sd_cow);
 			if(ret) goto error;
 
 			dev->sd_falloc_size = dev->sd_cow->file_max;
@@ -4096,17 +4127,20 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 		dev->sd_cow_inode = elastio_snap_get_dentry(dev->sd_cow->filp)->d_inode;
 	}
 
+	if(cow_path_full != cow_path) kfree(cow_path_full);
+
 	return 0;
 
 error:
 	LOG_ERROR(ret, "error setting up cow manager");
 	if(open_method != 3) __tracer_destroy_cow_free(dev);
+	if(cow_path_full != cow_path) kfree(cow_path_full);
 	return ret;
 }
-#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, cache_size, uuid, seqid) __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space, cache_size, uuid, seqid, 0)
-#define __tracer_setup_cow_reload_snap(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, NULL, 0, 1)
-#define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, NULL, 0, 2)
-#define __tracer_setup_cow_reopen(dev, bdev, cow_path) __tracer_setup_cow(dev, bdev, cow_path, 0, 0, 0, NULL, 0, 3)
+#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, cache_size, uuid, seqid) __tracer_setup_cow(dev, bdev, NULL, cow_path, size, fallocated_space, cache_size, uuid, seqid, 0)
+#define __tracer_setup_cow_reload_snap(dev, bdev, user_mount_path, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, user_mount_path, cow_path, size, 0, cache_size, NULL, 0, 1)
+#define __tracer_setup_cow_reload_inc(dev, bdev, user_mount_path, cow_path, size, cache_size) __tracer_setup_cow(dev, bdev, user_mount_path, cow_path, size, 0, cache_size, NULL, 0, 2)
+#define __tracer_setup_cow_reopen(dev, bdev, user_mount_path, cow_path) __tracer_setup_cow(dev, bdev, user_mount_path, cow_path, 0, 0, 0, NULL, 0, 3)
 
 static void __tracer_copy_cow(const struct snap_device *src, struct snap_device *dest){
 	dest->sd_cow = src->sd_cow;
@@ -4127,8 +4161,14 @@ static int __tracer_setup_cow_path(struct snap_device *dev, const struct file *c
 	int ret;
 
 	//get the pathname of the cow file (relative to the mountpoint)
-	LOG_DEBUG("getting relative pathname of cow file");
-	ret = dentry_get_relative_pathname(elastio_snap_get_dentry(cow_file), &dev->sd_cow_path, NULL);
+	if(test_bit(COW_ON_BDEV, &dev->sd_cow_state)){
+		LOG_DEBUG("getting relative pathname of cow file");
+		ret = dentry_get_relative_pathname(elastio_snap_get_dentry(cow_file), &dev->sd_cow_path, NULL);
+	}else{
+		LOG_DEBUG("getting absolute pathname of cow file");
+		ret = file_get_absolute_pathname(cow_file, &dev->sd_cow_path, NULL);
+	}
+
 	if(ret) goto error;
 
 	return 0;
@@ -4742,6 +4782,8 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 		info->seqid = 0;
 		memset(info->uuid, 0, COW_UUID_SIZE);
 	}
+
+	info->flags = (unsigned int)dev->sd_cow_state; //TODO: May be rename to sd_flags
 }
 
 /************************IOCTL HANDLER FUNCTIONS************************/
@@ -5184,7 +5226,7 @@ error:
 static void __tracer_unverified_snap_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
 	unsigned int minor = dev->sd_minor;
-	char *cow_path, *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
+	char *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
 	unsigned long cache_size = dev->sd_cache_size;
 
 	//remove tracing while we setup the struct
@@ -5201,12 +5243,8 @@ static void __tracer_unverified_snap_to_active(struct snap_device *dev, const ch
 	ret = __tracer_setup_base_dev(dev, bdev_path);
 	if(ret) goto error;
 
-	//generate the full pathname
-	ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
-	if(ret) goto error;
-
 	//setup the cow manager
-	ret = __tracer_setup_cow_reload_snap(dev, dev->sd_base_dev, cow_path, dev->sd_size, dev->sd_cache_size);
+	ret = __tracer_setup_cow_reload_snap(dev, dev->sd_base_dev, user_mount_path, rel_path, dev->sd_size, dev->sd_cache_size);
 	if(ret) goto error;
 
 	//setup the cow path
@@ -5229,7 +5267,6 @@ static void __tracer_unverified_snap_to_active(struct snap_device *dev, const ch
 
 	kfree(bdev_path);
 	kfree(rel_path);
-	kfree(cow_path);
 
 	return;
 
@@ -5240,13 +5277,12 @@ error:
 	tracer_set_fail_state(dev, ret);
 	kfree(bdev_path);
 	kfree(rel_path);
-	if(cow_path) kfree(cow_path);
 }
 
 static void __tracer_unverified_inc_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
 	unsigned int minor = dev->sd_minor;
-	char *cow_path, *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
+	char *bdev_path = dev->sd_bdev_path, *rel_path = dev->sd_cow_path;
 	unsigned long cache_size = dev->sd_cache_size;
 
 	//remove tracing while we setup the struct
@@ -5263,12 +5299,8 @@ static void __tracer_unverified_inc_to_active(struct snap_device *dev, const cha
 	ret = __tracer_setup_base_dev(dev, bdev_path);
 	if(ret) goto error;
 
-	//generate the full pathname
-	ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
-	if(ret) goto error;
-
 	//setup the cow manager
-	ret = __tracer_setup_cow_reload_inc(dev, dev->sd_base_dev, cow_path, dev->sd_size, dev->sd_cache_size);
+	ret = __tracer_setup_cow_reload_inc(dev, dev->sd_base_dev, user_mount_path, rel_path, dev->sd_size, dev->sd_cache_size);
 	if(ret) goto error;
 
 	//setup the cow path
@@ -5287,7 +5319,6 @@ static void __tracer_unverified_inc_to_active(struct snap_device *dev, const cha
 
 	kfree(bdev_path);
 	kfree(rel_path);
-	kfree(cow_path);
 
 	return;
 
@@ -5298,19 +5329,12 @@ error:
 	tracer_set_fail_state(dev, ret);
 	kfree(bdev_path);
 	kfree(rel_path);
-	if(cow_path) kfree(cow_path);
 }
 
 static void __tracer_dormant_to_active(struct snap_device *dev, const char __user *user_mount_path){
 	int ret;
-	char *cow_path;
 
-	//generate the full pathname
-	ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path, &cow_path);
-	if(ret) goto error;
-
-	//setup the cow manager
-	ret = __tracer_setup_cow_reopen(dev, dev->sd_base_dev, cow_path);
+	ret = __tracer_setup_cow_reopen(dev, dev->sd_base_dev, user_mount_path, dev->sd_cow_path);
 	if(ret) goto error;
 
 	//restart the cow thread
@@ -5326,13 +5350,10 @@ static void __tracer_dormant_to_active(struct snap_device *dev, const char __use
 	set_bit(ACTIVE, &dev->sd_state);
 	clear_bit(UNVERIFIED, &dev->sd_state);
 
-	kfree(cow_path);
-
 	return;
 
 error:
 	LOG_ERROR(ret, "error transitioning tracer to active state");
-	if(cow_path) kfree(cow_path);
 	tracer_set_fail_state(dev, ret);
 }
 
@@ -5367,14 +5388,11 @@ static int __handle_bdev_mount_nowrite(const struct vfsmount *mnt, unsigned int 
 	tracer_for_each(dev, i){
 		if(!dev || !test_bit(ACTIVE, &dev->sd_state) || tracer_read_fail_state(dev) || dev->sd_base_dev != mnt->mnt_sb->s_bdev) continue;
 
-		//if we are unmounting the vfsmount we are using go to dormant state
-		if(mnt == elastio_snap_get_mnt(dev->sd_cow->filp)){
-			LOG_DEBUG("block device umount detected for device %d", i);
-			auto_transition_dormant(i);
+		LOG_DEBUG("block device umount detected for device %d", i);
+		auto_transition_dormant(i);
 
-			ret = 0;
-			goto out;
-		}
+		ret = 0;
+		goto out;
 	}
 	i = 0;
 	ret = -ENODEV;
@@ -6005,7 +6023,8 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 		if(error) seq_printf(m, "\t\t\t\"error\": %d,\n", error);
 
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
-		seq_printf(m, "\t\t\t\"ignore_errors\": %i\n", dev->sd_ignore_snap_errors);
+		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
+		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
 		seq_printf(m, "\t\t}");
 	}
 
