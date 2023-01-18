@@ -12,7 +12,7 @@
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/bio.h>
-#ifdef HAVE_CGROUPS
+#ifdef HAVE_BIO_BLKG
 #include <linux/blk-cgroup.h>
 #endif
 
@@ -402,6 +402,7 @@ static void __on_bio_read_complete(struct bio *bio, int err)
 
         // change the bio into a write bio
         dattobd_set_bio_ops(bio, REQ_OP_WRITE, 0);
+        bio->bi_end_io = NULL;
 
         // reset the bio iterator to its original state
         for (map = tp->bio_sects.head; map != NULL && map->bio != NULL;
@@ -701,7 +702,7 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
         bio_sector(new_bio) = sect;
         bio_idx(new_bio) = 0;
-#ifdef HAVE_CGROUPS
+#ifdef HAVE_BIO_BLKG
         if (orig_bio->bi_blkg) {
                 blkg_get(orig_bio->bi_blkg);
                 new_bio->bi_blkg = orig_bio->bi_blkg;

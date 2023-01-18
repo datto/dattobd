@@ -5,11 +5,11 @@
  */
 
 #include "includes.h"
-#include <linux/blk-cgroup.h>
+#include <linux/blk-types.h>
 
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-    struct blkcg_gq* blkg = NULL;
-    blkg_get(blkg);
+    struct bio* b = NULL;
+    blkg_get(b->bi_blkg);
 }
