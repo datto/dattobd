@@ -95,7 +95,7 @@ jobs:
               ;;
             esac
             for package in "kernel-core" "kernel-modules" "kernel" "kernel-devel"; do
-              sudo yum localinstall -y https://kojipkgs.fedoraproject.org/packages/kernel/${k_ver}/${k_patch}.fc${ver}/${arch}/${package}-${k_ver}-${k_patch}.fc${ver}.${arch}.rpm
+              sudo rpm -ivh --force https://kojipkgs.fedoraproject.org/packages/kernel/${k_ver}/${k_patch}.fc${ver}/${arch}/${package}-${k_ver}-${k_patch}.fc${ver}.${arch}.rpm
             done
             '
           vagrant reload ${{env.INSTANCE_NAME}}
