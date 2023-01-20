@@ -5,7 +5,7 @@ This package is built using [debbuild](https://github.com/debbuild/debbuild) for
 The Makefile included in this project helps you to do builds, but you need
 to have debbuild installed first.
 
-You can install debbuild from the deb published on [the GitHub project releases](https://github.com/debbuild/debbuild/releases).
+You can install debbuild from the openSUSE Build Service for either [Debian](https://software.opensuse.org//download.html?project=Debian%3Adebbuild&package=debbuild) or [Ubuntu](https://software.opensuse.org//download.html?project=Ubuntu%3Adebbuild&package=debbuild).
 
 Once installed, `make deb` will let you build a Debian package.
 
