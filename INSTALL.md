@@ -1,6 +1,9 @@
 # dattobd INSTALL
 
-## From Repositories
+## From the openSUSE Build Service
+We offer [the latest mainline code from the openSUSE Build Service for a number of Linux distributions](https://software.opensuse.org//download.html?project=isv%3ADatto%3ALinuxAgent%3ADattoBD%3AMainline&package=dattobd).
+
+## From Datto Repositories
 We recommend that you install the kernel module from Datto's repositories. Datto provides repos for x86-64 editions of RHEL/CentOS, Fedora, openSUSE, SUSE Linux Enterprise, Debian, and Ubuntu LTS.
 
 ### RHEL/CentOS

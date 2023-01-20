@@ -1,0 +1,29 @@
+rebuild_workflow:
+  steps:
+    - trigger_services:
+        project: isv:Datto:LinuxAgent:DattoBD:Mainline
+        package: dattobd-git
+  filters:
+    event: push
+    branches:
+      only:
+        - main
+main_workflow:
+  steps:
+    - branch_package:
+        source_project: isv:Datto:LinuxAgent:DattoBD:Mainline
+        source_package: dattobd-git
+        target_project: isv:Datto:LinuxAgent:DattoBD:CI
+  filters:
+    event: pull_request
+    branches:
+      only:
+        - main
+release_workflow:
+  steps:
+    - branch_package:
+        source_project: isv:Datto:LinuxAgent:DattoBD:Mainline
+        source_package: dattobd
+        target_project: isv:Datto:LinuxAgent:DattoBD
+  filters:
+    event: tag_push
