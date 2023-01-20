@@ -1825,7 +1825,6 @@ static int file_truncate(struct file *filp, loff_t len){
 #else
 	ret = vfs_truncate(&filp->f_path, len);
 #endif
-	file_lock(filp);
 
 	if(ret){
 		LOG_ERROR(ret, "error verifying truncation is possible");
@@ -1849,10 +1848,12 @@ static int file_truncate(struct file *filp, loff_t len){
 		goto error;
 	}
 
+	file_lock(filp);
 	return 0;
 
 error:
 	LOG_ERROR(ret, "error truncating file");
+	file_lock(filp);
 	return ret;
 }
 
