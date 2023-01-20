@@ -83,5 +83,29 @@ class TestSnapshot(DeviceTestCase):
         self.assertEqual(elastio_snap.get_free_minor(), 1)
 
 
+    def test_cow_not_deleteable(self):
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        try:
+            os.remove(self.cow_full_path)
+        except OSError as e:
+            self.assertEqual(e.errno, errno.EPERM)
+        else:
+            self.fail("file is not immutable")
+
+
+    def test_cow_not_movable(self):
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        try:
+            os.replace(self.cow_full_path, '{}/{}'.format(self.mount, 'test.cow'))
+        except OSError as e:
+            self.assertEqual(e.errno, errno.EPERM)
+        else:
+            self.fail("file is not immutable")
+
+
 if __name__ == "__main__":
     unittest.main()
