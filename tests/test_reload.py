@@ -54,10 +54,10 @@ class TestReload(DeviceTestCase):
 
     def test_reload_unverified_snapshot(self):
         util.unmount(self.mount)
-        self.addCleanup(util.mount, self.device, self.mount)
 
         self.assertEqual(elastio_snap.reload_snapshot(self.minor, self.device, self.cow_reload_path, ignore_snap_errors=True), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
+        self.addCleanup(util.mount, self.device, self.mount)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.check_snap_info(0, elastio_snap.State.UNVERIFIED | elastio_snap.State.SNAPSHOT, True)
@@ -71,10 +71,10 @@ class TestReload(DeviceTestCase):
 
     def test_reload_unverified_incremental(self):
         util.unmount(self.mount)
-        self.addCleanup(util.mount, self.device, self.mount)
 
         self.assertEqual(elastio_snap.reload_incremental(self.minor, self.device, self.cow_reload_path, ignore_snap_errors=True), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
+        self.addCleanup(util.mount, self.device, self.mount)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.check_snap_info(0, elastio_snap.State.UNVERIFIED, True)
@@ -86,19 +86,18 @@ class TestReload(DeviceTestCase):
         self.check_snap_info(-errno.ENOENT, elastio_snap.State.UNVERIFIED, True)
 
 
-    @unittest.skipIf(int(platform.release().split(".", 1)[0]) < 4, "Broken on 3-rd kernels. See https://github.com/elastio/elastio-snap/issues/202")
     def test_reload_verified_snapshot(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, ignore_snap_errors=True), 0)
 
         util.unmount(self.mount)
-        self.addCleanup(util.mount, self.device, self.mount)
 
         self.kmod.unload()
-        self.kmod.load()
+        self.kmod.load(debug=1)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.assertEqual(elastio_snap.reload_snapshot(self.minor, self.device, self.cow_reload_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
+        self.addCleanup(util.mount, self.device, self.mount)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.check_snap_info(0, elastio_snap.State.UNVERIFIED | elastio_snap.State.SNAPSHOT, False)
@@ -118,14 +117,14 @@ class TestReload(DeviceTestCase):
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
 
         util.unmount(self.mount)
-        self.addCleanup(util.mount, self.device, self.mount)
 
         self.kmod.unload()
-        self.kmod.load()
+        self.kmod.load(debug=1)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.assertEqual(elastio_snap.reload_incremental(self.minor, self.device, self.cow_reload_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
+        self.addCleanup(util.mount, self.device, self.mount)
         self.assertFalse(os.path.exists(self.snap_device))
 
         self.check_snap_info(0, elastio_snap.State.UNVERIFIED, False)
