@@ -15,7 +15,7 @@
 #include <linux/limits.h>
 #include <linux/types.h>
 
-#define DATTOBD_VERSION "0.10.16"
+#define DATTOBD_VERSION "0.11.0"
 #define DATTO_IOCTL_MAGIC 0x91
 
 struct setup_params {
