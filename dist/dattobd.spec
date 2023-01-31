@@ -571,6 +571,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jan 31 2023 Dakota Williams <drwilliams@datto.com> - 0.11.1
+- Fix for bad configure test
+
 * Wed Jan 25 2023 Dakota Williams <drwilliams@datto.com> - 0.11.0
 - Add support for kernels up to 5.15
 
