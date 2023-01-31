@@ -106,7 +106,7 @@
 
 
 Name:            dattobd
-Version:         0.11.0
+Version:         0.11.1
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
