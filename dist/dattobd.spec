@@ -106,7 +106,7 @@
 
 
 Name:            dattobd
-Version:         0.11.1
+Version:         0.11.2
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -571,6 +571,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
+- Similar update to configure test
+
 * Tue Jan 31 2023 Dakota Williams <drwilliams@datto.com> - 0.11.1
 - Fix for bad configure test
 

@@ -5,7 +5,8 @@
  */
 
 #include "includes.h"
-#include <linux/blk-types.h>
+#include <linux/blk_types.h>
+#include <linux/blk-cgroup.h>
 
 MODULE_LICENSE("GPL");
 
