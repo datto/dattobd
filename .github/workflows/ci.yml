@@ -8,9 +8,11 @@ on:
       - 'debug/**'
   pull_request: ~
 
+permissions:
+  contents: read
+  id-token: write
+
 env:
-  AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_DEFAULT_REGION:    ${{ secrets.AWS_REGION }}
 
 jobs:
@@ -69,11 +71,14 @@ jobs:
       - name: Check ENV
         run: .github/scripts/check_env.sh
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-to-assume: ${{ secrets.ASSURIODEV_OIDC_AWS_ROLE_ARN }}
+
       - name: Start a box
         if: always()
-        env:
-          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: .github/scripts/start_box.sh
 
       - name: Boot Fedora 32, 35, 36 into original kernel version
@@ -330,7 +335,7 @@ jobs:
           if ! [[ ${SOURCE_BRANCH} =~ ^release ]] && ! [[ ${SOURCE_BRANCH} =~ ^master ]]; then \
             tag="--tag elastio:dev=true"; \
           fi; \
-          AWS_SECRET_ACCESS_KEY='"'$AWS_SECRET_ACCESS_KEY'"' repobuild/upload.sh \
+          repobuild/upload.sh \
             --source repobuild/artifacts/ \
             --bucket artifacts.assur.io \
             --target /linux/elastio-snap/${SOURCE_BRANCH}/${GITHUB_RUN_NUMBER}/${PKG_TYPE} \
