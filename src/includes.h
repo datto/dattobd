@@ -11,7 +11,6 @@
 #include <linux/blkdev.h>
 #include <linux/buffer_head.h>
 #include <linux/ftrace.h>
-#include <linux/genhd.h>
 #include <linux/kthread.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
