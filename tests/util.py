@@ -48,7 +48,7 @@ def dd(ifile, ofile, count, **kwargs):
     for k, v in kwargs.items():
         cmd.append("{}={}".format(k, v))
 
-    subprocess.check_call(cmd, timeout=30)
+    subprocess.check_call(cmd, timeout=60)
 
 
 def md5sum(path):
@@ -117,7 +117,8 @@ def mkfs(device, fs="ext4"):
     if (fs == "xfs"):
         cmd = ["mkfs.xfs", device, "-f"]
     else:
-        cmd = ["mkfs." + fs, "-F", device]
+        # Disable lazy init to facilitate that no additional IO will take place during tests
+        cmd = ["mkfs." + fs, "-F", "-E", "lazy_itable_init=0,lazy_journal_init=0", device]
 
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
 
@@ -281,3 +282,10 @@ def disassemble_mirror_raid(raid_device, devices):
     time.sleep(1)
     for device in devices:
         mdadm_zero_superblock(get_last_partition(device))
+
+def test_track(test_name, started):
+    with open('/dev/kmsg', 'w') as f:
+        if (started == True):
+            f.write('--- {} started ---'.format(test_name))
+        else:
+            f.write('--- {} done. ---'.format(test_name))

@@ -22,6 +22,8 @@ class DeviceTestCase(unittest.TestCase):
         seeds = []
         cls.backing_stores = []
         cls.devices = []
+        cls.size_mb = 256
+        cls.is_raid = False
 
         cls.kmod = kmod.Module("../src/elastio-snap.ko")
         cls.kmod.load(debug=1)
@@ -41,7 +43,7 @@ class DeviceTestCase(unittest.TestCase):
                     if not r in seeds: break
                 seeds.append(r)
                 cls.backing_stores.append("/tmp/disk_{0:03d}.img".format(seeds[i]))
-                util.dd("/dev/zero", cls.backing_stores[i], 256, bs="1M")
+                util.dd("/dev/zero", cls.backing_stores[i], cls.size_mb, bs="1M")
                 cls.devices.append(util.loop_create(cls.backing_stores[i]))
 
         if len(cls.devices) == 1:
@@ -49,6 +51,7 @@ class DeviceTestCase(unittest.TestCase):
         elif os.getenv('LVM'):
             cls.device = util.assemble_mirror_lvm(cls.devices, cls.minor)
         elif os.getenv('RAID'):
+            cls.is_raid = True
             cls.device = util.assemble_mirror_raid(cls.devices, cls.minor)
 
         cls.fs = os.getenv('TEST_FS', 'ext4')

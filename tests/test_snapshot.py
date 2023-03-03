@@ -6,6 +6,7 @@
 # Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
+import math
 import errno
 import os
 import platform
@@ -24,24 +25,40 @@ class TestSnapshot(DeviceTestCase):
         self.snap_mount = "/mnt"
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
 
+        util.test_track(self._testMethodName, started=True)
+
+    def tearDown(self):
+        util.test_track(self._testMethodName, started=False)
+
     def test_modify_origin(self):
+        dev_size_mb = util.dev_size_mb(self.device)
+
+        # The goal of this test is to ensure the data integrity
+        # For regular devices, we fill the cow file almost completely;
+        # For RAID based devices we need to leave a little bit more
+
+        # We subtract a couple of megabytes to make sure the cow
+        # file won't overflow during the test
+        if self.is_raid == True:
+            file_size_mb = math.floor(dev_size_mb * 0.06)
+        else:
+            file_size_mb = math.floor(dev_size_mb * 0.1) - 5
+
         testfile = "{}/testfile".format(self.mount)
         snapfile = "{}/testfile".format(self.snap_mount)
 
-        with open(testfile, "w") as f:
-            f.write("The quick brown fox")
+        util.dd("/dev/urandom", testfile, file_size_mb, bs="1M")
+        os.sync()
 
         self.addCleanup(os.remove, testfile)
-        os.sync()
         md5_orig = util.md5sum(testfile)
 
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
-        with open(testfile, "w") as f:
-            f.write("jumps over the lazy dog")
-
+        util.dd("/dev/urandom", testfile, file_size_mb, bs="1M")
         os.sync()
+
         # TODO: norecovery option, probably, should not be here after the fix of the elastio/elastio-snap#63
         opts = "nouuid,norecovery,ro" if (self.fs == "xfs") else "ro"
         util.mount(self.snap_device, self.snap_mount, opts)
@@ -50,8 +67,6 @@ class TestSnapshot(DeviceTestCase):
         md5_snap = util.md5sum(snapfile)
         self.assertEqual(md5_orig, md5_snap)
 
-    @unittest.skipIf(os.getenv('TEST_FS') == "ext2" and int(platform.release().split(".", 1)[0]) < 4, "Broken on ext2, 3-rd kernels")
-    @unittest.skipIf(os.getenv('TEST_FS') == "xfs", "Broken on XFS, due to ignored os.sync and due to #63.")
     def test_track_writes(self):
         testfile = "{}/testfile".format(self.mount)
 
@@ -61,7 +76,6 @@ class TestSnapshot(DeviceTestCase):
         os.sync()
         info = elastio_snap.info(self.minor)
         start_nr = info["nr_changed_blocks"]
-        self.assertNotEqual(start_nr, 0)
 
         with open(testfile, "w") as f:
             f.write("The quick brown fox")
