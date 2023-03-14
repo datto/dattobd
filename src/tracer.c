@@ -853,7 +853,7 @@ error:
 }
 
 /**
- * __tracer_setup_cow_path() - Sets up the COW file path given a &struct file.
+ * __tracer_copy_cow_path() - Sets up the COW file path given a &struct file.
  *
  * @dev: The &struct snap_device object pointer.
  * @cow_file: The &struct file object pointer.
@@ -1051,9 +1051,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // set the device as read-only
         set_disk_ro(dev->sd_gd, 1);
 
-        // register gendisk with the kernel
-        LOG_DEBUG("adding disk");
-        add_disk(dev->sd_gd);
+        atomic64_set(&dev->sd_submitted_cnt, 0);
+        atomic64_set(&dev->sd_received_cnt, 0);
 
         LOG_DEBUG("starting mrf kernel thread");
         dev->sd_mrf_thread = kthread_run(snap_mrf_thread, dev,
@@ -1065,8 +1064,13 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
-        atomic64_set(&dev->sd_submitted_cnt, 0);
-        atomic64_set(&dev->sd_received_cnt, 0);
+        // register gendisk with the kernel
+        LOG_DEBUG("adding disk");
+        ret = add_disk(dev->sd_gd);
+        if (ret) {
+                LOG_ERROR(ret, "error creating snapshot disk");
+                goto error;
+        }
 
         return 0;
 

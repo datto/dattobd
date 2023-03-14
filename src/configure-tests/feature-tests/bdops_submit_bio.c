@@ -10,15 +10,10 @@
 
 MODULE_LICENSE("GPL");
 
-static blk_qc_t snap_submit_bio(struct bio *bio)
-{
-	return BLK_QC_T_NONE;
-}
-
 static inline void dummy(void){
 	struct bio b;
 	struct block_device_operations bdo = {
-		.submit_bio = snap_submit_bio,
+		.submit_bio = NULL,
 	};
 
 	bdo.submit_bio(&b);
