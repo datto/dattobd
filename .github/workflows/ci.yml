@@ -358,6 +358,12 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-to-assume: ${{ secrets.ASSURIODEV_OIDC_AWS_ROLE_ARN }}
+
       - name: Make manifest
         run: echo $GITHUB_RUN_NUMBER > latest && cat latest | grep -E '^[0-9]+$'
 
