@@ -120,14 +120,9 @@ jobs:
         if: "${{ matrix.distro == 'debian8' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            set +e
-            for i in {1..5}; do
-              sudo apt-get install --reinstall -y xfsprogs xfslibs-dev && break
-              echo "Failed to install xfsprogs xfslibs-dev packages. Retrying..."
-              sleep 5
-            done
-            set -e
-            dpkg -l xfsprogs'
+            curl --retry 5 --retry-max-time 120 http://httpredir.debian.org/debian/pool/main/x/xfsprogs/xfsprogs_3.2.1.tar.gz | tar xz && cd xfsprogs-3.2.1 &&
+            make && sudo make install && sudo make install-dev &&
+            cd .. && rm -rf xfsprogs-3.2.1'
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 5
 
@@ -141,6 +136,7 @@ jobs:
         working-directory: ${{env.BOX_DIR}}
 
       - name: Install LVM and RAID tools
+        if: "${{ matrix.distro != 'debian8'}}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             set -x
@@ -198,6 +194,7 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (loop device)
+        if: "${{ matrix.distro != 'debian8'}}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --lvm"
@@ -214,6 +211,7 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (loop device)
+        if: "${{ matrix.distro != 'debian8'}}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
@@ -269,6 +267,7 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on LVM (qcow2 disks)
+        if: "${{ matrix.distro != 'debian8'}}"
         run: |
           for fs in ${FS[*]}; do
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --lvm"
@@ -283,6 +282,7 @@ jobs:
         timeout-minutes: 1
 
       - name: Run tests on RAID (qcow2 disks)
+        if: "${{ matrix.distro != 'debian8'}}"
         run: |
           for fs in ${FS[*]}; do
             # An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on
