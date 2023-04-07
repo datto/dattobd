@@ -1878,7 +1878,8 @@ write_bio:
 		goto out;
 	}
 
-	pg->mapping = dev->sd_cow_inode->i_mapping;
+	if (dev->sd_cow_inode)
+		pg->mapping = dev->sd_cow_inode->i_mapping;
 
 	ret = elastio_snap_submit_bio_wait(new_bio);
 	if (ret) {
@@ -1983,7 +1984,8 @@ read_bio:
 		goto out;
 	}
 
-	pg->mapping = dev->sd_cow_inode->i_mapping;
+	if (dev->sd_cow_inode)
+		pg->mapping = dev->sd_cow_inode->i_mapping;
 
 	ret = elastio_snap_submit_bio_wait(new_bio);
 	if (ret) {
@@ -3360,7 +3362,6 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
 		if(page_get_inode(bio_iter_page(bio, iter)) != dev->sd_cow_inode) {
-			/* LOG_DEBUG("needs cow!!"); */
 			return 1;
 		}
 	}
@@ -4559,14 +4560,17 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 		}
 	}
 	
-	if (dev->sd_cow_extents) {
+	if (close_method != 2 && dev->sd_cow_extents) {
+		LOG_DEBUG("destroying cow file extents");
 		kfree(dev->sd_cow_extents);
 		dev->sd_cow_extents = NULL;
+		dev->sd_cow_ext_cnt = 0;
+	} else {
+		LOG_DEBUG("preserving cow file extents");
 	}
 
 	dev->sd_falloc_size = 0;
 	dev->sd_cache_size = 0;
-	dev->sd_cow_ext_cnt = 0;
 	dev->sd_cow_inode = NULL;
 
 	return ret;
@@ -4976,6 +4980,25 @@ static inline void free_mrf_and_ops(struct snap_device *dev){
 static void __tracer_destroy_tracing(struct snap_device *dev){
 	if(dev->sd_orig_mrf){
 		if(__tracer_should_reset_mrf(dev)) {
+
+			if (!test_bit(ACTIVE, &dev->sd_state)) {
+				int ret = 0;
+				LOG_DEBUG("flushing bio requests");
+				if (!test_bit(SNAPSHOT, &dev->sd_state)) {
+					ret = __tracer_setup_inc_cow_thread(dev, dev->sd_minor);
+				} else {
+					ret = __tracer_setup_snap_cow_thread(dev, dev->sd_minor);
+				}
+
+				if(ret) {
+					LOG_ERROR(ret, "Failed to setup cow thread for device with minor %i and flush bio requests", dev->sd_minor);
+				}
+
+				wake_up_process(dev->sd_cow_thread);
+				wait_for_bio_complete(dev);
+				__tracer_destroy_cow_thread(dev);
+			}
+
 			LOG_DEBUG("replacing make_request_fn");
 #ifdef USE_BDOPS_SUBMIT_BIO
 			__tracer_transition_tracing(NULL, dev->sd_base_dev, dev->sd_orig_ops, &snap_devices[dev->sd_minor]);

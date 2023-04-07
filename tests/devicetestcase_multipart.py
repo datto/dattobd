@@ -72,3 +72,5 @@ class DeviceTestCaseMultipart(unittest.TestCase):
             os.unlink(cls.backing_store)
 
         cls.kmod.unload()
+
+        assert(util.kernel_warning_exists() == False)

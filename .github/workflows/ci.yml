@@ -120,7 +120,7 @@ jobs:
         if: "${{ matrix.distro == 'debian8' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            curl --retry 5 --retry-max-time 120 http://httpredir.debian.org/debian/pool/main/x/xfsprogs/xfsprogs_3.2.1.tar.gz | tar xz && cd xfsprogs-3.2.1 &&
+            curl --retry 5 --retry-max-time 120 https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/build_utils/xfsprogs_3.2.1.tar.gz | tar xz && cd xfsprogs-3.2.1 &&
             make && sudo make install && sudo make install-dev &&
             cd .. && rm -rf xfsprogs-3.2.1'
         working-directory: ${{env.BOX_DIR}}
