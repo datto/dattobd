@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         distro: [
-          amazon2,
+          amazon2, amazon2023,
           centos7, centos8, centos9,
           debian8, debian9, debian10, debian11,
           fedora31, fedora32, fedora34, fedora35, fedora36, fedora37,
