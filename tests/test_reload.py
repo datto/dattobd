@@ -21,11 +21,6 @@ class TestReload(DeviceTestCase):
         self.cow_reload_path = "/{}".format(self.cow_file)
         self.snap_device = "/dev/elastio-snap{}".format(self.minor)
 
-        util.test_track(self._testMethodName, started=True)
-
-    def tearDown(self):
-        util.test_track(self._testMethodName, started=False)
-
     def test_reload_snap_invalid_minor(self):
         self.assertEqual(elastio_snap.reload_snapshot(1000, self.device, self.cow_reload_path), errno.EINVAL)
         self.assertFalse(os.path.exists(self.snap_device))

@@ -81,8 +81,8 @@ jobs:
         if: always()
         run: .github/scripts/start_box.sh
 
-      - name: Boot Fedora 32, 35, 36 into original kernel version
-        if: "${{ matrix.distro == 'fedora32' || matrix.distro == 'fedora35' || matrix.distro == 'fedora36' }}"
+      - name: Boot Fedora 32, 35, 36, 37 into original kernel version
+        if: "${{ matrix.distro == 'fedora32' || matrix.distro == 'fedora35' || matrix.distro == 'fedora36' || matrix.distro == 'fedora37' }}"
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c '
             set -x
@@ -96,6 +96,9 @@ jobs:
                   k_patch=200
               ;;
               36) k_ver=5.17.14
+                  k_patch=300
+              ;;
+              37) k_ver=6.0.14
                   k_patch=300
               ;;
             esac

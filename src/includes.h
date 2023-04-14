@@ -31,6 +31,5 @@
 #include <linux/vmalloc.h>
 #include <linux/random.h>
 #include <asm/div64.h>
-#include <linux/mm.h>
 
 #endif

@@ -11,7 +11,3 @@ kfree
 blk_mq_submit_bio
 blk_alloc_queue
 get_super
-vm_area_alloc
-vm_area_free
-insert_vm_struct
-vm_area_cachep

@@ -21,11 +21,6 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.cow_file = "cow.snap"
         self.cow_full_path = "{}/{}".format(self.mount, self.cow_file)
 
-        util.test_track(self._testMethodName, started=True)
-
-    def tearDown(self):
-        util.test_track(self._testMethodName, started=False)
-
     def test_transition_nonexistent_snapshot(self):
         self.assertIsNone(elastio_snap.info(self.minor))
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), errno.ENOENT)
@@ -50,7 +45,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, fallocated_space=falloc), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
-        util.dd("/dev/zero", scratch, falloc + 1, bs="1M")
+        util.dd("/dev/zero", scratch, falloc + 10, bs="1M")
         self.addCleanup(os.remove, scratch)
 
         # Possible errors doing this:
@@ -66,11 +61,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], -errno.EFBIG)
-
-        # SNAPSHOT bit is not checked because it's may or may not be set
-        # dependently on the place of the failure in transition_to_incremental().
-        # But ACTIVE bit should be present in any case.
-        self.assertTrue(snapdev["state"] & elastio_snap.State.ACTIVE)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE | elastio_snap.State.SNAPSHOT)
         self.assertTrue(snapdev["flags"] & elastio_snap.Flags.COW_ON_BDEV)
 
     def test_transition_mod_sync_cow_full(self):
@@ -80,7 +71,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, fallocated_space=falloc), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
-        util.dd("/dev/zero", scratch, falloc + 1, bs="1M")
+        util.dd("/dev/zero", scratch, falloc + 10, bs="1M")
         self.addCleanup(os.remove, scratch)
 
         # Possible errors doing this:
@@ -96,11 +87,7 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertIsNotNone(snapdev)
 
         self.assertEqual(snapdev["error"], -errno.EFBIG)
-
-        # SNAPSHOT bit is not checked because it's may or may not be set
-        # dependently on the place of the failure in transition_to_incremental().
-        # But ACTIVE bit should be present in any case.
-        self.assertTrue(snapdev["state"] & elastio_snap.State.ACTIVE)
+        self.assertEqual(snapdev["state"], elastio_snap.State.ACTIVE)
         self.assertTrue(snapdev["flags"] & elastio_snap.Flags.COW_ON_BDEV)
 
 
