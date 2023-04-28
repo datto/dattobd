@@ -5,6 +5,8 @@
 # Copyright (C) 2022 Elastio Software Inc.
 #
 
+import util
+import math
 import errno
 import os
 import platform
@@ -30,6 +32,10 @@ class TestMultipart(DeviceTestCaseMultipart):
             os.makedirs(self.snap_mounts[i], exist_ok=True)
             self.addCleanup(os.rmdir, self.snap_mounts[i])
 
+        util.test_track(self._testMethodName, started=True)
+
+    def tearDown(self):
+        util.test_track(self._testMethodName, started=False)
 
     def test_multipart_setup_volumes_same_disk(self):
         # Setup snapshot devices and check them
@@ -81,23 +87,29 @@ class TestMultipart(DeviceTestCaseMultipart):
     @unittest.skipIf(os.getenv('TEST_FS') == "xfs" and  platform.release().rsplit(".", 1)[0] == "4.18.0-383.el8", "Broken on CentOS 8 with kernel 4.18.0-383.el8 and XFS. See #159")
     def test_multipart_modify_origins(self):
         for i in range(self.part_count):
+            dev_size_mb = util.dev_size_mb(self.devices[i])
+
+            # The goal of this test is to ensure the data integrity
+
+            # We subtract a couple of megabytes to make sure the cow
+            # file won't overflow during the test
+            file_size_mb = math.floor(dev_size_mb * 0.1) - 2
+
             testfile = "{}/testfile".format(self.mounts[i])
             snapfile = "{}/testfile".format(self.snap_mounts[i])
 
-            with open(testfile, "w") as f:
-                f.write("The quick brown fox")
+            util.dd("/dev/urandom", testfile, file_size_mb, bs="1M")
+            os.sync()
 
             self.addCleanup(os.remove, testfile)
-            os.sync()
             md5_orig = util.md5sum(testfile)
 
             self.assertEqual(elastio_snap.setup(self.minors[i], self.devices[i], self.cow_full_paths[i]), 0)
             self.addCleanup(elastio_snap.destroy, self.minors[i])
 
-            with open(testfile, "w") as f:
-                f.write("jumps over the lazy dog")
-
+            util.dd("/dev/urandom", testfile, file_size_mb, bs="1M")
             os.sync()
+
             # TODO: norecovery option, probably, should not be here after the fix of the elastio/elastio-snap#63
             opts = "nouuid,norecovery,ro" if (self.fs == "xfs") else "ro"
             util.mount(self.snap_devices[i], self.snap_mounts[i], opts)

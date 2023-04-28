@@ -109,7 +109,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.1
+Version:         0.12.2
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -609,6 +609,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Fri Apr 7 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.2
+- Flush bio requests before module unload
+- Add default bio path if orig mrf is not found
+- Provide support of the direct IO functionality for all Linux kernel versions
+- Implement direct read/write IO
+- Add retry logic on elastio_snap_destroy
+- Fix issue with cow file lock
+- Add tests to cover the immutable cow file functionality
+- Tests and behaviour for redirected cow file
 
 * Wed Jan 4 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.1
 - Fixed module compilation on Linux 6.0.14 for complete Fedora 37 support

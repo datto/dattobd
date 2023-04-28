@@ -22,6 +22,11 @@ class DeviceTestCaseMultipart(unittest.TestCase):
         # For now let's hardcode 7 partitions
         cls.part_count = 7
         cls.minors = []
+
+        # We create the device big enough to perform
+        # representative 'test_multipart_modify_origins'
+        cls.size_mb = 1024
+
         for i in range(cls.part_count):
             # Unexpectedly randint can generate 2 same numbers in a row.
             # So, let's verify the difference of the random numbers.
@@ -41,7 +46,7 @@ class DeviceTestCaseMultipart(unittest.TestCase):
             util.partition(cls.device, cls.part_count)
         else:
             cls.backing_store = ("/tmp/disk_{0:03d}.img".format(cls.minors[0]))
-            util.dd("/dev/zero", cls.backing_store, 256, bs="1M")
+            util.dd("/dev/zero", cls.backing_store, cls.size_mb, bs="1M")
             cls.device = util.loop_create(cls.backing_store, cls.part_count)
 
         cls.devices = []
@@ -67,3 +72,5 @@ class DeviceTestCaseMultipart(unittest.TestCase):
             os.unlink(cls.backing_store)
 
         cls.kmod.unload()
+
+        assert(util.kernel_warning_exists() == False)

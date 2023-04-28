@@ -48,7 +48,7 @@ def dd(ifile, ofile, count, **kwargs):
     for k, v in kwargs.items():
         cmd.append("{}={}".format(k, v))
 
-    subprocess.check_call(cmd, timeout=30)
+    subprocess.check_call(cmd, timeout=60)
 
 
 def md5sum(path):
@@ -117,7 +117,8 @@ def mkfs(device, fs="ext4"):
     if (fs == "xfs"):
         cmd = ["mkfs.xfs", device, "-f"]
     else:
-        cmd = ["mkfs." + fs, "-F", device]
+        # Disable lazy init to facilitate that no additional IO will take place during tests
+        cmd = ["mkfs." + fs, "-F", "-E", "lazy_itable_init=0,lazy_journal_init=0", device]
 
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
 
@@ -281,3 +282,28 @@ def disassemble_mirror_raid(raid_device, devices):
     time.sleep(1)
     for device in devices:
         mdadm_zero_superblock(get_last_partition(device))
+
+def kernel_warning_exists():
+    exceptions_str = [
+            # known issue on Fedora 32 (v5.9), related to the LVM driver
+            'blkdev_issue_discard'
+        ]
+
+    cmd = [ "dmesg", "-l", "warn" ]
+    output = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+
+    # kernel warning occurred
+    if 'Modules linked in:' in output:
+        for exception in exceptions_str:
+            if exception in output:
+                return False
+        return True
+
+    return False
+
+def test_track(test_name, started):
+    with open('/dev/kmsg', 'w') as f:
+        if (started == True):
+            f.write('<6>--- {} started ---'.format(test_name))
+        else:
+            f.write('<6>--- {} done. ---'.format(test_name))
