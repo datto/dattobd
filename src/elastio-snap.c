@@ -2187,6 +2187,7 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 
 	//may write up to a page too much, ok for our use case
 	write_count = NUM_SEGMENTS(length, PAGE_SHIFT);
+	LOG_DEBUG("allocating cow file (%llu bytes)", PAGE_SIZE * write_count);
 
 	//if not page aligned, write zeros to that point
 	if(offset % PAGE_SIZE != 0){
@@ -2844,6 +2845,7 @@ static int cow_init(struct snap_device *dev, const char *path, uint64_t elements
 	cm->nr_changed_blocks = 0;
 	cm->flags = 0;
 	cm->allocated_sects = 0;
+	cm->file_max = file_max;
 	cm->sect_size = sect_size;
 	cm->seqid = seqid;
 
@@ -2883,7 +2885,6 @@ static int cow_init(struct snap_device *dev, const char *path, uint64_t elements
 	cm->allowed_sects = __cow_calculate_allowed_sects(cache_size, cm->total_sects);
 	cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * sizeof(uint64_t)));
 	cm->curr_pos = cm->data_offset / COW_BLOCK_SIZE;
-	cm->file_max = file_max + cm->data_offset; // reserve additional room for sections
 	cm->dev = dev;
 
 	if(uuid) memcpy(cm->uuid, uuid, COW_UUID_SIZE);
@@ -2902,7 +2903,6 @@ static int cow_init(struct snap_device *dev, const char *path, uint64_t elements
 		}
 	}
 
-	LOG_DEBUG("allocating cow file (%llu bytes)", (unsigned long long)file_max);
 	ret = file_allocate(cm, cm->filp, 0, file_max);
 	if(ret) goto error;
 
@@ -3011,25 +3011,23 @@ static int __cow_write_data(struct cow_manager *cm, void *buf){
 	int ret;
 	char *abs_path = NULL;
 	int abs_path_len;
-	uint64_t data_offset = COW_HEADER_SIZE + (cm->total_sects * (COW_SECTION_SIZE * sizeof(uint64_t)));
-	uint64_t curr_offset = cm->curr_pos * COW_BLOCK_SIZE;
-	uint64_t max_offset = cm->file_max - data_offset;
+	uint64_t curr_size = cm->curr_pos * COW_BLOCK_SIZE;
 
-	if(curr_offset >= cm->file_max - data_offset) {
+	if(curr_size >= cm->file_max) {
 		ret = -EFBIG;
 
 		file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
 		if(!abs_path){
-			LOG_ERROR(ret, "cow file max size exceeded (%llu/%llu)", curr_offset, max_offset);
+			LOG_ERROR(ret, "cow file max size exceeded (%llu/%llu)", curr_size, cm->file_max);
 		}else{
-			LOG_ERROR(ret, "cow file '%s' max size exceeded (%llu/%llu)", abs_path, curr_offset, max_offset);
+			LOG_ERROR(ret, "cow file '%s' max size exceeded (%llu/%llu)", abs_path, curr_size, cm->file_max);
 			kfree(abs_path);
 		}
 
 		goto error;
 	}
 
-	ret = file_write(cm, buf, curr_offset, COW_BLOCK_SIZE);
+	ret = file_write(cm, buf, curr_size, COW_BLOCK_SIZE);
 	if(ret) goto error;
 
 	cm->curr_pos++;
@@ -4627,18 +4625,18 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 			if(!fallocated_space){
 				max_file_size = size * SECTOR_SIZE * elastio_snap_cow_fallocate_percentage_default;
 				do_div(max_file_size, 100);
+				max_file_size = ALIGN(max_file_size, PAGE_SIZE);
 			}else{
-				max_file_size = fallocated_space * (1024 * 1024);
+				max_file_size = ALIGN(fallocated_space * (1024 * 1024), PAGE_SIZE);
 			}
+
+			dev->sd_falloc_size = max_file_size;
+			do_div(dev->sd_falloc_size, (1024 * 1024));
 
 			//create and open the cow manager
 			LOG_DEBUG("creating cow manager");
 			ret = cow_init(dev, cow_path_full, SECTOR_TO_BLOCK(size), COW_SECTION_SIZE, dev->sd_cache_size, max_file_size, uuid, seqid, &dev->sd_cow);
 			if(ret) goto error;
-
-			dev->sd_falloc_size = dev->sd_cow->file_max;
-			do_div(dev->sd_falloc_size, (1024 * 1024));
-
 		}else{
 			//reload the cow manager
 			LOG_DEBUG("reloading cow manager");

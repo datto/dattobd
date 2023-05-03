@@ -6,6 +6,7 @@
 # Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
+import math
 import errno
 import os
 import subprocess
@@ -65,6 +66,35 @@ class TestSetup(DeviceTestCase):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), errno.EBUSY)
         self.assertTrue(os.path.exists(self.snap_device))
         self.assertIsNotNone(elastio_snap.info(self.minor))
+
+    def test_setup_check_cow_size_zero_fallocate(self):
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, fallocated_space=0), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        page_size = util.os_page_size()
+        cow_file_size_factor = 0.1 # 10% by default if `fallocated_space` is 0
+        cow_file_size = util.dev_size_bytes(self.device) * cow_file_size_factor
+
+        # rounding up aligned to the PAGE_SIZE
+        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size);
+        self.assertEqual(os.stat(self.cow_full_path).st_size, cow_file_size)
+
+        snapdev = elastio_snap.info(self.minor)
+        self.assertEqual(snapdev["falloc_size"], cow_file_size)
+
+    def test_setup_check_cow_size_fallocate(self):
+        self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path, fallocated_space=50), 0)
+        self.addCleanup(elastio_snap.destroy, self.minor)
+
+        page_size = util.os_page_size()
+        cow_file_size = 50 * 1024 * 1024
+
+        # rounding up aligned to the PAGE_SIZE
+        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size);
+        self.assertEqual(os.stat(self.cow_full_path).st_size, cow_file_size)
+
+        snapdev = elastio_snap.info(self.minor)
+        self.assertEqual(snapdev["falloc_size"], cow_file_size)
 
     def test_setup_volume(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)

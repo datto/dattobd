@@ -126,6 +126,8 @@ def mkfs(device, fs="ext4"):
 def dev_size_mb(device):
     return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))//1024**2
 
+def dev_size_bytes(device):
+    return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))
 
 # This method finds names of the partitions of the disk
 def get_partitions(disk):
@@ -307,3 +309,7 @@ def test_track(test_name, started):
             f.write('<6>--- {} started ---'.format(test_name))
         else:
             f.write('<6>--- {} done. ---'.format(test_name))
+
+def os_page_size():
+    cmd = ["getconf", "PAGESIZE"]
+    return (int)(subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8"))
