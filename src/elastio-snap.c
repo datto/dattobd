@@ -5263,8 +5263,6 @@ static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *co
 	set_bit(ACTIVE, &dev->sd_state);
 	clear_bit(UNVERIFIED, &dev->sd_state);
 
-	fallocated_space = (fallocated_space)? fallocated_space : old_dev->sd_falloc_size;
-
 	//copy / set fields we need
 	__tracer_copy_base_dev(old_dev, dev);
 
@@ -6556,7 +6554,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"max_cache\": %lu,\n", (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default);
 
 		if(!test_bit(UNVERIFIED, &dev->sd_state)){
-			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", ((unsigned long long)dev->sd_falloc_size) * 1024 * 1024);
+			seq_printf(m, "\t\t\t\"fallocate\": %llu,\n", dev->sd_cow->file_max);
 
 			if(dev->sd_cow){
 				seq_printf(m, "\t\t\t\"seq_id\": %llu,\n", (unsigned long long)dev->sd_cow->seqid);
