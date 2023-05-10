@@ -40,6 +40,8 @@ jobs:
         include:
           - distro: amazon2
             arch: arm64
+          - distro: amazon2023
+            arch: arm64
           - distro: centos8
             arch: arm64
           - distro: centos9
