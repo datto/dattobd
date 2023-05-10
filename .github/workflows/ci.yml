@@ -33,7 +33,7 @@ jobs:
           amazon2, amazon2023,
           centos7, centos8, centos9,
           debian8, debian9, debian10, debian11,
-          fedora31, fedora32, fedora34, fedora35, fedora36, fedora37,
+          fedora31, fedora32, fedora34, fedora35, fedora36, fedora37, fedora38,
           ubuntu2004, ubuntu2204
         ]
         arch: [ amd64 ]
@@ -53,6 +53,8 @@ jobs:
           - distro: fedora36
             arch: arm64
           - distro: fedora37
+            arch: arm64
+          - distro: fedora38
             arch: arm64
           - distro: ubuntu2204
             arch: arm64
@@ -186,15 +188,15 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs"
           done
         working-directory: ${{env.BOX_DIR}}
-        # For now tests are taking 10-20 seconds per 1 fs on amd64 and about 2 minutes on arm64. But they can hang.
-        # 10 minutes seems to be reasonable timeout.
-        timeout-minutes: 10
+        # For now tests are taking up to 40 seconds per 1 fs on amd64 and about 2 minutes on arm64 or older 3.x kernels. But they can hang.
+        # 20 minutes seems to be reasonable timeout.
+        timeout-minutes: 20
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Run tests on LVM (loop device)
         if: "${{ matrix.distro != 'debian8'}}"
@@ -204,14 +206,14 @@ jobs:
           done
         working-directory: ${{env.BOX_DIR}}
         # For now tests are taking 10-20 seconds per 1 fs on amd64 and about 2 minutes on arm64. But they can hang.
-        # 10 minutes seems to be reasonable timeout.
-        timeout-minutes: 10
+        # 20 minutes seems to be reasonable timeout.
+        timeout-minutes: 20
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Run tests on RAID (loop device)
         if: "${{ matrix.distro != 'debian8'}}"
@@ -220,9 +222,9 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -f $fs --raid"
           done
         working-directory: ${{env.BOX_DIR}}
-        # For now tests are taking 10-20 seconds per 1 fs on amd64 and about 2 minutes on arm64. But they can hang.
-        # 10 minutes seems to be reasonable timeout.
-        timeout-minutes: 10
+        # For now tests are taking up to 40 seconds per 1 fs on amd64 and about 2 minutes on arm64 or older 3.x kernels. But they can hang.
+        # 20 minutes seems to be reasonable timeout.
+        timeout-minutes: 20
 
       - name: Show debug information
         if: always()
@@ -232,10 +234,10 @@ jobs:
 
       - name: Attach qcow2 disks
         run: |
+          SZ="2200M"
           ARCH=$(uname -m)
           TEST_IMAGES=(${TEST_IMAGES})
           TEST_DRIVES=(${TEST_DRIVES})
-          [ ${ARCH} == "x86_64" ] && SZ="1G" || SZ="256M"
           [ ${ARCH} != "x86_64" ] && VIRSH_FLAGS="--config" || true
           for i in ${!TEST_IMAGES[*]}; do
             qemu-img create -f qcow2 ${TEST_IMAGES[i]} $SZ
@@ -261,13 +263,13 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb1 -f $fs"
           done
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 10
+        timeout-minutes: 25
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Run tests on LVM (qcow2 disks)
         if: "${{ matrix.distro != 'debian8'}}"
@@ -276,13 +278,13 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --lvm"
           done
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 15
+        timeout-minutes: 25
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Run tests on RAID (qcow2 disks)
         if: "${{ matrix.distro != 'debian8'}}"
@@ -294,13 +296,13 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -d /dev/vdc -f $fs --raid"
           done
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 15
+        timeout-minutes: 25
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Run tests multipart (qcow2 disk)
         run: |
@@ -308,13 +310,13 @@ jobs:
             vagrant ssh ${{env.INSTANCE_NAME}} -c "cd tests && sudo ./elio-test.sh -d /dev/vdb -f $fs -t test_multipart"
           done
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Show debug information
         if: always()
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
-        timeout-minutes: 1
+        timeout-minutes: 2
 
       - name: Detach external drives
         if: always()

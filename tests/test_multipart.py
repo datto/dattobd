@@ -93,7 +93,7 @@ class TestMultipart(DeviceTestCaseMultipart):
 
             # We subtract a couple of megabytes to make sure the cow
             # file won't overflow during the test
-            file_size_mb = math.floor(dev_size_mb * 0.1) - 2
+            file_size_mb = math.floor(dev_size_mb * 0.1) - 20
 
             testfile = "{}/testfile".format(self.mounts[i])
             snapfile = "{}/testfile".format(self.snap_mounts[i])

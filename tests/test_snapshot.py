@@ -42,7 +42,7 @@ class TestSnapshot(DeviceTestCase):
         if self.is_raid == True:
             file_size_mb = math.floor(dev_size_mb * 0.06)
         else:
-            file_size_mb = math.floor(dev_size_mb * 0.1) - 5
+            file_size_mb = math.floor(dev_size_mb * 0.1) - 20
 
         testfile = "{}/testfile".format(self.mount)
         snapfile = "{}/testfile".format(self.snap_mount)

@@ -22,7 +22,7 @@ class DeviceTestCase(unittest.TestCase):
         seeds = []
         cls.backing_stores = []
         cls.devices = []
-        cls.size_mb = 256
+        cls.size_mb = 512
         cls.is_raid = False
 
         cls.kmod = kmod.Module("../src/elastio-snap.ko")

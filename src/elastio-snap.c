@@ -298,8 +298,12 @@ typedef enum req_opf req_op_t;
 #endif
 
 static inline void elastio_snap_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags){
+#ifdef HAVE_BIO_SET_OP_ATTRS
 	bio->bi_opf = 0;
 	bio_set_op_attrs(bio, op, op_flags);
+#else
+	bio->bi_opf = op | op_flags;
+#endif
 }
 
 static inline int elastio_snap_bio_op_flagged(struct bio *bio, unsigned int flag){
@@ -3341,6 +3345,7 @@ static inline struct inode *page_get_inode(struct page *pg){
 #endif
 	if(PageAnon(pg)) return NULL;
 	if(!pg->mapping) return NULL;
+	if (!virt_addr_valid(pg->mapping)) return NULL;
 	return pg->mapping->host;
 }
 

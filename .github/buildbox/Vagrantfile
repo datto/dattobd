@@ -38,14 +38,14 @@ DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11",
                     "amazon2", "amazon2023",
                     "centos7", "centos8", "centos9",
                     "alma8", "alma9",
-                    "fedora31", "fedora32", "fedora34", "fedora35", "fedora36", "fedora37",
+                    "fedora31", "fedora32", "fedora34", "fedora35", "fedora36", "fedora37", "fedora38",
                     "ubuntu2004", "ubuntu2204" ]
 
 DISTRO['arm64'] = [ "debian10", "debian11",
                     "amazon2", "amazon2023",
                     "centos8", "centos9",
                     "alma8", "alma9",
-                    "fedora35", "fedora36", "fedora37",
+                    "fedora35", "fedora36", "fedora37", "fedora38",
                     "ubuntu2204" ]
 
 # NOTE: This environment variable should be set to enable triggers of the type "action".

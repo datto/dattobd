@@ -24,7 +24,7 @@ def unmount(path, retry_on_dev_busy=True):
     cmd = ["umount", path]
     # subprocess.run is introduced in Python 3.5
     if not retry_on_dev_busy or sys.version_info <= (3, 5):
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=20)
     else:
         # The retries on device busy error are necessary on Ubuntu 22.04, kernel 5.15
         # for the tests test_destroy_unverified_incremental and test_destroy_unverified_snapshot.
@@ -48,7 +48,7 @@ def dd(ifile, ofile, count, **kwargs):
     for k, v in kwargs.items():
         cmd.append("{}={}".format(k, v))
 
-    subprocess.check_call(cmd, timeout=60)
+    subprocess.check_call(cmd, timeout=240)
 
 
 def md5sum(path):
