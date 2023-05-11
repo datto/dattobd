@@ -4,6 +4,6 @@
 # It looked like it is not called. The aim of this script is to call rmmod manually after unmounting the filesystem.
 
 cp bin/call-rmmod-after-umount.sh /bin/call-rmmod-after-umount.sh
-mv umount umount.real
+mv /bin/umount /bin/umount.real
 chmod +x /bin/call-rmmod-after-umount.sh
 ln -s /bin/call-rmmod-after-umount.sh umount
