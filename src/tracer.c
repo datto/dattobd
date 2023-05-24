@@ -35,21 +35,28 @@
 #define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
 #endif
 
-static int blk_stack_limits(struct request_queue *t, struct request_queue *b,
+int blk_stack_limits(struct queue_limits *t, struct queue_limits *b,
                             sector_t offset)
 {
         t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
         t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-        t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
+        t->bounce = min_not_zero(t->bounce, b->bounce);
         t->seg_boundary_mask =
                 min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-        t->max_phys_segments =
-                min_not_zero(t->max_phys_segments, b->max_phys_segments);
-        t->max_hw_segments =
-                min_not_zero(t->max_hw_segments, b->max_hw_segments);
+        t->max_segments =
+                min_not_zero(t->max_segments, b->max_segments);
+        t->max_segments =
+                min_not_zero(t->max_segments, b->max_segments);
         t->max_segment_size =
-                min_not_zero(t->max_segment_size, b->max_segment_size);
+                min_not_zero(t->max_segment_size, b->max_segment_size);     
         return 0;
+}
+
+static int blk_stack_limits_request_queue(struct request_queue *t, struct request_queue *b,
+                            sector_t offset)
+{
+	return blk_stack_limits(&t->limits, &b->limits, 0);
+
 }
 
 static int dattobd_bdev_stack_limits(struct request_queue *t,
@@ -57,7 +64,7 @@ static int dattobd_bdev_stack_limits(struct request_queue *t,
 {
         struct request_queue *bq = bdev_get_queue(bdev);
         start += get_start_sect(bdev);
-        return blk_stack_limits(t, bq, start << 9);
+        return blk_stack_limits_request_queue(t, bq, start << 9);
 }
 
 #elif !defined(HAVE_BDEV_STACK_LIMITS)
@@ -914,7 +921,16 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 
         if (dev->sd_queue) {
                 LOG_DEBUG("freeing request queue");
-                blk_cleanup_queue(dev->sd_queue);
+                /* blk_cleanup_queue disapperaed in v5.19 and there is no matching init 
+                   blk_cleanup_queue(dev->sd_queue); 
+                   need to add a proper ifdef feature or simply kernve version
+                   will kernel stuff work on rhel?
+                */
+        #ifdef HAVE_BLK_CLEANUP_QUEUE
+                   blk_cleanup_queue(dev->sd_queue);
+        #else   
+                   blk_mq_destroy_queue(dev->sd_queue);
+        #endif           
                 dev->sd_queue = NULL;
         }
 
