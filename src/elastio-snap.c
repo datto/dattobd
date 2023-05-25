@@ -2181,6 +2181,17 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 
 	file_get_absolute_pathname(f, &abs_path, &abs_path_len);
 
+	//try regular fallocate
+	ret = real_fallocate(f, offset, length);
+	if(ret && ret != -EOPNOTSUPP) goto error;
+	else if(!ret) goto out;
+
+	file_lock(f);
+
+	//fallocate isn't supported, fall back on writing zeros
+	LOG_WARN("fallocate is not supported for %s, falling back on writing zeros",
+			(abs_path)? abs_path : "this file system");
+
 	//allocate page of zeros
 	page_buf = (char *)get_zeroed_page(GFP_KERNEL);
 	if(!page_buf){
@@ -2205,8 +2216,10 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 	for(i = 0; i < write_count; i++){
 		ret = file_write(cm, page_buf, offset + (PAGE_SIZE * i), PAGE_SIZE);
 		if(ret) goto error;
+		cond_resched();
 	}
 
+out:
 	file_lock(f);
 
 	if(page_buf) free_page((unsigned long)page_buf);
@@ -2344,6 +2357,36 @@ static int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx){
 	return 0;
 }
 
+static int __cow_file_extents_zero_fill_ahead(struct cow_manager *cm)
+{
+	int ret;
+	char *buf;
+	uint64_t write_max = COW_BLOCK_SIZE * 1024;
+	uint64_t curr_size = cm->curr_pos * COW_BLOCK_SIZE;
+	uint64_t write_ahead = min(cm->file_max - curr_size, write_max);
+
+	buf = kmalloc(write_ahead, GFP_KERNEL);
+	if(!buf){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating buffer");
+		return ret;
+	}
+
+	/* This covers the case when the module is removed in the dormant state.
+	 * In such a case, the direct write to the COW file takes place to write
+	 * the rest of bio requests which have not been processed yet. However,
+	 * it may (and likely will) happen that the COW file extents, which is
+	 * being used for the direct write, aren't initialized by the FS. Hence,
+	 * if we simply write there, there's no chance this data will be available
+	 * at the next volume mount. To make this possible, we write some data
+	 * ahead to ensure the extent is valid during the direct write operation
+	 */
+	ret = file_write(cm, buf, curr_size, write_ahead);
+	kfree(buf);
+
+	return ret;
+}
+
 static int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long thresh){
 	int ret;
 	unsigned long i;
@@ -2359,6 +2402,11 @@ static int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long th
 			__cow_free_section(cm, i);
 		}
 		cm->sects[i].usage = 0;
+	}
+
+	if (__cow_file_extents_zero_fill_ahead(cm)) {
+		LOG_ERROR(-EIO, "couldn't prepare cow file extents, data may be corrupted");
+		return -EIO;
 	}
 
 	return 0;
@@ -3020,7 +3068,9 @@ static int __cow_write_data(struct cow_manager *cm, void *buf){
 	if(curr_size >= cm->file_max) {
 		ret = -EFBIG;
 
-		file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
+		if (cm->filp)
+			file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
+
 		if(!abs_path){
 			LOG_ERROR(ret, "cow file max size exceeded (%llu/%llu)", curr_size, cm->file_max);
 		}else{
@@ -4571,13 +4621,13 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 		kfree(dev->sd_cow_extents);
 		dev->sd_cow_extents = NULL;
 		dev->sd_cow_ext_cnt = 0;
+		dev->sd_cow_inode = NULL;
 	} else {
 		LOG_DEBUG("preserving cow file extents");
 	}
 
 	dev->sd_falloc_size = 0;
 	dev->sd_cache_size = 0;
-	dev->sd_cow_inode = NULL;
 
 	return ret;
 }
