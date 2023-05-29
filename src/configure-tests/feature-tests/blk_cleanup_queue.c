@@ -9,6 +9,6 @@
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-    request_queue *rq = NULL;
+    struct request_queue *rq = NULL;
     blk_cleanup_queue(rq);
 }
