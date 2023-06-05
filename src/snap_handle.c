@@ -259,6 +259,7 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
                         // pass the block to the cow manager to be handled
                         ret = cow_write_current(dev->sd_cow, start_block, data);
                         if (ret) {
+                                LOG_ERROR(ret,"memory left in cache (not saved) %llu",(end_block-start_block)*COW_BLOCK_SIZE);
                                 kunmap(bio_iter_page(bio, iter));
                                 goto error;
                         }
