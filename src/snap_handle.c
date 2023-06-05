@@ -245,6 +245,8 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 
         // iterate through the bio and handle each segment (which is guaranteed
         // to be block aligned)
+        const unsigned int number_of_blocks=get_number_of_blocks(bio);
+        unsigned int saved_blocks=0;
         bio_for_each_segment (bvec, bio, iter) {
                 // find the start and end block
                 start_block = end_block;
@@ -259,10 +261,11 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
                         // pass the block to the cow manager to be handled
                         ret = cow_write_current(dev->sd_cow, start_block, data);
                         if (ret) {
-                                LOG_ERROR(ret,"memory left in cache (not saved) %llu",(end_block-start_block)*COW_BLOCK_SIZE);
+                                LOG_ERROR(ret,"memory demands %llu, memory saved before crash",number_of_blocks*COW_BLOCK_SIZE,saved_blocks*COW_BLOCK_SIZE);
                                 kunmap(bio_iter_page(bio, iter));
                                 goto error;
                         }
+                        saved_blocks++;
                 }
 
                 // unmap the page

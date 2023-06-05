@@ -128,6 +128,7 @@ typedef enum req_op req_op_t;
 int dattobd_bio_op_flagged(struct bio *bio, unsigned int flag);
 void dattobd_bio_op_set_flag(struct bio *bio, unsigned int flag);
 void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag);
+unsigned int get_number_of_blocks(struct bio *bio);
 
 #else
 

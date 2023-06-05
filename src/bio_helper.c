@@ -162,6 +162,23 @@ void dattobd_bio_op_clear_flag(struct bio *bio, unsigned int flag)
 {
         bio->bi_rw &= ~flag;
 }
+
+unsigned int get_number_of_blocks(struct bio *bio)
+{
+        bio_iter_t iter;
+        bio_iter_bvec_t bvec;
+        sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
+        unsigned int number_of_blocks=0;
+        bio_for_each_segment (bvec, bio, iter) {
+                // find the start and end block
+                start_block = end_block;
+                end_block = start_block +
+                            (bio_iter_len(bio, iter) / COW_BLOCK_SIZE);
+                number_of_blocks+=end_block-start_block;       
+        }
+        return number_of_blocks;
+}
+
 #else
 
 #ifndef HAVE_ENUM_REQ_OPF
@@ -335,7 +352,7 @@ void dattobd_bio_endio(struct bio *bio, int err)
  * @bio: The &struct bio which describes the I/O
  * @err: an errno
  */
-void dattobd_bio_endio(struct bio *bio, int err)
+void bio_endio(struct bio *bio, int err)
 {
         bio_endio(bio, err);
 }
