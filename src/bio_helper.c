@@ -620,6 +620,33 @@ static void bio_destructor_snap_dev(struct bio *bio)
 }
 #endif
 
+
+#ifndef HAVE_BIO_FREE_PAGES
+/**
+ * bio_free_pages - Frees up bio pages
+ *
+ * @bio: The &struct bio which describes the I/O
+ * 
+ * See https://github.com/torvalds/linux/blob/v6.3/block/bio.c#L1434
+ */
+static void bio_free_pages(struct bio *bio)
+{
+        struct bio_vec *bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter_all;
+	bio_for_each_segment_all(bvec, bio, iter_all) {
+#else
+	int i = 0;
+	bio_for_each_segment_all(bvec, bio, i) {
+#endif
+		struct page *bv_page = bvec->bv_page;
+		if (bv_page) {
+			__free_page(bv_page);
+		}
+	}
+}
+#endif
+
 /**
  * bio_free_clone() - Cleans up a bio allocated with bio_make_read_clone().
  *
@@ -630,12 +657,7 @@ static void bio_destructor_snap_dev(struct bio *bio)
  */
 void bio_free_clone(struct bio *bio)
 {
-        int i;
-
-        for (i = 0; i < bio->bi_vcnt; i++) {
-                if (bio->bi_io_vec[i].bv_page)
-                        __free_page(bio->bi_io_vec[i].bv_page);
-        }
+        bio_free_pages(bio);
         bio_put(bio);
 }
 

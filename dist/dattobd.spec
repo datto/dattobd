@@ -106,7 +106,7 @@
 
 
 Name:            dattobd
-Version:         0.11.2
+Version:         0.11.3
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -571,6 +571,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
+- Fix memory leak on Ubuntu 20.04
+
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
 
