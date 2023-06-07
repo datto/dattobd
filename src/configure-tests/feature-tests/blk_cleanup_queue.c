@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2023 Datto Inc.
  */
 
 #include "includes.h"
