@@ -181,7 +181,6 @@ jobs:
       - name: Install kernel module
         run: |
           vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make install'
-          vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make uninstall'
         working-directory: ${{env.BOX_DIR}}
 
       - name: Run tests (loop device)
@@ -319,6 +318,10 @@ jobs:
         run: vagrant ssh ${{env.INSTANCE_NAME}} -c "cat tests/dmesg.log; sudo dmesg -c; lsmod"
         working-directory: ${{env.BOX_DIR}}
         timeout-minutes: 2
+
+      - name: Uninstall kernel module
+        run: vagrant ssh ${{env.INSTANCE_NAME}} -c 'sudo make uninstall'
+        working-directory: ${{env.BOX_DIR}}
 
       - name: Detach external drives
         if: always()
