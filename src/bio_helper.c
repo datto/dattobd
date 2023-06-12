@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2022-2023 Datto Inc.
  */
 
 #include "includes.h"
@@ -704,7 +704,11 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         // allocate bio clone, instruct the allocator to not make I/O requests
         // while trying to allocate memory to prevent any possible lock
         // contention.
+#ifdef HAVE_BIO_ALLOC_BIOSET_5
+        new_bio = bio_alloc_bioset(orig_bio->bi_bdev, actual_pages, REQ_OP_READ, GFP_NOIO, bs);
+#else
         new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
+#endif
         if (!new_bio) {
                 ret = -ENOMEM;
                 LOG_ERROR(ret,

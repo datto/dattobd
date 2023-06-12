@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2022-2023 Datto Inc.
  */
 
 #ifndef MRF_H_
@@ -24,7 +24,7 @@ int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
                      struct bio *bio);
 
-#else
+#elif defined HAVE_NONVOID_SUBMIT_BIO_1
 
 #define MRF_RETURN_TYPE blk_qc_t
 #define MRF_RETURN(ret) return BLK_QC_T_NONE
@@ -32,6 +32,11 @@ int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
 int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
                      struct bio *bio);
 #endif // USE_BDOPS_SUBMIT_BIO
+
+#else
+
+#define MRF_RETURN_TYPE void
+#define MRF_RETURN(ret) return
 
 #endif
 
