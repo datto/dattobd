@@ -181,4 +181,9 @@ void dattobd_bio_endio(struct bio *bio, int err);
     #define dattobd_bio_bi_disk(bio) ((bio)->bi_disk)
 #endif
 
+#if !defined HAVE_BIO_FOR_EACH_SEGMENT_ALL_1 && !defined HAVE_BIO_FOR_EACH_SEGMENT_ALL_2
+        #define bio_for_each_segment_all(bvl, bio, i)				\
+	        for (i = 0, bvl = (bio)->bi_io_vec; i < (bio)->bi_vcnt; i++, bvl++)
+#endif
+
 #endif /* BIO_HELPER_H */
