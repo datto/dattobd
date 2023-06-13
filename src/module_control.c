@@ -13,9 +13,9 @@
 #include "logging.h"
 #include "proc_seq_file.h"
 #include "snap_device.h"
-#include "system_call_hooking.h"
 #include "tracer.h"
 #include "tracer_helper.h"
+#include "ftrace_hooking.h"
 
 // current lowest supported kernel = 2.6.18
 
@@ -175,9 +175,11 @@ static void agent_exit(void)
 {
         LOG_DEBUG("module exit");
 
-        restore_system_call_table();
+        //restore_system_call_table();
 
         unregister_tracer_filter();
+
+        unregister_ftrace_hooks();
 
         unregister_ioctl_control_interface();
 
@@ -345,8 +347,14 @@ static int __init agent_init(void)
                 goto error;
         }
 
-        if (dattobd_may_hook_syscalls)
-                (void)hook_system_call_table();
+        ret = register_ftrace_hooks();
+        if (ret) {
+                LOG_ERROR(ret, "error installing ftrace mount hook");
+                goto error;
+        }
+
+        //if (dattobd_may_hook_syscalls)
+         //       (void)hook_system_call_table();
 
         return 0;
 
