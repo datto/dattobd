@@ -371,7 +371,6 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 %endif
 %endif
 %endif
-dist/shutdown/setup-module-exit-after-umount.sh
 
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
@@ -454,8 +453,6 @@ fi
 %postun -n %{libname}
 /sbin/ldconfig
 
-$postun 
-dist/shutdown/restore-default-umount.sh
 
 %clean
 # EL5 and SLE 11 require this section
@@ -574,12 +571,8 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Thu May 20 2023 Michal Switala <mswitala@datto.com>- 0.11.2
-- Added script for which calls rmmod on dattobd after filessytem umount
-
 * Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
 - Fix memory leak on Ubuntu 20.04
-
 
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
