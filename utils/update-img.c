@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <string.h>
 
+#include "kernel-config.h"
 #include "libelastio-snap.h"
 
 #define INDEX_BUFFER_SIZE 8192

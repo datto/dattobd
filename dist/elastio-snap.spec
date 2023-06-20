@@ -312,6 +312,9 @@ automatically build and install for each kernel.
 export CFLAGS="%{optflags}"
 make application
 make utils
+# Not needs to be installed: we expect the
+# user to generate it during the build
+rm -f src/kernel-config.h
 
 
 %install
@@ -591,6 +594,7 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
+%exclude %dir %{_kmod_src_root}/configure-tests/feature-tests/build
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
 %{_sysconfdir}/kernel/postinst.d/50-elastio-snap

@@ -26,7 +26,6 @@ class TestUpdateImage(DeviceTestCase):
     def tearDown(self):
         util.test_track(self._testMethodName, started=False)
 
-    @unittest.skipIf(platform.release() == "4.18.0-408.el8.aarch64", "Broken on CentOS 8 with kernel 4.18.0-408.el8.aarch64. See #266")
     def test_update_sequence(self):
         iterations = 25
         file_name = "testfile"

@@ -2387,7 +2387,7 @@ static int __cow_file_extents_zero_fill_ahead(struct cow_manager *cm)
 	return ret;
 }
 
-static int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long thresh){
+static int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long thresh, bool fill_ahead){
 	int ret;
 	unsigned long i;
 
@@ -2404,7 +2404,7 @@ static int __cow_sync_and_free_sections(struct cow_manager *cm, unsigned long th
 		cm->sects[i].usage = 0;
 	}
 
-	if (__cow_file_extents_zero_fill_ahead(cm)) {
+	if (fill_ahead && __cow_file_extents_zero_fill_ahead(cm)) {
 		LOG_ERROR(-EIO, "couldn't prepare cow file extents, data may be corrupted");
 		return -EIO;
 	}
@@ -2439,7 +2439,7 @@ static int __cow_cleanup_mappings(struct cow_manager *cm){
 	}
 
 	//deallocate sections of the cm with less usage than the median
-	ret = __cow_sync_and_free_sections(cm, thresh);
+	ret = __cow_sync_and_free_sections(cm, thresh, false);
 	if(ret){
 		LOG_ERROR(ret, "error cleaning cow manager mappings");
 		return ret;
@@ -2562,7 +2562,7 @@ static void cow_free(struct cow_manager *cm){
 static int cow_sync_and_free(struct cow_manager *cm){
 	int ret;
 
-	ret = __cow_sync_and_free_sections(cm, 0);
+	ret = __cow_sync_and_free_sections(cm, 0, false);
 	if(ret) goto error;
 
 	ret = __cow_close_header(cm);
@@ -2770,7 +2770,7 @@ out:
 static int cow_sync_and_close(struct cow_manager *cm){
 	int ret;
 
-	ret = __cow_sync_and_free_sections(cm, 0);
+	ret = __cow_sync_and_free_sections(cm, 0, true);
 	if(ret) goto error;
 
 	ret = __cow_close_header(cm);

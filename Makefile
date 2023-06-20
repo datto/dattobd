@@ -10,6 +10,7 @@ export BASE_DIR = $(abspath .)
 EUID := $(shell id -u -r)
 
 BUILDDIR := $(CURDIR)/pkgbuild
+KERNEL_CONFIG := src/kernel-config.h
 
 # Flags to pass to debbuild/rpmbuild
 PKGBUILDFLAGS := --define "_topdir $(BUILDDIR)" -ba --with devmode
@@ -31,10 +32,13 @@ endif
 driver: check_root
 	$(MAKE) -C src
 
-library-shared:
+$(KERNEL_CONFIG):
+	$(BASE_DIR)/src/genconfig.sh "$(shell uname -r)"
+
+library-shared: $(KERNEL_CONFIG)
 	$(MAKE) -C lib CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src" shared
 
-library-static:
+library-static: $(KERNEL_CONFIG)
 	$(MAKE) -C lib CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src" static
 
 library: library-shared library-static
@@ -42,10 +46,10 @@ library: library-shared library-static
 application-static: library-static
 	$(MAKE) -C app CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib"
 
-application: library-shared
+application: check_root library-shared
 	$(MAKE) -C app CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib" shared
 
-utils: library-shared
+utils: check_root library-shared
 	$(MAKE) -C utils CCFLAGS="$(CCFLAGS) -I$(BASE_DIR)/src -I$(BASE_DIR)/lib -D_XOPEN_SOURCE=500"
 
 clean:
@@ -62,10 +66,10 @@ pkgprep: pkgclean
 	tar --exclude=./pkgbuild --exclude=.git --transform 's,^\.,elastio-snap,' -czf $(BUILDDIR)/SOURCES/elastio-snap.tar.gz .
 	cp dist/elastio-snap.spec $(BUILDDIR)/SPECS/elastio-snap.spec
 
-deb: pkgprep
+deb: check_root pkgprep
 	debbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/elastio-snap.spec
 
-rpm: pkgprep
+rpm: check_root pkgprep
 	rpmbuild $(PKGBUILDFLAGS) $(BUILDDIR)/SPECS/elastio-snap.spec
 
 install:
