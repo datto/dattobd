@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2015-2022 Datto Inc.
+ * Copyright (C) 2015-2023 Datto Inc.
  */
 
 #ifndef DATTOBD_INCLUDES_H_
@@ -9,9 +9,9 @@
 
 #include <asm/div64.h>
 #include <linux/blkdev.h>
+#include <linux/blk-mq.h>
 #include <linux/buffer_head.h>
 #include <linux/ftrace.h>
-#include <linux/genhd.h>
 #include <linux/kthread.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
