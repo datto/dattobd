@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2023 Datto Inc.
+ * Copyright (C) 2022 Datto Inc.
  */
 
 #include "tracer.h"
@@ -23,7 +23,6 @@
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/blk-mq.h>
-#include <linux/version.h>
 #ifdef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #include <linux/percpu-refcount.h>
@@ -391,12 +390,8 @@ static int bdev_is_already_traced(const struct block_device *bdev)
 static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
 {
         struct super_block *sb = dattobd_get_super(bdev);
-        struct super_block *sb_file = (dattobd_get_mnt(file))->mnt_sb;
         int ret = 0;
-
         if (sb) {
-                LOG_DEBUG("file_is_on_bdev() if(sb)");
-                LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
                 ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
                 dattobd_drop_super(sb);
         }
@@ -522,10 +517,8 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method)
                 LOG_DEBUG("destroying cow manager");
 
                 if (close_method == 0) {
-                        //cow_free(dev->sd_cow);
-                        //dev->sd_cow = NULL;
-                        ret = cow_sync_and_close(dev->sd_cow);
-                        task_work_flush();
+                        cow_free(dev->sd_cow);
+                        dev->sd_cow = NULL;
                 } else if (close_method == 1) {
                         ret = cow_sync_and_free(dev->sd_cow);
                         dev->sd_cow = NULL;
@@ -570,9 +563,8 @@ static int __tracer_setup_cow(struct snap_device *dev,
         int ret;
         uint64_t max_file_size;
         char bdev_name[BDEVNAME_SIZE];
- 
+
         bdevname(bdev, bdev_name);
-        LOG_DEBUG("bdevname %s, cow_path: %s", bdev_name, cow_path);
 
         if (open_method == 3) {
                 // reopen the cow manager
@@ -683,7 +675,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
         int ret;
 
         // open the base block device
-        LOG_DEBUG("ENTER __tracer_setup_base_dev");
+        LOG_DEBUG("finding block device");
         dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
@@ -1579,9 +1571,7 @@ error:
 int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor,
                               const char *bdev_path, const char *cow_path,
                               unsigned long cache_size, int is_snap)
-{       
-        LOG_DEBUG("Enter __tracer_setup_unverified path %s", bdev_path);
-
+{
         if (is_snap)
                 set_bit(SNAPSHOT, &dev->sd_state);
         else
@@ -1653,7 +1643,6 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 {
         int ret;
 
-        LOG_DEBUG("ENTER tracer_setup_active_snap");
         set_bit(SNAPSHOT, &dev->sd_state);
         set_bit(ACTIVE, &dev->sd_state);
         clear_bit(UNVERIFIED, &dev->sd_state);
@@ -1836,8 +1825,6 @@ int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path,
         int ret;
         struct snap_device *dev;
 
-        LOG_DEBUG("ENTER tracer_active_inc_to_snap");
-
         // allocate new tracer
         ret = tracer_alloc(&dev);
         if (ret)
@@ -1965,7 +1952,6 @@ void __tracer_active_to_dormant(struct snap_device *dev)
 {
         int ret;
 
-        LOG_DEBUG("ENTER __tracer_active_to_dormant");
         // stop the cow thread
         __tracer_destroy_cow_thread(dev);
 
@@ -2002,7 +1988,6 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
                         *rel_path = dev->sd_cow_path;
         unsigned long cache_size = dev->sd_cache_size;
 
-        LOG_DEBUG("ENTER __tracer_unverified_snap_to_active");
         // remove tracing while we setup the struct
         __tracer_destroy_tracing(dev);
 
@@ -2019,11 +2004,7 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
                 goto error;
 
         // generate the full pathname
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-        ret = pathname_concat(user_mount_path, rel_path, &cow_path);        
-#else
         ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
-#endif
         if (ret)
                 goto error;
 
@@ -2097,8 +2078,6 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
                         *rel_path = dev->sd_cow_path;
         unsigned long cache_size = dev->sd_cache_size;
 
-        LOG_DEBUG("ENTER %s", __func__);
-
         // remove tracing while we setup the struct
         __tracer_destroy_tracing(dev);
 
@@ -2115,11 +2094,7 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
                 goto error;
 
         // generate the full pathname
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-        ret = pathname_concat(user_mount_path, rel_path, &cow_path);        
-#else
         ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
-#endif
         if (ret)
                 goto error;
 
@@ -2185,15 +2160,9 @@ void __tracer_dormant_to_active(struct snap_device *dev,
         int ret;
         char *cow_path;
 
-        LOG_DEBUG("ENTER __tracer_dormant_to_active");
-
         // generate the full pathname
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-        ret = pathname_concat(user_mount_path, dev->sd_cow_path, &cow_path);        
-#else
-        ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path, &cow_path);
-#endif
+        ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path,
+                                         &cow_path);
         if (ret)
                 goto error;
 

@@ -247,14 +247,10 @@ int __cow_write_header(struct cow_manager *cm, int is_clean)
         int ret;
         struct cow_header ch;
 
-        if (is_clean){
+        if (is_clean)
                 cm->flags |= (1 << COW_CLEAN);
-                LOG_DEBUG("writing COW header CLEAN");
-        }
-        else{
+        else
                 cm->flags &= ~(1 << COW_CLEAN);
-                LOG_DEBUG("writing COW header DIRTY");
-        }
 
         ch.magic = COW_MAGIC;
         ch.flags = cm->flags;
@@ -405,7 +401,6 @@ int cow_sync_and_free(struct cow_manager *cm)
 {
         int ret;
 
-        LOG_DEBUG("ENTER cow_sync_and_free");
         ret = __cow_sync_and_free_sections(cm, 0);
         if (ret)
                 goto error;
@@ -447,8 +442,6 @@ error:
 int cow_sync_and_close(struct cow_manager *cm)
 {
         int ret;
-
-        LOG_DEBUG("ENTER cow_sync_and_close");
 
         ret = __cow_sync_and_free_sections(cm, 0);
         if (ret)
