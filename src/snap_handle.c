@@ -110,13 +110,12 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
         sector_t bio_orig_sect, cur_block, cur_sect;
         unsigned int bio_orig_idx, bio_orig_size;
         uint64_t block_mapping, bytes_to_copy, block_off, bvec_off;
+        struct bio_vec *bvec;
 
 #ifdef HAVE_BVEC_ITER_ALL
 	struct bvec_iter_all iter;
-	struct bio_vec *bvec;
 #else
 	int i = 0;
-	struct bio_vec *bvec;
 #endif
 
         // save the original state of the bio
@@ -253,11 +252,13 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
         // to be block aligned)
         const unsigned long long number_of_blocks=bio_size(bio);
         unsigned long long saved_blocks=0;
+
 #ifdef HAVE_BVEC_ITER_ALL
 		bio_for_each_segment_all(bvec, bio, iter) {
 #else
 		bio_for_each_segment_all(bvec, bio, i) {
 #endif
+
                 // find the start and end block
                 start_block = end_block;
                 end_block = start_block + bvec->bv_len / COW_BLOCK_SIZE;
