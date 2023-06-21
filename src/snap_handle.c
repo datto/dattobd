@@ -158,9 +158,7 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
                 bio_sector(bio) = bio_orig_sect;
                 cur_sect = bio_sector(bio);
 
-                // iterate over all the segments and fill the bio. this more
-                // complex than writing since we don't have the block aligned
-                // guarantee
+                // iteration which guarantes that we will have ownership of bvecs internals
 #ifdef HAVE_BVEC_ITER_ALL
                 bio_for_each_segment_all (bvec, bio, iter) {
 #else
