@@ -2076,8 +2076,11 @@ static int elastio_snap_do_truncate(struct dentry *dentry, loff_t length, unsign
 #elif defined HAVE_NOTIFY_CHANGE_3
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
 	ret = notify_change(dentry, &newattrs, NULL);
-#else
+#elif defined HAVE_NOTIFY_CHANGE_4_USER_NAMESPACE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(6,3,0)
 	ret = notify_change(&init_user_ns, dentry, &newattrs, NULL);
+#else
+	ret = notify_change(file_mnt_idmap(filp), dentry, &newattrs, NULL);
 #endif
 	elastio_snap_inode_unlock(dentry->d_inode);
 
@@ -2267,8 +2270,11 @@ static int __file_unlink(struct file *filp, int close, int force){
 #elif defined HAVE_VFS_UNLINK_3
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
 	ret = vfs_unlink(dir_inode, file_dentry, NULL);
-#else
+#elif defined HAVE_VFS_UNLINK_4_USER_NAMESPACE
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(6,3,0)
 	ret = vfs_unlink(&init_user_ns, dir_inode, file_dentry, NULL);
+#else
+	ret = vfs_unlink(file_mnt_idmap(filp), dir_inode, file_dentry, NULL);
 #endif
 
 	file_lock(filp);
@@ -2684,7 +2690,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 
 	vma->vm_start = start_addr;
 	vma->vm_end = start_addr + cow_ext_buf_size;
-	vma->vm_flags = vm_flags;
+	*(unsigned long *) &vma->vm_flags = vm_flags;
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 	vma->vm_pgoff = 0;
 
