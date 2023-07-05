@@ -104,14 +104,19 @@ error:
 int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
 {
         int ret, mode;
-        bio_iter_t iter;
-        bio_iter_bvec_t bvec;
         void *orig_private;
         bio_end_io_t *orig_end_io;
         char *data;
         sector_t bio_orig_sect, cur_block, cur_sect;
         unsigned int bio_orig_idx, bio_orig_size;
         uint64_t block_mapping, bytes_to_copy, block_off, bvec_off;
+        struct bio_vec *bvec;
+
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+#else
+	int i = 0;
+#endif
 
         // save the original state of the bio
         orig_private = bio->bi_private;
@@ -152,29 +157,26 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
                 bio_sector(bio) = bio_orig_sect;
                 cur_sect = bio_sector(bio);
 
-                // iterate over all the segments and fill the bio. this more
-                // complex than writing since we don't have the block aligned
-                // guarantee
-                bio_for_each_segment (bvec, bio, iter) {
+                // iteration which guarantes that we will have ownership of bvecs internals
+#ifdef HAVE_BVEC_ITER_ALL
+                bio_for_each_segment_all (bvec, bio, iter) {
+#else
+               bio_for_each_segment_all(bvec, bio, i) {
+#endif 
                         // map the page into kernel space
-                        data = kmap(bio_iter_page(bio, iter));
+                        data = kmap(bvec->bv_page);
 
                         cur_block = (cur_sect * SECTOR_SIZE) / COW_BLOCK_SIZE;
                         block_off = (cur_sect * SECTOR_SIZE) % COW_BLOCK_SIZE;
-                        bvec_off = bio_iter_offset(bio, iter);
+                        bvec_off = bvec->bv_offset;
 
-                        while (bvec_off < bio_iter_offset(bio, iter) +
-                                                  bio_iter_len(bio, iter)) {
-                                bytes_to_copy =
-                                        min(bio_iter_offset(bio, iter) +
-                                                    bio_iter_len(bio, iter) -
-                                                    bvec_off,
-                                            COW_BLOCK_SIZE - block_off);
+                        while (bvec_off < bvec->bv_offset + bvec->bv_len) {
+                                bytes_to_copy = min(bvec->bv_offset + bvec->bv_len - bvec_off, COW_BLOCK_SIZE - block_off);
                                 // check if the mapping exists
                                 ret = cow_read_mapping(dev->sd_cow, cur_block,
                                                        &block_mapping);
                                 if (ret) {
-                                        kunmap(bio_iter_page(bio, iter));
+                                        kunmap(bvec->bv_page);
                                         goto out;
                                 }
 
@@ -187,8 +189,7 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
                                                             block_off,
                                                             bytes_to_copy);
                                         if (ret) {
-                                                kunmap(bio_iter_page(bio,
-                                                                     iter));
+                                                kunmap(bvec->bv_page);
                                                 goto out;
                                         }
                                 }
@@ -202,7 +203,7 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
                         }
 
                         // unmap the page from kernel space
-                        kunmap(bio_iter_page(bio, iter));
+                        kunmap(bvec->bv_page);
                 }
         }
 
@@ -238,23 +239,32 @@ out:
 int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 {
         int ret;
-        bio_iter_t iter;
-        bio_iter_bvec_t bvec;
         char *data;
         sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
+        struct bio_vec *bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+#else
+	int i = 0;
+#endif
 
         // iterate through the bio and handle each segment (which is guaranteed
         // to be block aligned)
         const unsigned long long number_of_blocks=bio_size(bio);
         unsigned long long saved_blocks=0;
-        bio_for_each_segment (bvec, bio, iter) {
+
+#ifdef HAVE_BVEC_ITER_ALL
+		bio_for_each_segment_all(bvec, bio, iter) {
+#else
+		bio_for_each_segment_all(bvec, bio, i) {
+#endif
+
                 // find the start and end block
                 start_block = end_block;
-                end_block = start_block +
-                            (bio_iter_len(bio, iter) / COW_BLOCK_SIZE);
+                end_block = start_block + bvec->bv_len / COW_BLOCK_SIZE;
 
                 // map the page into kernel space
-                data = kmap(bio_iter_page(bio, iter));
+                data = kmap(bvec->bv_page);
 
                 // loop through the blocks in the page
                 for (; start_block < end_block; start_block++) {
@@ -262,14 +272,14 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
                         ret = cow_write_current(dev->sd_cow, start_block, data);
                         if (ret) {
                                 LOG_ERROR(ret,"memory demands %llu, memory saved before crash %llu",number_of_blocks*COW_BLOCK_SIZE,saved_blocks*COW_BLOCK_SIZE);
-                                kunmap(bio_iter_page(bio, iter));
+                                kunmap(bvec->bv_page);
                                 goto error;
                         }
                         saved_blocks++;
                 }
 
                 // unmap the page
-                kunmap(bio_iter_page(bio, iter));
+                kunmap(bvec->bv_page);
         }
 
         return 0;
