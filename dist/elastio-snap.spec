@@ -224,7 +224,7 @@ BuildArch:       noarch
 %endif
 
 %if 0%{?debian}
-%if ( "%{_arch}" != "x86_64" && "%{_arch}" != "amd64" ) && ( %{debian} == 11 )
+%if ( "%{_arch}" != "x86_64" && "%{_arch}" != "amd64" ) && ( %{debian} >= 11 )
 
 # By default, on arm64, Debian 11 is provided with the kernel with
 # some symbols absent AND with without a System.map file. This makes
@@ -233,6 +233,9 @@ BuildArch:       noarch
 # As a compromise solution, we install linux-image-$(uname -r)-dbg
 # to make it work properly. This package adds System.map and makes
 # it possible to fetch the address of the system call table
+#
+# It is also true for Debian12, but it needs to be checked for Debian13
+# when it is released
 #
 # Please refer to https://github.com/elastio/devboxes/pull/230
 Requires:        linux-image-%(uname -r)-dbg
