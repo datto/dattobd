@@ -34,14 +34,14 @@ chmod +x /etc/profile.d/set_build_env.sh
 ENV_VARS_SCRIPT
 
 DISTRO = {}
-DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11",
+DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11", "debian12",
                     "amazon2", "amazon2023",
                     "centos7", "centos8", "centos9",
                     "alma8", "alma9",
                     "fedora31", "fedora32", "fedora34", "fedora35", "fedora36", "fedora37", "fedora38",
                     "ubuntu2004", "ubuntu2204" ]
 
-DISTRO['arm64'] = [ "debian10", "debian11",
+DISTRO['arm64'] = [ "debian10", "debian11", "debian12",
                     "amazon2", "amazon2023",
                     "centos8", "centos9",
                     "alma8", "alma9",

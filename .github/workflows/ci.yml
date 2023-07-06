@@ -32,7 +32,7 @@ jobs:
         distro: [
           amazon2, amazon2023,
           centos7, centos8, centos9,
-          debian8, debian9, debian10, debian11,
+          debian8, debian9, debian10, debian11, debian12,
           fedora31, fedora32, fedora34, fedora35, fedora36, fedora37, fedora38,
           ubuntu2004, ubuntu2204
         ]
@@ -49,6 +49,8 @@ jobs:
           - distro: debian10
             arch: arm64
           - distro: debian11
+            arch: arm64
+          - distro: debian12
             arch: arm64
           - distro: fedora35
             arch: arm64
@@ -111,15 +113,6 @@ jobs:
             done
             '
           vagrant reload ${{env.INSTANCE_NAME}}
-        working-directory: ${{env.BOX_DIR}}
-
-      # Please refer to https://github.com/elastio/devboxes/pull/230
-      - name: Download debug package for Debian 11
-        if: "${{ matrix.distro == 'debian11' && matrix.arch == 'arm64' }}"
-        run: |
-          vagrant ssh ${{env.INSTANCE_NAME}} -c '
-            sudo apt-get install -y linux-image-$(uname -r)-dbg' || true
-          sleep 5
         working-directory: ${{env.BOX_DIR}}
 
       # For some reason we have too new (unofficial) xfsprogs installed on Debian 8. Replace them with the official ones.
