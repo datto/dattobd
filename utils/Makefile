@@ -1,27 +1,26 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-BINARY_NAME = update-img
 INSTALLDIR = $(PREFIX)/bin
-SOURCES = update-img.c
+SOURCES_UPDATE_IMG = update-img.c
+SOURCES_NL_DEBUG = nl_debug.c
 
-.PHONY: shared static install-static install uninstall clean
+.PHONY: all install uninstall clean
 
-shared:
-	$(CC) $(CCFLAGS) -o $(BINARY_NAME) -L $(BASE_DIR)/lib $(SOURCES) -lelastio-snap
+all: nl_debug update-img
 
-static:
-	$(CC) $(CCFLAGS) -o $(BINARY_NAME) $(SOURCES) $(BASE_DIR)/lib/libelastio-snap.a
+nl_debug: $(SOURCES_NL_DEBUG)
+	$(CC) $(CCFLAGS) -o nl_debug $(SOURCES_NL_DEBUG)
 
-install-static: static
+update-img: $(SOURCES_UPDATE_IMG)
+	$(CC) $(CCFLAGS) -o update-img -L $(BASE_DIR)/lib $(SOURCES_UPDATE_IMG) -lelastio-snap
+
+install: update-img
 	mkdir -p $(INSTALLDIR)
-	install $(BINARY_NAME) $(INSTALLDIR)
-
-install: shared
-	mkdir -p $(INSTALLDIR)
-	install $(BINARY_NAME) $(INSTALLDIR)
+	install update-img $(INSTALLDIR)
 
 uninstall:
-	$(RM) $(INSTALLDIR)/$(BINARY_NAME)
+	$(RM) $(INSTALLDIR)/update-img
 
 clean:
-	$(RM) $(BINARY_NAME)
+	$(RM) nl_debug
+	$(RM) update-img

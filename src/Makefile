@@ -1,12 +1,22 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 obj-m := elastio-snap.o
+elastio-snap-objs := main.o
+
+ifeq ($(NETLINK_DEBUG),y)
+elastio-snap-objs += nl_debug.o
+endif
 
 KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 INSTALL_MOD_DIR ?= extra
-EXTRA_CFLAGS := -g
+EXTRA_CFLAGS := -g -DKERNEL_MODULE
+
+ifeq ($(NETLINK_DEBUG),y)
+EXTRA_CFLAGS += -DNETLINK_DEBUG
+endif
+
 FEATURE_TEST_BUILD_DIR := configure-tests/feature-tests/build
 
 default:

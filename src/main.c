@@ -9,6 +9,10 @@
 #include "kernel-config.h"
 #include "elastio-snap.h"
 
+#ifdef NETLINK_DEBUG
+#include "nl_debug.h"
+#endif
+
 //current lowest supported kernel = 3.10.0
 
 //basic information
@@ -3018,6 +3022,10 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 
 	*out = cm->sects[sect_idx].mappings[sect_pos];
 
+#ifdef NETLINK_DEBUG
+	trace_event_cow(EVENT_COW_READ_MAPPING, pos, *out);
+#endif
+
 	if(cm->allocated_sects > cm->allowed_sects){
 		ret = __cow_cleanup_mappings(cm);
 		if(ret) goto error;
@@ -3027,6 +3035,9 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 
 error:
 	LOG_ERROR(ret, "error reading cow mapping");
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 	return ret;
 }
 
@@ -3049,6 +3060,10 @@ static int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t va
 
 	if(cm->version >= COW_VERSION_CHANGED_BLOCKS && !cm->sects[sect_idx].mappings[sect_pos]) cm->nr_changed_blocks++;
 
+#ifdef NETLINK_DEBUG
+	trace_event_cow(EVENT_COW_WRITE_MAPPING, pos, val);
+#endif
+
 	cm->sects[sect_idx].mappings[sect_pos] = val;
 
 	if(cm->allocated_sects > cm->allowed_sects){
@@ -3060,6 +3075,9 @@ static int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t va
 
 error:
 	LOG_ERROR(ret, "error writing cow mapping");
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 	return ret;
 }
 #define __cow_write_current_mapping(cm, pos) __cow_write_mapping(cm, pos, (cm)->curr_pos)
@@ -3087,6 +3105,10 @@ static int __cow_write_data(struct cow_manager *cm, void *buf){
 		goto error;
 	}
 
+#ifdef NETLINK_DEBUG
+	trace_event_cow(EVENT_COW_WRITE_DATA, 0, 0);
+#endif
+
 	ret = file_write(cm, buf, curr_size, COW_BLOCK_SIZE);
 	if(ret) goto error;
 
@@ -3096,6 +3118,9 @@ static int __cow_write_data(struct cow_manager *cm, void *buf){
 
 error:
 	LOG_ERROR(ret, "error writing cow data");
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 	return ret;
 }
 
@@ -3129,11 +3154,18 @@ static int cow_read_data(struct cow_manager *cm, void *out_buf, uint64_t block_p
 	int ret;
 	char *read_buf = kzalloc(COW_BLOCK_SIZE, GFP_KERNEL);
 
+#ifdef NETLINK_DEBUG
+	trace_event_cow(EVENT_COW_READ_DATA, 0, 0);
+#endif
+
 	if(block_off >= COW_BLOCK_SIZE) return -EINVAL;
 
 	ret = file_read(cm, read_buf, (block_pos * COW_BLOCK_SIZE), COW_BLOCK_SIZE);
 	if(ret){
 		LOG_ERROR(ret, "error reading cow data");
+#ifdef NETLINK_DEBUG
+		trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 		kfree(read_buf);
 		return ret;
 	}
@@ -3306,6 +3338,10 @@ static void tp_put(struct tracing_params *tp){
 		//if there are no references left, its safe to release the orig_bio
 		bio_queue_add(&tp->dev->sd_orig_bios, tp->orig_bio);
 
+#ifdef NETLINK_DEBUG
+		trace_event_bio(EVENT_BIO_RELEASED, tp->orig_bio, 0);
+#endif
+
 		// free nodes in the sector map list
 		for (curr = tp->bio_sects.head; curr != NULL; curr = next)
 		{
@@ -3444,6 +3480,9 @@ static void bio_destructor_snap_dev(struct bio *bio){
 #endif
 
 static void bio_free_clone(struct bio *bio){
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_FREE, bio, 0);
+#endif
 	bio_free_pages(bio);
 	bio_put(bio);
 }
@@ -3519,10 +3558,18 @@ static int bio_make_read_clone(struct block_device *bdev, struct bio_set *bs, st
 
 	*bytes_added = total;
 	*bio_out = new_bio;
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_CLONED, new_bio, 0);
+#endif
 	return 0;
 
 error:
 	if(ret) LOG_ERROR(ret, "error creating read clone of write bio");
+
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
+
 	if(new_bio) bio_free_clone(new_bio);
 
 	*bytes_added = 0;
@@ -3604,9 +3651,17 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 
 	//submit the bio to the base device and wait for completion
 	if(mode != READ_MODE_COW_FILE){
+
+#ifdef NETLINK_DEBUG
+		trace_event_bio(EVENT_BIO_HANDLE_READ_BASE, bio, 0);
+#endif
+
 		ret = elastio_snap_submit_bio_wait(bio);
 		if(ret){
 			LOG_ERROR(ret, "error reading from base device for read");
+#ifdef NETLINK_DEBUG
+			trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 			goto out;
 		}
 
@@ -3617,7 +3672,12 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	}
 
 	if(mode != READ_MODE_BASE_DEVICE){
-		//reset the bio
+
+#ifdef NETLINK_DEBUG
+		trace_event_bio(EVENT_BIO_HANDLE_READ_COW, bio, 0);
+#endif
+
+	//reset the bio
 		bio_idx(bio) = bio_orig_idx;
 		bio_size(bio) = bio_orig_size;
 		bio_sector(bio) = bio_orig_sect;
@@ -3666,7 +3726,17 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	}
 
 out:
+
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_HANDLE_READ_DONE, bio, 0);
+#endif
+
 	if(ret) {
+
+#ifdef NETLINK_DEBUG
+		trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
+
 		LOG_ERROR(ret, "error handling read bio");
 		bio_idx(bio) = bio_orig_idx;
 		bio_size(bio) = bio_orig_size;
@@ -3684,21 +3754,27 @@ static int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 	int ret;
 	char *data;
 	sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
-
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+	struct bio_vec *bvec;
+#else
+	int i = 0;
+	struct bio_vec *bvec;
+#endif
 	/*
 	 * Previously we iterated using bio_for_each_segment(), which
 	 * caused problems in case if our bio was split by the system.
 	 * It is replaced with bio_for_each_segment_all() as we own the
 	 * bio and can guarantee that we have access to its bvecs
 	 */
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_HANDLE_WRITE, bio, 0);
+#endif
+
 #ifdef HAVE_BVEC_ITER_ALL
-	struct bvec_iter_all iter;
-	struct bio_vec *bvec;
 	//iterate through the bio and handle each segment (which is guaranteed to be block aligned)
 	bio_for_each_segment_all(bvec, bio, iter) {
 #else
-	int i = 0;
-	struct bio_vec *bvec;
 	bio_for_each_segment_all(bvec, bio, i) {
 #endif
 		//find the start and end block
@@ -3719,9 +3795,18 @@ static int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 		kunmap(bvec->bv_page);
 	}
 
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_HANDLE_WRITE_DONE, bio, 0);
+#endif
+
 	return 0;
 
 error:
+
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
+
 	LOG_ERROR(ret, "error handling write bio");
 	return ret;
 }
@@ -3764,7 +3849,9 @@ static int snap_mrf_thread(void *data){
 
 		//submit the original bio to the block IO layer
 		elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
-
+#ifdef NETLINK_DEBUG
+		trace_event_bio(EVENT_BIO_CALL_ORIG, bio, 0);
+#endif
 		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
@@ -3904,6 +3991,10 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	unsigned short i = 0;
 #endif
 
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_READ_COMPLETE, bio, 0);
+#endif
+
 	//check for read errors
 	if(err){
 		ret = err;
@@ -3950,12 +4041,19 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	atomic64_inc(&dev->sd_received_cnt);
 	smp_wmb();
 
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_QUEUED, bio, 0);
+#endif
+
 	tp_put(tp);
 
 	return;
 
 error:
 	LOG_ERROR(ret, "error during bio read complete callback");
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 	tracer_set_fail_state(dev, ret);
 	tp_put(tp);
 	bio_free_clone(bio);
@@ -4006,6 +4104,9 @@ static int memory_is_too_low(struct snap_device *dev) {
 	ret = tracer_read_fail_state(dev);
 	if (ret != -ENOMEM && ((si_mem_available() * 100) / totalram) < LOW_MEMORY_FAIL_PERCENT) {
 		LOG_WARN("physical memory usage has exceeded %d%% threshold. cow file update is stopped", (100 - LOW_MEMORY_FAIL_PERCENT));
+#ifdef NETLINK_DEBUG
+		trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 		ret = -ENOMEM;
 		tracer_set_fail_state(dev, ret);
 	}
@@ -4024,6 +4125,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	//e.g. physical memory usage has exceeded threshold or COW file state is failed,
 	//just call the real mrf normally
 	if (!bio_needs_cow(bio, dev) || memory_is_too_low(dev) || tracer_read_fail_state(dev)) {
+#ifdef NETLINK_DEBUG
+		trace_event_bio(EVENT_BIO_CALL_ORIG, bio, 0);
+#endif
 		return elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 	}
 
@@ -4072,6 +4176,10 @@ retry:
 	//
 	// submit the bios
 	//
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_CALL_ORIG, new_bio, 0);
+#endif
+
 #ifdef USE_BDOPS_SUBMIT_BIO
 	// send bio by calling original mrf when its present or call an ordinal submit_bio instead
 	if (dev->sd_orig_mrf) {
@@ -4176,6 +4284,10 @@ out:
 		ret = 0;
 	}
 
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_CALL_ORIG, bio, 0);
+#endif
+
 	//call the original mrf
 	ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 
@@ -4192,6 +4304,10 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	struct snap_device *dev;
 	make_request_fn *orig_mrf = NULL;
 
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_INCOMING_TRACING_MRF, bio, 0);
+#endif
+
 	MAYBE_UNUSED(ret);
 
 	smp_rmb();
@@ -4200,18 +4316,35 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 
 		orig_mrf = dev->sd_orig_mrf;
 		if(elastio_snap_bio_op_flagged(bio, ELASTIO_SNAP_PASSTHROUGH)){
+#ifdef NETLINK_DEBUG
+			trace_event_bio(EVENT_BIO_CALL_ORIG, bio, 0);
+#endif
 			elastio_snap_bio_op_clear_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
 			goto call_orig;
 		}
 
 		if(tracer_should_trace_bio(dev, bio)){
-			if(test_bit(SNAPSHOT, &dev->sd_state)) ret = snap_trace_bio(dev, bio);
-			else ret = inc_trace_bio(dev, bio);
+			if(test_bit(SNAPSHOT, &dev->sd_state)) {
+#ifdef NETLINK_DEBUG
+				trace_event_bio(EVENT_BIO_SNAP, bio, 0);
+#endif
+				ret = snap_trace_bio(dev, bio);
+			}
+			else {
+#ifdef NETLINK_DEBUG
+				trace_event_bio(EVENT_BIO_INC, bio, 0);
+#endif
+				ret = inc_trace_bio(dev, bio);
+			}
 			goto out;
 		}
 	}
 
 call_orig:
+
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_CALL_ORIG, bio, 0);
+#endif
 
 #ifdef USE_BDOPS_SUBMIT_BIO
 	// Linux version 5.9+
@@ -4248,6 +4381,11 @@ static MRF_RETURN_TYPE snap_mrf(struct request_queue *q, struct bio *bio){
 static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
 	struct snap_device *dev = elastio_snap_bio_bi_disk(bio)->queue->queuedata;
 #endif
+
+#ifdef NETLINK_DEBUG
+	trace_event_bio(EVENT_BIO_INCOMING_SNAP_MRF, bio, 0);
+#endif
+
 	//if a write request somehow gets sent in, discard it
 	if(bio_data_dir(bio)){
 		elastio_snap_bio_endio(bio, -EOPNOTSUPP);
@@ -4458,6 +4596,9 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 #endif
+#ifdef NETLINK_DEBUG
+		trace_event_generic(EVENT_TRACING_STARTED, 0);
+#endif
 	}else{
 		LOG_DEBUG("ending tracing");
 #ifdef HAVE_BLK_MQ_MAKE_REQUEST
@@ -4472,6 +4613,10 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 		if (dev_ptr) *dev_ptr = dev;
 		smp_wmb();
+
+#ifdef NETLINK_DEBUG
+		trace_event_generic(EVENT_TRACING_FINISHED, 0);
+#endif
 	}
 
 	if(origsb){
@@ -4723,6 +4868,9 @@ static int __tracer_setup_cow(struct snap_device *dev, struct block_device *bdev
 
 error:
 	LOG_ERROR(ret, "error setting up cow manager");
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_ERROR, ret);
+#endif
 	if(open_method != 3) __tracer_destroy_cow_free(dev);
 	if(cow_path_full != cow_path) kfree(cow_path_full);
 	return ret;
@@ -5162,6 +5310,10 @@ static void tracer_destroy(struct snap_device *dev){
 static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, bool ignore_snap_errors){
 	int ret;
 
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_SETUP_SNAPSHOT, 0);
+#endif
+
 	set_bit(SNAPSHOT, &dev->sd_state);
 	set_bit(ACTIVE, &dev->sd_state);
 	clear_bit(UNVERIFIED, &dev->sd_state);
@@ -5203,6 +5355,14 @@ error:
 }
 
 static int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long cache_size, bool ignore_snap_errors, int is_snap){
+
+#ifdef NETLINK_DEBUG
+	if (is_snap)
+		trace_event_generic(EVENT_SETUP_UNVERIFIED_SNAP, 0);
+	else
+		trace_event_generic(EVENT_SETUP_UNVERIFIED_INC, 0);
+#endif
+
 	if(is_snap) set_bit(SNAPSHOT, &dev->sd_state);
 	else clear_bit(SNAPSHOT, &dev->sd_state);
 	clear_bit(ACTIVE, &dev->sd_state);
@@ -5237,6 +5397,10 @@ static int tracer_active_snap_to_inc(struct snap_device *old_dev){
 	struct snap_device *dev;
 	char *abs_path = NULL;
 	int abs_path_len;
+
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_TRANSITION_INC, 0);
+#endif
 
 	//allocate new tracer
 	ret = tracer_alloc(&dev);
@@ -5315,6 +5479,10 @@ error:
 static int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path, unsigned long fallocated_space){
 	int ret;
 	struct snap_device *dev;
+
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_TRANSITION_SNAP, 0);
+#endif
 
 	//allocate new tracer
 	ret = tracer_alloc(&dev);
@@ -5975,6 +6143,9 @@ error:
 
 static void auto_transition_dormant(unsigned int i){
 	mutex_lock(&ioctl_mutex);
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_TRANSITION_DORMANT, 0);
+#endif
 	__tracer_active_to_dormant(snap_devices[i]);
 	mutex_unlock(&ioctl_mutex);
 }
@@ -5983,6 +6154,10 @@ static void auto_transition_active(unsigned int i, const char __user *dir_name){
 	struct snap_device *dev = snap_devices[i];
 
 	mutex_lock(&ioctl_mutex);
+
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_TRANSITION_ACTIVE, 0);
+#endif
 
 	if(test_bit(UNVERIFIED, &dev->sd_state)){
 		if(test_bit(SNAPSHOT, &dev->sd_state)) __tracer_unverified_snap_to_active(dev, dir_name);
@@ -6732,6 +6907,10 @@ static void agent_exit(void){
 	//unregister our block device driver
 	LOG_DEBUG("unregistering device driver from the kernel");
 	unregister_blkdev(major, DRIVER_NAME);
+#ifdef NETLINK_DEBUG
+	trace_event_generic(EVENT_DRIVER_DEINIT, 0);
+	netlink_release();
+#endif
 }
 module_exit(agent_exit);
 
@@ -6739,6 +6918,16 @@ static int __init agent_init(void){
 	int ret;
 
 	LOG_DEBUG("module init");
+
+#ifdef NETLINK_DEBUG
+	ret = netlink_init();
+	if (ret) {
+		LOG_DEBUG("failing driver init");
+		return ret;
+	}
+
+	trace_event_generic(EVENT_DRIVER_INIT, 0);
+#endif
 
 	//init ioctl mutex
 	mutex_init(&ioctl_mutex);
