@@ -149,14 +149,16 @@ int __ioctl_setup(unsigned int minor, const char *bdev_path,
 
         // verify that the minor number is valid
         ret = verify_minor_available(minor);
-        if (ret)
+        if (ret){
+                 LOG_ERROR(ret, "verify_minor_available");
                 goto error;
-
+        }
         // check if block device is mounted
         ret = __verify_bdev_writable(bdev_path, &is_mounted);
-        if (ret)
+        if (ret){
+                 LOG_ERROR(ret, "__verify_bdev_writable");
                 goto error;
-
+        }
         // check that reload / setup command matches current mount state
         if (is_mounted && is_reload) {
                 ret = -EINVAL;
@@ -170,9 +172,10 @@ int __ioctl_setup(unsigned int minor, const char *bdev_path,
 
         // allocate the tracing struct
         ret = tracer_alloc(&dev);
-        if (ret)
+        if (ret){
+                 LOG_ERROR(ret, "tracer_alloc");
                 goto error;
-
+        }
         // route to the appropriate setup function
         if (is_snap) {
                 if (is_mounted)
@@ -461,7 +464,7 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         unsigned int minor = 0;
         unsigned long fallocated_space = 0, cache_size = 0;
 
-        LOG_DEBUG("ioctl command received: %d", cmd);
+        LOG_DEBUG("ioctl command received: %i", cmd);
         mutex_lock(&ioctl_mutex);
 
         switch (cmd) {
