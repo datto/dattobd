@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2022-2023 Datto Inc.
  */
 
 #ifndef SUBMIT_BIO_H_
 #define SUBMIT_BIO_H_
 
 #include "includes.h"
+#include "mrf.h"
 #include "bio_helper.h" // needed for USE_BDOPS_SUBMIT_BIO to be defined
 
 struct snap_device;
@@ -18,7 +19,7 @@ struct snap_device;
  * submit_bio_fn() - Prototype for the submit_bio function, which will be our
  * hook to intercept IO on kernels >= 5.9 
  */
-typedef blk_qc_t (submit_bio_fn) (struct bio *bio);
+typedef MRF_RETURN_TYPE (submit_bio_fn) (struct bio *bio);
 
 /**
  * dattobd_submit_bio_real() - Submit's given bio to the real device 
