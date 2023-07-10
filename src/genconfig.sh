@@ -71,7 +71,7 @@ export FEATURE_TEST_DIR
 export KERNEL_VERSION
 export OUTPUT_FILE
 
-ls -1 -q $FEATURE_TEST_FILES | xargs -P "$MAX_THREADS" -d"\n" -n1 -I {} bash -c 'run_one_test {}'
+ls -1 -q $FEATURE_TEST_FILES | xargs -P "$MAX_THREADS" -d"\n" -I {} bash -c 'run_one_test {}'
 
 make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 
