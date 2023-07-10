@@ -352,10 +352,7 @@ static int __init agent_init(void)
                 LOG_ERROR(ret, "error installing ftrace mount hook");
                 goto error;
         }
-
-        //if (dattobd_may_hook_syscalls)
-         //       (void)hook_system_call_table();
-
+        
         return 0;
 
 error:
