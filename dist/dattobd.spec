@@ -378,8 +378,6 @@ install -m 755 dist/shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutd
 
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
-echo "artifacts are here"
-ls
 %preun -n %{dkmsname}
 
 %if "%{_vendor}" == "debbuild"
@@ -414,16 +412,6 @@ if [ "$1" -ge "1" ]; then
 fi
 
 %post utils
-%if 0%{?debian} || 0%{?ubuntu}
-%{_initramfs_tools_root}/setup-module-exit-after-umount.sh %{_initramfs_tools_root}/
-%else
-# openSUSE 13.1 and older use mkinitrd
-%if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
-%{_mkinitrd_scripts_root}/setup-module-exit-after-umount.sh %{_mkinitrd_scripts_root}/
-%else
-#%{_dracut_modules_root}/90dattobd/setup-module-exit-after-umount.sh %{_dracut_modules_root}/90dattobd/
-%endif
-%endif
 %if 0%{?rhel} != 5
 # Generate initramfs
 if type "dracut" &> /dev/null; then
@@ -459,16 +447,6 @@ if [ $1 -eq 0 ]; then
         fi
 fi
 %endif
-%if 0%{?debian} || 0%{?ubuntu}
-%{_initramfs_tools_root}/restore-default-umount.sh
-%else
-# openSUSE 13.1 and older use mkinitrd
-%if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
-%{_mkinitrd_scripts_root}/restore-default-umount.sh
-%else
-%{_dracut_modules_root}/90dattobd/restore-default-umount.sh
-%endif
-%endif
 
 %post -n %{libname}
 /sbin/ldconfig
@@ -496,21 +474,12 @@ rm -rf %{buildroot}
 %if 0%{?debian} || 0%{?ubuntu}
 %{_initramfs_tools_root}/hooks/dattobd
 %{_initramfs_tools_root}/scripts/init-premount/dattobd
-%{_initramfs_tools_root}/setup-module-exit-after-umount.sh
-%{_initramfs_tools_root}/call-rmmod-after-umount.sh
-%{_initramfs_tools_root}/restore-default-umount.sh
 %else
 %if 0%{?suse_version} > 0 && 0%{?suse_version} < 1315
 %{_mkinitrd_scripts_root}/boot-dattobd.sh
 %{_mkinitrd_scripts_root}/setup-dattobd.sh
-%{_mkinitrd_scripts_root}/setup-module-exit-after-umount.sh
-%{_mkinitrd_scripts_root}/call-rmmod-after-umount.sh
-%{_mkinitrd_scripts_root}/restore-default-umount.sh
 %else
 %dir %{_dracut_modules_root}/90dattobd
-%{_dracut_modules_root}/90dattobd/setup-module-exit-after-umount.sh
-%{_dracut_modules_root}/90dattobd/call-rmmod-after-umount.sh
-%{_dracut_modules_root}/90dattobd/restore-default-umount.sh
 %{_dracut_modules_root}/90dattobd/dattobd.sh
 %{_dracut_modules_root}/90dattobd/module-setup.sh
 %{_dracut_modules_root}/90dattobd/install
