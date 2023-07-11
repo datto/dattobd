@@ -573,11 +573,14 @@ static int __tracer_setup_cow(struct snap_device *dev,
 {
         int ret;
         uint64_t max_file_size;
-        char bdev_name[BDEVNAME_SIZE];
- 
-        bdevname(bdev, bdev_name);
-        LOG_DEBUG("bdevname %s, cow_path: %s", bdev_name, cow_path);
 
+ #ifdef HAVE_BDEVNAME       
+        char bdev_name[BDEVNAME_SIZE];
+        bdevname(bdev, bdev_name);  
+        LOG_DEBUG("bdevname %s, cow_path: %s", bdev_name, cow_path);
+#else
+         LOG_DEBUG("bdevname %pg, cow_path: %s", bdev, cow_path);
+#endif
         if (open_method == 3) {
                 // reopen the cow manager
                 LOG_DEBUG("reopening the cow manager with file '%s'", cow_path);
@@ -631,7 +634,11 @@ static int __tracer_setup_cow(struct snap_device *dev,
         // verify that file is on block device
         if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
                 ret = -EINVAL;
+#ifdef HAVE_BDEVNAME
                 LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
+#else
+                LOG_ERROR(ret, "'%s' is not on '%pg'", cow_path, bdev);
+#endif
                 goto error;
         }
 
@@ -1230,40 +1237,62 @@ static int __tracer_transition_tracing(
 #ifdef HAVE_FREEZE_SB
         struct super_block *sb = NULL;
 #endif
-        char bdev_name[BDEVNAME_SIZE];
-        MAYBE_UNUSED(ret);
 
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
         bdevname(bdev, bdev_name);
+#endif        
+        MAYBE_UNUSED(ret);
         if(origsb){
                 dattobd_drop_super(origsb);
 
                 // freeze and sync block device
+#ifdef HAVE_BDEVNAME                
                 LOG_DEBUG("freezing '%s'", bdev_name);
+#else 
+                LOG_DEBUG("freezing '%pg'", bdev);         
+#endif                
 #ifdef HAVE_FREEZE_SB
                 // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
                 sb = freeze_bdev(bdev);
                 if(!sb){
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR(-EFAULT, "error freezing '%s': null",
                                   bdev_name);
+#else 
+                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
+                                  bdev);                                
+#endif 
                         return -EFAULT;
                 } else if(IS_ERR(sb)){
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR((int)PTR_ERR(sb),
                                   "error freezing '%s': error", bdev_name);
+#else
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%pg': error", bdev);
+#endif
                         return (int)PTR_ERR(sb);
                 }
 #else
                 ret = freeze_bdev(bdev);
                 if (ret) {
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
                         return -ret;
                 }
 #endif
         }
         else {
+#ifdef HAVE_BDEVNAME  
                 LOG_WARN(
                         "warning: no super found for device '%s', "
                         "unable to freeze it",
                         bdev_name);
+#endif
         }
         smp_wmb();
         if(dev){
@@ -1292,14 +1321,22 @@ static int __tracer_transition_tracing(
         }
         if(origsb){
                 // thaw the block device
+#ifdef HAVE_BDEVNAME      
                 LOG_DEBUG("thawing '%s'", bdev_name);
+#else
+                LOG_DEBUG("thawing '%pg'", bdev);
+#endif                
 #ifdef HAVE_THAW_BDEV_INT
                 ret = thaw_bdev(bdev, sb);
 #else
                 ret = thaw_bdev(bdev);
 #endif
                 if(ret){
+#ifdef HAVE_BEDVNAME  
                         LOG_ERROR(ret, "error thawing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error thawing '%pg'", bdev);
+#endif
                         // We can't reasonably undo what we've done at this
                         // point, and we've replaced the mrf. pretend we
                         // succeeded so we don't break the block device
