@@ -1089,13 +1089,16 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
 
         // register gendisk with the kernel
         LOG_DEBUG("adding disk");
+ #ifdef HAVE_NONVOID_ADD_DISK   
         ret = add_disk(dev->sd_gd);
         if (ret)
         {
                 LOG_ERROR(ret, "error creating snapshot disk");
                 goto error;
         }
-
+#else 
+        add_disk(dev->sd_gd);
+#endif
         return 0;
 
 error:
