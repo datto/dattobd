@@ -1069,6 +1069,10 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // disable partition scanning (the device should not have any
         // sub-partitions)
         dev->sd_gd->flags |= GENHD_FL_NO_PART_SCAN;
+#elif defined  HAVE_GENHD_FL_NO_PART  
+        // with removal of genhd.h header file name of kernel's constant 
+        // was changed from GENHD_FL_NO_PART_SCAN to GENHD_FL_NO_PART
+        dev->sd_gd->flags |= GENHD_FL_NO_PART;
 #endif
 
         // set the device as read-only
