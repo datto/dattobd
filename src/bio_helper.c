@@ -735,7 +735,7 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         }
 #endif
         bio_set_flag(new_bio, BIO_REMAPPED);
-        bio_set_flag(new_bio, BIO_THROTTLED);
+        bio_set_flag(new_bio, BIO_QOS_THROTTLED);
 
         // fill the bio with pages
         for (i = 0; i < actual_pages; i++) {
