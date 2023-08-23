@@ -937,7 +937,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
-                blk_put_queue(dev->sd_queue);
+                blk_mq_destroy_queue(dev->sd_queue);
 #endif
                 dev->sd_queue = NULL;
         }
