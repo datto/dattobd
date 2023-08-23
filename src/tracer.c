@@ -172,6 +172,7 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
  */
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 {
+        LOG_DEBUG("snap_trace_bio");
         int ret;
         struct bio *new_bio = NULL;
         struct tracing_params *tp = NULL;
@@ -1601,7 +1602,6 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
         ret = dattobd_find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_request_fn);
         if (ret)
                 goto error;
-#endif
         ret = __tracer_transition_tracing(
                 dev,
                 dev->sd_base_dev,
@@ -1609,6 +1609,30 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 &snap_devices[minor]);
         if (ret)
                 goto error;
+#else 
+	if (!dev->sd_tracing_ops) {
+		// Multiple devices on the same disk are sharing block_device_operations struct.
+		// The next call will set a pointer to the dev->sd_tracing_ops if some device at the same disk is
+		// already tracked by the driver. And we'll reuse the existing struct in this case.
+		ret = find_orig_fops(dev->sd_base_dev, &dev->sd_orig_ops, &dev->sd_orig_mrf, &dev->sd_tracing_ops);
+		if(ret) goto error;
+
+		if (!dev->sd_tracing_ops) {
+			LOG_DEBUG("allocating tracing ops for device with minor %i", minor);
+			ret = tracing_ops_alloc(dev);
+			if (ret) goto error;
+		}
+		else {
+			LOG_DEBUG("using already existing tracing ops for device with minor %i", minor);
+		}
+
+		ret = __tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops->bd_ops, &snap_devices[minor]);
+	}
+	else {
+		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
+	}
+#endif
+
         return 0;
 
 error:
