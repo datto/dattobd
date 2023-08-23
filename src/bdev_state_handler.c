@@ -61,7 +61,6 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
         int ret;
         unsigned int i;
         struct snap_device *dev;
-        LOG_DEBUG("__handle_bdev_mount_nowrite");
         tracer_for_each(dev, i)
         {
                 if (!dev || !test_bit(ACTIVE, &dev->sd_state) ||
@@ -188,7 +187,6 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
         ret = kern_path(dir_name, LOOKUP_FOLLOW, &path);
-        LOG_DEBUG("kern_path");
 #else
         ret = user_path_at(AT_FDCWD, dir_name, lookup_flags, &path);
 #endif //LINUX_VERSION_CODE

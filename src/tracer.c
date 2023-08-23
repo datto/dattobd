@@ -172,7 +172,6 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
  */
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 {
-        LOG_DEBUG("snap_trace_bio");
         int ret;
         struct bio *new_bio = NULL;
         struct tracing_params *tp = NULL;
@@ -939,7 +938,6 @@ static void __tracer_destroy_snap(struct snap_device *dev)
                 blk_cleanup_queue(dev->sd_queue);
 #else
                 blk_put_queue(dev->sd_queue);
-                //blk_mq_destroy_queue(dev->sd_queue);
 #endif
                 dev->sd_queue = NULL;
         }
