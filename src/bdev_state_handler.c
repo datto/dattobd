@@ -186,7 +186,7 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
                 lookup_flags |= LOOKUP_FOLLOW;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-        ret = kern_path(dir_name, LOOKUP_FOLLOW, &path);
+        ret = kern_path(dir_name, lookup_flags, &path);
 #else
         ret = user_path_at(AT_FDCWD, dir_name, lookup_flags, &path);
 #endif //LINUX_VERSION_CODE

@@ -733,10 +733,7 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
                 blkg_get(orig_bio->bi_blkg);
                 new_bio->bi_blkg = orig_bio->bi_blkg;
         }
-#endif
-        bio_set_flag(new_bio, BIO_REMAPPED);
-        bio_set_flag(new_bio, BIO_QOS_THROTTLED);
-        bio_set_flag(new_bio, BIO_CLONED);	
+#endif	
 
         // fill the bio with pages
         for (i = 0; i < actual_pages; i++) {
