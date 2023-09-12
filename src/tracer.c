@@ -1400,7 +1400,6 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 }
 
                 // Now we can submit the bio.
-                //to jest roznica z elastio
                 ret = SUBMIT_BIO_REAL(dev, bio);
 
                 goto out;
