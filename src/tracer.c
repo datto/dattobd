@@ -999,6 +999,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // allocate a gendisk struct
         LOG_DEBUG("allocating gendisk");
 #ifdef HAVE_BLK_ALLOC_DISK
+DUPA
         dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
 #else
         dev->sd_gd = alloc_disk(1);
@@ -1035,6 +1036,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
 #endif
+        set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
 
         // give our request queue the same properties as the base device's
         LOG_DEBUG("setting queue limits");
@@ -1399,6 +1401,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 }
 
                 // Now we can submit the bio.
+                //to jest roznica z elastio
                 ret = SUBMIT_BIO_REAL(dev, bio);
 
                 goto out;
