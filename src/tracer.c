@@ -999,7 +999,6 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // allocate a gendisk struct
         LOG_DEBUG("allocating gendisk");
 #ifdef HAVE_BLK_ALLOC_DISK
-DUPA
         dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
 #else
         dev->sd_gd = alloc_disk(1);
