@@ -894,6 +894,7 @@ static void __tracer_bioset_exit(struct snap_device *dev)
  */
 static void __tracer_destroy_snap(struct snap_device *dev)
 {
+        LOG_DEBUG("tracer_destroy_snap");
         if (dev->sd_mrf_thread) {
                 LOG_DEBUG("stopping mrf thread");
                 kthread_stop(dev->sd_mrf_thread);
@@ -914,7 +915,11 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 
         if (dev->sd_queue) {
                 LOG_DEBUG("freeing request queue");
+#ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
+#else
+                blk_put_queue(dev->sd_queue);
+#endif
                 dev->sd_queue = NULL;
         }
 
@@ -1571,7 +1576,9 @@ error:
 int __tracer_setup_unverified(struct snap_device *dev, unsigned int minor,
                               const char *bdev_path, const char *cow_path,
                               unsigned long cache_size, int is_snap)
-{
+{       
+        LOG_DEBUG("Enter __tracer_setup_unverified path %s", bdev_path);
+
         if (is_snap)
                 set_bit(SNAPSHOT, &dev->sd_state);
         else
@@ -1643,6 +1650,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 {
         int ret;
 
+        LOG_DEBUG("ENTER tracer_setup_active_snap");
         set_bit(SNAPSHOT, &dev->sd_state);
         set_bit(ACTIVE, &dev->sd_state);
         clear_bit(UNVERIFIED, &dev->sd_state);

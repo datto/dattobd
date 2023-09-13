@@ -571,6 +571,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 30 2023 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.2.5
+- Hotfix for customer 
+
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
 
