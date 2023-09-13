@@ -61,7 +61,6 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
         int ret;
         unsigned int i;
         struct snap_device *dev;
-
         tracer_for_each(dev, i)
         {
                 if (!dev || !test_bit(ACTIVE, &dev->sd_state) ||
@@ -69,8 +68,6 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
                     dev->sd_base_dev != mnt->mnt_sb->s_bdev)
                         continue;
 
-                // if we are unmounting the vfsmount we are using go to dormant
-                // state
                 if (mnt == dattobd_get_mnt(dev->sd_cow->filp)) {
                         LOG_DEBUG("block device umount detected for device %d",
                                   i);
@@ -79,9 +76,11 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
                         ret = 0;
                         goto out;
                 }
+                
         }
         i = 0;
         ret = -ENODEV;
+        LOG_DEBUG("block device umount has not been detected for device");
 out:
         *idx_out = i;
         return ret;
@@ -185,7 +184,7 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
         struct path path;
         struct block_device *bdev;
 
-        //LOG_DEBUG("ENTER %s", __func__);
+        LOG_DEBUG("ENTER %s", __func__);
 
         if (!(follow_flags & UMOUNT_NOFOLLOW))
                 lookup_flags |= LOOKUP_FOLLOW;
@@ -196,7 +195,7 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
         ret = user_path_at(AT_FDCWD, dir_name, lookup_flags, &path);
 #endif //LINUX_VERSION_CODE
 
-        //LOG_DEBUG("path->dentry: %s, path->mnt->mnt_root: %s", path.dentry->d_name.name, path.mnt->mnt_root->d_name.name);
+        LOG_DEBUG("path->dentry: %s, path->mnt->mnt_root: %s", path.dentry->d_name.name, path.mnt->mnt_root->d_name.name);
 
         if (path.dentry != path.mnt->mnt_root) {
                 // path specified isn't a mount point
@@ -208,7 +207,7 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
 
         bdev = path.mnt->mnt_sb->s_bdev;        
         if (!bdev) {
-                //LOG_DEBUG("path specified isn't mounted on a block device");
+                LOG_DEBUG("path specified isn't mounted on a block device");
                 ret = -ENODEV;
                 goto out;
         }

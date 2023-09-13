@@ -913,6 +913,7 @@ static void __tracer_bioset_exit(struct snap_device *dev)
  */
 static void __tracer_destroy_snap(struct snap_device *dev)
 {
+        LOG_DEBUG("tracer_destroy_snap");
         if (dev->sd_mrf_thread) {
                 LOG_DEBUG("stopping mrf thread");
                 kthread_stop(dev->sd_mrf_thread);
@@ -936,7 +937,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
-                blk_mq_destroy_queue(dev->sd_queue);
+                blk_put_queue(dev->sd_queue);
 #endif
                 dev->sd_queue = NULL;
         }
@@ -1034,6 +1035,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
 #endif
+        set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
 
         // give our request queue the same properties as the base device's
         LOG_DEBUG("setting queue limits");
