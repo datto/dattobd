@@ -1035,8 +1035,9 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
 #endif
+#if defined HAVE_GD_OWNS_QUEUE
         set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
-
+#endif
         // give our request queue the same properties as the base device's
         LOG_DEBUG("setting queue limits");
         blk_set_stacking_limits(&dev->sd_queue->limits);
