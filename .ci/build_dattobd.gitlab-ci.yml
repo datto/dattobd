@@ -5,6 +5,7 @@ build:dattobd:on:rhel9:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:rhel9:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
@@ -26,6 +27,7 @@ build:dattobd:on:debian11:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:debian11:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
@@ -45,6 +47,7 @@ build:dattobd:on:ubuntu1804:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:ubuntu1804:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
@@ -64,6 +67,7 @@ build:dattobd:on:ubuntu2004:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:ubuntu2004:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
@@ -83,6 +87,7 @@ build:dattobd:on:ubuntu2204:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:ubuntu2204:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
@@ -102,6 +107,7 @@ build:dattobd:on:centos8:
   stage: build dattobd
   tags:
     - docker-throttled
+  needs: ["create:centos8:vm"]
   script:
     - apt-get update -y
     - apt-get install sshpass -y
