@@ -56,8 +56,6 @@ build:dattobd:on:ubuntu1804:
         git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
         cd dattobd;
         ls;
-        sudo yum install kernel-devel-$(uname -r) -y;
-        sudo yum groupinstall "Development Tools" -y;
         sudo make'
 
 #
@@ -76,8 +74,6 @@ build:dattobd:on:ubuntu2004:
         git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
         cd dattobd;
         ls;
-        sudo yum install kernel-devel-$(uname -r) -y;
-        sudo yum groupinstall "Development Tools" -y;
         sudo make'
 
 #
@@ -96,8 +92,6 @@ build:dattobd:on:ubuntu2204:
         git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
         cd dattobd;
         ls;
-        sudo yum install kernel-devel-$(uname -r) -y;
-        sudo yum groupinstall "Development Tools" -y;
         sudo make'
 
 #
