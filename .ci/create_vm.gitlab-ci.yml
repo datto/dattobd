@@ -3,7 +3,6 @@ create:rhel9:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with RHEL9"
@@ -26,7 +25,6 @@ create:debian11:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with Debian11"
@@ -49,7 +47,6 @@ create:ubuntu1804:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with Ubuntu1804"
@@ -72,7 +69,6 @@ create:ubuntu2004:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with Ubuntu2004"
@@ -95,7 +91,6 @@ create:ubuntu2204:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with Ubuntu2204"
@@ -118,7 +113,6 @@ create:centos8:vm:
   tags:
     - docker-throttled
   script:
-    - echo "TEST HAS STARTED"
     - apt-get update -y
     - apt-get install curl -y
     - echo "Creating virtual machine with CentOS8"
