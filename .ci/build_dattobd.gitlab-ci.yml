@@ -1,0 +1,89 @@
+build:dattobd:on:rhel9:
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:rhel9:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$RHEL9_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd;
+        sudo yum install kernel-devel-$(uname -r) -y;
+        sudo yum groupinstall "Development Tools" -y;
+        sudo make'
+
+build:dattobd:on:debian11:
+# Known issue: some packages are missing on Debian11,
+# so building dattobd on debian is disabled
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:debian11:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$DEBIAN11_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd'
+#        sudo make'
+
+build:dattobd:on:ubuntu1804:
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:ubuntu1804:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU1804_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd;
+        sudo make'
+
+build:dattobd:on:ubuntu2004:
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:ubuntu2004:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU2004_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd;
+        sudo make'
+
+build:dattobd:on:ubuntu2204:
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:ubuntu2204:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU2204_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd;
+        sudo make'
+
+build:dattobd:on:centos8:
+  stage: build dattobd
+  tags:
+    - docker-throttled
+  needs: ["create:centos8:vm"]
+  script:
+    - apt-get update -y
+    - apt-get install sshpass -y
+    - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$CENTOS8_VM_IP '
+        sudo rm -rf dattobd;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd;
+        sudo yum install kernel-devel-$(uname -r) -y;
+        sudo yum groupinstall "Development Tools" -y;
+        sudo make'
