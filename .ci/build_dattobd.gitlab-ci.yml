@@ -1,6 +1,3 @@
-#
-# Build dattobd on RHEL9
-#
 build:dattobd:on:rhel9:
   stage: build dattobd
   tags:
@@ -11,16 +8,12 @@ build:dattobd:on:rhel9:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$RHEL9_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
+        git clone https://github.com/datto/dattobd.git --recursive;
         cd dattobd;
-        ls;
         sudo yum install kernel-devel-$(uname -r) -y;
         sudo yum groupinstall "Development Tools" -y;
         sudo make'
 
-#
-# Build dattobd on DEBIAN11
-#
 build:dattobd:on:debian11:
 # Known issue: some packages are missing on Debian11,
 # so building dattobd on debian is disabled
@@ -33,16 +26,10 @@ build:dattobd:on:debian11:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$DEBIAN11_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
-        cd dattobd;
-        ls'
-#        sudo yum install kernel-devel-$(uname -r) -y;
-#        sudo yum groupinstall "Development Tools" -y;
+        git clone https://github.com/datto/dattobd.git --recursive;
+        cd dattobd'
 #        sudo make'
 
-#
-# Build dattobd on UBUNTU1804
-#
 build:dattobd:on:ubuntu1804:
   stage: build dattobd
   tags:
@@ -53,14 +40,10 @@ build:dattobd:on:ubuntu1804:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU1804_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
+        git clone https://github.com/datto/dattobd.git --recursive;
         cd dattobd;
-        ls;
         sudo make'
 
-#
-# Build dattobd on UBUNTU2004
-#
 build:dattobd:on:ubuntu2004:
   stage: build dattobd
   tags:
@@ -71,14 +54,10 @@ build:dattobd:on:ubuntu2004:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU2004_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
+        git clone https://github.com/datto/dattobd.git --recursive;
         cd dattobd;
-        ls;
         sudo make'
 
-#
-# Build dattobd on UBUNTU2204
-#
 build:dattobd:on:ubuntu2204:
   stage: build dattobd
   tags:
@@ -89,14 +68,10 @@ build:dattobd:on:ubuntu2204:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$UBUNTU2204_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
+        git clone https://github.com/datto/dattobd.git --recursive;
         cd dattobd;
-        ls;
         sudo make'
 
-#
-# Build dattobd on CENTOS8
-#
 build:dattobd:on:centos8:
   stage: build dattobd
   tags:
@@ -107,9 +82,8 @@ build:dattobd:on:centos8:
     - apt-get install sshpass -y
     - sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no datto@$CENTOS8_VM_IP '
         sudo rm -rf dattobd;
-        git clone https://github.com/krzysztof-wasieczko/dattobd.git --recursive;
+        git clone https://github.com/datto/dattobd.git --recursive;
         cd dattobd;
-        ls;
         sudo yum install kernel-devel-$(uname -r) -y;
         sudo yum groupinstall "Development Tools" -y;
         sudo make'
