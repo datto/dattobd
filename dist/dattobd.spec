@@ -7,8 +7,14 @@
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
 # Location for systemd shutdown script
-%global _systemd_shutdown /lib/systemd/system-shutdown
-
+%global _systemd_shutdown          /lib/systemd/system-shutdown
+%if "%{_vendor}" == "redhat"
+%global _systemd_services          /usr/lib/systemd/system
+%global _systemd_shutdown          /usr/lib/systemd/system-shutdown
+%else
+%global _systemd_services          /lib/systemd/system
+%global _systemd_shutdown          /lib/systemd/system-shutdown
+%endif
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
@@ -138,6 +144,9 @@ BuildRequires:   gcc
 BuildRequires:   make
 BuildRequires:   rsync
 
+%if 0%{?fedora} || 0%{?rhel}
+BuildRequires:   systemd-rpm-macros
+%endif
 # Some targets (like EL5) expect a buildroot definition
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
@@ -374,7 +383,11 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 
 # Install systemd shutdown script
 mkdir -p %{buildroot}%{_systemd_shutdown}
-install -m 755 dist/shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/umount_rootfs.shutdown
+install -m 755 dist/shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/
+mkdir -p %{buildroot}%{_systemd_services}
+install -m 644 dist/shutdown/umount-rootfs.service    %{buildroot}%{_systemd_services}/umount-rootfs.service
+#przenies na pozniej
+# ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
 
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
@@ -410,6 +423,8 @@ if [ "$1" -ge "1" ]; then
         exit $?
     fi
 fi
+
+
 
 %post utils
 %if 0%{?rhel} != 5
@@ -451,6 +466,11 @@ fi
 %post -n %{libname}
 /sbin/ldconfig
 
+if [ ! -d %{_systemd_services}/reboot.target.wants/ ]; then
+   mkdir -p %{_systemd_services}/reboot.target.wants
+fi   
+ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+
 %postun -n %{libname}
 /sbin/ldconfig
 
@@ -489,6 +509,11 @@ rm -rf %{buildroot}
 
 # Install systemd shutdown script
 %{_systemd_shutdown}/umount_rootfs.shutdown
+%{_systemd_services}/umount-rootfs.service
+
+
+%post 
+ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
 
 %doc README.md doc/STRUCTURE.md
 %if "%{_vendor}" == "redhat"
@@ -572,9 +597,13 @@ rm -rf %{buildroot}
 %endif
 %endif
 
+
+
+
+
 %changelog
-* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
-- Fix memory leak on Ubuntu 20.04
+#* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
+#- Fix memory leak on Ubuntu 20.04
 
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
@@ -787,3 +816,4 @@ rm -rf %{buildroot}
 
 * Fri May 29 2015 Neal Gompa <ngompa@datto.com> - 0.8.2-1
 - Initial packaging of dattobd kmod and utils
+
