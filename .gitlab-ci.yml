@@ -4,7 +4,7 @@ variables:
   OBS_PROJECT: "home:natalia.zelazna"
   OBS_PACKAGE: "dattobd"
   OBS_TARGET_DISTRO: "null"
-  CI_COMMIT_TAG: "0.11.3"
+  CI_COMMIT_TAG: "0.11.2.5"
   
 before_script:
   - cd ..; tar -c -z --exclude-vcs -v -f ${CI_PROJECT_NAME}.tar.gz ${CI_PROJECT_NAME}; cd $CI_PROJECT_NAME
