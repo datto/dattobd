@@ -388,8 +388,6 @@ mkdir -p %{buildroot}%{_systemd_shutdown}
 install -m 755 dist/shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/
 mkdir -p %{buildroot}%{_systemd_services}
 install -m 644 dist/shutdown/umount-rootfs.service    %{buildroot}%{_systemd_services}/umount-rootfs.service
-#przenies na pozniej
-# ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
 
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
@@ -604,8 +602,11 @@ ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.t
 
 
 %changelog
-#* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
-#- Fix memory leak on Ubuntu 20.04
+# * Tue Oct 31 2023 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
+# - Fix unmounting before shutdown on all distros
+
+* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
+- Fix memory leak on Ubuntu 20.04
 
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
