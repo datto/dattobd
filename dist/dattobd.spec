@@ -7,7 +7,8 @@
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
 # Location for systemd shutdown script
-%global _systemd_shutdown          /lib/systemd/system-shutdown
+# "%{_vendor}" == "redhat" covers rhel, centos and fedora 
+# Ubuntu18 doesn't have /usr/lib/systemd/, but Ubuntu20 has both locations with the same content
 %if "%{_vendor}" == "redhat"
 %global _systemd_services          /usr/lib/systemd/system
 %global _systemd_shutdown          /usr/lib/systemd/system-shutdown
@@ -15,6 +16,7 @@
 %global _systemd_services          /lib/systemd/system
 %global _systemd_shutdown          /lib/systemd/system-shutdown
 %endif
+
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
