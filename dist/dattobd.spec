@@ -597,9 +597,14 @@ ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.t
 %endif
 %endif
 
+%preun 
+systemctl stop umount-rootfs.service
+systemctl disable umount-rootfs.service
 
-
-
+%postun 
+unlink  %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+rm %{_systemd_shutdown}/umount_rootfs.shutdown
+rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
 # * Tue Oct 31 2023 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
