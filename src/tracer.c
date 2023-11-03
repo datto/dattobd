@@ -1563,6 +1563,8 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 {
         if(dev->sd_orig_request_fn){
                 LOG_DEBUG("replacing make_request_fn if needed");
+                if(__tracer_should_reset_mrf(dev)){
+                        LOG_DEBUG("__tracer_should_reset_mrf is true");
 #ifndef USE_BDOPS_SUBMIT_BIO
                         __tracer_transition_tracing(
                             NULL,
@@ -1578,7 +1580,7 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
                             &snap_devices[dev->sd_minor]
                         );
 #endif
-        }
+                }
         else
         {
                 __tracer_transition_tracing(
@@ -1873,6 +1875,9 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
 
         // inject the tracing function
         dev->sd_orig_request_fn = old_dev->sd_orig_request_fn;
+        if(dev->sd_orig_request_fn==NULL){
+                LOG_DEBUG("active_snap_to_inc: sd_orig_request_fn is NULL");
+        }
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
         if (ret)
                 goto error;
