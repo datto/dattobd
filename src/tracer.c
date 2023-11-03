@@ -1660,14 +1660,14 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 //if yes, than setup a pointer to newly created bd_ops
                 LOG_DEBUG("allocating bdops for a device, cause it seems they are empty");
                 ret=tracer_alloc_ops(dev);
-                if(ret)
+                if(ret){
                         goto error;
                 }
 
                 ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
-                        dev->bdops,
+                        dev->bd_ops,
                         &snap_devices[minor]);
                 if (ret)
                         goto error;
