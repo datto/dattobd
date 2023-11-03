@@ -1578,6 +1578,7 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
                             &snap_devices[dev->sd_minor]
                         );
 #endif
+        }
         else
         {
                 __tracer_transition_tracing(
