@@ -42,7 +42,7 @@ int dattobd_may_hook_syscalls = 1;
 unsigned long dattobd_cow_max_memory_default = (300 * 1024 * 1024);
 unsigned int dattobd_cow_fallocate_percentage_default = 10;
 unsigned int dattobd_max_snap_devices = DATTOBD_DEFAULT_SNAP_DEVICES;
-int dattobd_debug = 0;
+int dattobd_debug = 1;
 
 module_param_named(may_hook_syscalls, dattobd_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls,
@@ -177,7 +177,7 @@ static void agent_exit(void)
 
         //restore_system_call_table();
 
-        unregister_tracer_filter();
+        //unregister_tracer_filter();
 
         unregister_ftrace_hooks();
 
@@ -341,11 +341,11 @@ static int __init agent_init(void)
                 goto error;
         }
 
-        ret = register_tracer_filter();
+        /*ret = register_tracer_filter();
         if (ret) {
                 LOG_ERROR(ret, "error registering i/o tracing");
                 goto error;
-        }
+        }*/
 
         ret = register_ftrace_hooks();
         if (ret) {

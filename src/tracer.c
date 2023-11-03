@@ -273,6 +273,7 @@ static int inc_make_sset(struct snap_device *dev, sector_t sect,
         struct sector_set *sset;
 
         // allocate sector set to hold record of change sectors
+        LOG_DEBUG("inc_make_sset %ld with length %d",sect, len);
         sset = kmalloc(sizeof(struct sector_set), GFP_NOIO);
         if (!sset) {
                 LOG_ERROR(-ENOMEM, "error allocating sector set");
@@ -1167,7 +1168,7 @@ error:
         __tracer_destroy_cow_thread(dev);
         return ret;
 }
-
+/*
 #ifdef USE_BDOPS_SUBMIT_BIO
 #ifdef HAVE_FTRACE_REGS
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
@@ -1218,6 +1219,7 @@ int unregister_tracer_filter(void)
         }
         return 0;
 }
+*/
 
 /**
  * __tracer_transition_tracing() - Starts or ends tracing on @bdev depending
@@ -1236,11 +1238,19 @@ int unregister_tracer_filter(void)
  * * 0 - success
  * * !0 - errno indicating the error
  */
+#ifndef USE_BDOPS_SUBMIT_BIO
 static int __tracer_transition_tracing(
     struct snap_device *dev,
     struct block_device *bdev,
     BIO_REQUEST_CALLBACK_FN *new_bio_tracking_ptr,
     struct snap_device **dev_ptr)
+#else
+static int __tracer_transition_tracing(
+    struct snap_device *dev,
+    struct block_device *bdev,
+    const struct block_device_operations *bd_ops,
+    struct snap_device **dev_ptr)
+#endif
 {
         int ret;
         struct super_block *origsb = dattobd_get_super(bdev);
@@ -1314,6 +1324,10 @@ static int __tracer_transition_tracing(
                         bdev->bd_disk->queue->make_request_fn = 
                                 new_bio_tracking_ptr;
                 }
+#else
+                if(bd_ops){
+                        bdev->bd_disk->fops= bd_ops;
+                }
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
         } else {
@@ -1324,6 +1338,10 @@ static int __tracer_transition_tracing(
                 if (new_bio_tracking_ptr){
                         bdev->bd_disk->queue->make_request_fn =
                                 new_bio_tracking_ptr;
+                }
+#else
+                if(bd_ops){
+                        bdev->bd_disk->fops= bd_ops;
                 }
 #endif
                 *dev_ptr = dev;
@@ -1377,6 +1395,10 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         int i, ret = 0;
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
+        static long long tracing_fn_calls=0;
+        tracing_fn_calls++;
+        //this should be called less amount of times than when using ftrace
+        LOG_DEBUG("tracing_fn calls %llu",tracing_fn_calls);
 
         smp_rmb();
         tracer_for_each(dev, i)
@@ -1414,7 +1436,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 out:
         MRF_RETURN(ret);
 }
-
+/*
 #ifdef USE_BDOPS_SUBMIT_BIO
 #ifdef HAVE_FTRACE_REGS
 static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
@@ -1434,7 +1456,7 @@ static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
 }
 #endif
 #endif
-
+*/
 #ifndef USE_BDOPS_SUBMIT_BIO
 
 /**
@@ -1479,6 +1501,21 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
 
         *mrf = NULL;
         return -EFAULT;
+}
+#else
+int tracer_alloc_ops(struct snap_device* dev){
+        LOG_DEBUG("tracer_alloc_ops");
+        struct block_device_operations* new_bdops;
+        new_bdops=kmalloc(sizeof(struct block_device_operations), GFP_KERNEL);
+        if(!new_bdops){
+                LOG_ERROR(-ENOMEM, "error while alocating new block_device_operations");
+                return -ENOMEM;
+        }
+        memcpy(new_bdops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
+        //setting tracing_fn as submit_bio, rest is just copied
+        new_bdops->submit_bio = tracing_fn;
+	dev->bd_ops = new_bdops;
+	return 0;       
 }
 
 #endif
@@ -1526,14 +1563,21 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 {
         if(dev->sd_orig_request_fn){
                 LOG_DEBUG("replacing make_request_fn if needed");
-                if(__tracer_should_reset_mrf(dev)){
+#ifndef USE_BDOPS_SUBMIT_BIO
                         __tracer_transition_tracing(
                             NULL,
                             dev->sd_base_dev,
                             dev->sd_orig_request_fn,
                             &snap_devices[dev->sd_minor]
                         );
-                }
+#else
+                        __tracer_transition_tracing(
+                            NULL,
+                            dev->sd_base_dev,
+                            dev->bd_ops,
+                            &snap_devices[dev->sd_minor]
+                        );
+#endif
         else
         {
                 __tracer_transition_tracing(
@@ -1603,12 +1647,32 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
         ret = dattobd_find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_request_fn);
         if (ret)
                 goto error;
-#endif
         ret = __tracer_transition_tracing(
                 dev,
                 dev->sd_base_dev,
                 tracing_fn,
                 &snap_devices[minor]);
+#else
+        if(!dev->bd_ops){
+                //if yes, than setup a pointer to newly created bd_ops
+                LOG_DEBUG("allocating bdops for a device, cause it seems they are empty");
+                ret=tracer_alloc_ops(dev);
+                if(ret)
+                        goto error;
+                }
+
+                ret = __tracer_transition_tracing(
+                        dev,
+                        dev->sd_base_dev,
+                        dev->bdops,
+                        &snap_devices[minor]);
+                if (ret)
+                        goto error;
+        }
+	else {
+		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
+	}
+#endif
         if (ret)
                 goto error;
         return 0;

@@ -46,11 +46,6 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio)
 #endif
 
 #ifndef HAVE_BDOPS_SUBMIT_BIO
-make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev)
-{
-    return bdev->bd_disk->queue->make_request_fn;
-}
-
 void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf)
 {
     bdev->bd_disk->queue->make_request_fn = mrf;
@@ -87,6 +82,26 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
     // submit_bio impl. also knows to account for null function ptrs.
     return submit_bio(bio);
 }
+//Look here-> see what should be called, what not
+int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio){
+	return dattobd_call_mrf(bio->bi_bdev->bd_disk->fops->submit_bio, dattobd_bio_get_queue(bio), bio);
+}
+
+int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
+                     struct bio *bio)
+{
+        fn(bio);
+        return 0;
+}
+
+make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev){
+	return bdev->bd_disk->fops->submit_bio;
+}
+
+struct block_device_operations* dattobd_get_bd_ops(struct block_device *bdev){
+	return (struct block_device_operations*)bdev->bd_disk->fops;
+}
+
 #else
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio)
 {
@@ -94,5 +109,10 @@ int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio)
         dev->sd_orig_request_fn,
         dattobd_bio_get_queue(bio), 
         bio);
+}
+
+make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev)
+{
+    return bdev->bd_disk->queue->make_request_fn;
 }
 #endif

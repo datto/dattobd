@@ -28,6 +28,8 @@
         // block_device_operations as submit_bio function.
         // See https://github.com/torvalds/linux/commit/c62b37d96b6eb3ec5ae4cbe00db107bf15aebc93
         #define USE_BDOPS_SUBMIT_BIO
+
+        typedef void (make_request_fn) (struct bio *bio);
 #endif
 
 // macros for working with bios
@@ -184,6 +186,10 @@ void dattobd_bio_endio(struct bio *bio, int err);
 #if !defined HAVE_BIO_FOR_EACH_SEGMENT_ALL_1 && !defined HAVE_BIO_FOR_EACH_SEGMENT_ALL_2
         #define bio_for_each_segment_all(bvl, bio, i)				\
 	        for (i = 0, bvl = (bio)->bi_io_vec; i < (bio)->bi_vcnt; i++, bvl++)
+#endif
+
+#ifdef USE_BDOPS_SUBMIT_BIO
+int tracer_alloc_ops(struct snap_device* dev);
 #endif
 
 #endif /* BIO_HELPER_H */
