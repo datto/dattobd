@@ -1,0 +1,14 @@
+[Unit]
+Description=force cleanup on reboot
+DefaultDependencies=no
+After=final.target   
+# we need this to be able to succesfully perform mount command with ro option
+# it is not the most usual for services ran at shutdown or reboot 
+# but it is the final target that closes journal files
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/systemd/system-shutdown/umount_rootfs.shutdown  
+
+[Install]
+WantedBy=halt.target reboot.target shutdown.target final.target
