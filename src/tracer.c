@@ -461,6 +461,10 @@ static void __tracer_init(struct snap_device *dev)
         bio_queue_init(&dev->sd_cow_bios);
         bio_queue_init(&dev->sd_orig_bios);
         sset_queue_init(&dev->sd_pending_ssets);
+#ifdef  USE_BDOPS_SUBMIT_BIO
+        dev->bd_ops= get_snap_ops();
+        bd_ops->submit_bio=tracing_fn;
+#endif
 }
 
 /**
@@ -1423,14 +1427,14 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 }
 
                 // Now we can submit the bio.
-                ret = SUBMIT_BIO_REAL(dev, bio);
+                ret = SUBMIT_BIO_PASSTHROUGH(dev, bio);
 
                 goto out;
                 
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
-        ret = SUBMIT_BIO_REAL(NULL, bio);
+        ret = SUBMIT_BIO_PASSTHROUGH(NULL, bio);
 #endif
 
 out:

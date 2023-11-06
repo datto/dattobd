@@ -29,7 +29,8 @@
         // See https://github.com/torvalds/linux/commit/c62b37d96b6eb3ec5ae4cbe00db107bf15aebc93
         #define USE_BDOPS_SUBMIT_BIO
 
-        typedef void (make_request_fn) (struct bio *bio);
+        //void for red hat, blk_qc_t for ubuntu
+        typedef bk_qc_t (make_request_fn) (struct bio *bio);
 #endif
 
 // macros for working with bios
