@@ -1506,6 +1506,46 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
         return -EFAULT;
 }
 #else
+int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf){
+        int i;
+	struct snap_device *dev;
+	struct block_device_operations *orig_ops = dattobd_get_bd_ops(bdev);
+	make_request_fn *orig_mrf = orig_ops->submit_bio;
+        LOG_DEBUG("ENTER find_orig_bdops");
+
+        if(orig_mrf != tracing_fn){
+                if(!orig_mrf){
+                        LOG_DEBUG("original mrf is empty, setting it to submit_bio_noacct");
+                        //in the future change this to mq interface
+                        orig_mrf=submit_bio_noacct;
+                }else{
+                        LOG_DEBUG("original mrf is not empt orig_mrf= %p, orig ops=%p", orig_mrf, orig_ops);
+                }
+
+                *ops=orig_ops;
+                *mrf=orig_mrf;
+                return 0;
+
+        }else{
+                LOG_DEBUG("original make request function is already replaced with tracing_fn");
+        }
+
+        tracer_for_each(dev, i){
+		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
+		if(orig_ops == dattobd_get_bd_ops(dev->sd_base_dev)){
+			*ops = dev->bd_ops;
+			*mrf = dev->sd_orig_request_fn;
+                        LOG_DEBUG("found already tracked device with the same original bd_ops");
+			return 0;
+		}
+	}
+
+	*ops = NULL;
+	*mrf = NULL;
+	return -EFAULT;
+
+}
+
 int tracer_alloc_ops(struct snap_device* dev){
         LOG_DEBUG("tracer_alloc_ops");
         struct block_device_operations* new_bdops;
@@ -1660,7 +1700,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 &snap_devices[minor]);
 #else
         if(!dev->bd_ops){
-                //if yes, than setup a pointer to newly created bd_ops
+                //if yes, than setup a pointer to newly created bd_ops- to pradopodobnie chodzi o to finx_orig_pos
                 LOG_DEBUG("allocating bdops for a device, cause it seems they are empty");
                 ret=tracer_alloc_ops(dev);
                 if(ret){
@@ -1669,6 +1709,8 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
         }
 
         if(dev->bd_ops->submit_bio!=tracing_fn){
+                        //checks if block_block_device_operations are unique for the device, if not, create new one
+                        find_orig_fops();
                         ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
