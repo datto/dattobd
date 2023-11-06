@@ -153,7 +153,13 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
 
 void dattobd_free_request_tracking_ptr(struct snap_device *dev)
 {
+#ifdef USE_BDOPS_SUBMIT_BIO
+        if(dev->tracing_ops){
+                dev->tracing_ops=NULL;
+        }
+#else
         dev->sd_orig_request_fn = NULL;
+#endif
 }
 
 /**
@@ -1506,12 +1512,13 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
         return -EFAULT;
 }
 #else
-int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf){
+int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct block_device_operations** tracing_ops){
         int i;
 	struct snap_device *dev;
 	struct block_device_operations *orig_ops = dattobd_get_bd_ops(bdev);
 	make_request_fn *orig_mrf = orig_ops->submit_bio;
         LOG_DEBUG("ENTER find_orig_bdops");
+        *tracing_ops=NULL;
 
         if(orig_mrf != tracing_fn){
                 if(!orig_mrf){
@@ -1535,6 +1542,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 		if(orig_ops == dattobd_get_bd_ops(dev->sd_base_dev)){
 			*ops = dev->bd_ops;
 			*mrf = dev->sd_orig_request_fn;
+                        *tracing_ops=dev->tracing_ops;
                         LOG_DEBUG("found already tracked device with the same original bd_ops");
 			return 0;
 		}
@@ -1557,7 +1565,7 @@ int tracer_alloc_ops(struct snap_device* dev){
         memcpy(new_bdops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         //setting tracing_fn as submit_bio, rest is just copied
         new_bdops->submit_bio = tracing_fn;
-	dev->bd_ops = new_bdops;
+	dev->tracing_ops = new_bdops;
 	return 0;       
 }
 
@@ -1699,27 +1707,25 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 tracing_fn,
                 &snap_devices[minor]);
 #else
-        if(!dev->bd_ops){
-                //if yes, than setup a pointer to newly created bd_ops- to pradopodobnie chodzi o to finx_orig_pos
-                LOG_DEBUG("allocating bdops for a device, cause it seems they are empty");
-                ret=tracer_alloc_ops(dev);
-                if(ret){
-                        goto error;
-                }
-        }
+        if(!dev->tracing_ops){
+                ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn, &dev->tracing_ops);
+                if(ret) goto error;
 
-        if(dev->bd_ops->submit_bio!=tracing_fn){
-                        //checks if block_block_device_operations are unique for the device, if not, create new one
-                        ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn);
-                        if(ret) goto error;
-                        dev->bd_ops->submit_bio=tracing_fn;
-                        ret = __tracer_transition_tracing(
+                if(!dev->tracing_ops){
+                        LOG_DEBUG("allocating block_device_operations with submit_bio replaced by our tracing function");
+                        ret=tracer_alloc_ops(dev);
+                        if(ret){
+                                goto error;
+                        }
+                }else{
+                        LOG_DEBUG("using already existing tracing_ops");
+                }
+
+                ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
-                        dev->bd_ops,
+                        dev->tracing_ops,
                         &snap_devices[minor]);
-                if (ret)
-                        goto error; 
         }
 	else {
 		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);

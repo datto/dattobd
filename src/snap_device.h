@@ -56,6 +56,7 @@ struct snap_device {
                                     // underlying driver
 #ifdef HAVE_BDOPS_SUBMIT_BIO
         struct block_device_operations *bd_ops;
+        struct block_device_operations *tracing_ops; //copy of original block_Device_operations but with request_function for tracing
 #endif
 };
 
