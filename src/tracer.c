@@ -1666,14 +1666,16 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 if(ret){
                         goto error;
                 }
+        }
 
-                ret = __tracer_transition_tracing(
+        if(dev->bd_ops->submit_bio!=tracing_fn){
+                        ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
                         dev->bd_ops,
                         &snap_devices[minor]);
                 if (ret)
-                        goto error;
+                        goto error; 
         }
 	else {
 		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
