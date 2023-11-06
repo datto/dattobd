@@ -1712,6 +1712,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                         //checks if block_block_device_operations are unique for the device, if not, create new one
                         ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn);
                         if(ret) goto error;
+                        dev->bd_ops->submit_bio=tracing_fn;
                         ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
