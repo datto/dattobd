@@ -1710,7 +1710,8 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
 
         if(dev->bd_ops->submit_bio!=tracing_fn){
                         //checks if block_block_device_operations are unique for the device, if not, create new one
-                        find_orig_fops();
+                        ret=find_orig_bdops();
+                        if(ret) goto error;
                         ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
