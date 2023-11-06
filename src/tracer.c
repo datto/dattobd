@@ -463,7 +463,6 @@ static void __tracer_init(struct snap_device *dev)
         sset_queue_init(&dev->sd_pending_ssets);
 #ifdef  USE_BDOPS_SUBMIT_BIO
         dev->bd_ops= get_snap_ops();
-        bd_ops->submit_bio=tracing_fn;
 #endif
 }
 
