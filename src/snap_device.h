@@ -74,7 +74,7 @@ struct snap_device {
                                      // underlying driver
         atomic64_t sd_received_cnt; // count of read clones submitted to
                                     // underlying driver
-#ifdef HAVE_BDOPS_SUBMIT_BIO
+#ifdef USE_BDOPS_SUBMIT_BIO
         struct block_device_operations *bd_ops;
         struct tracing_ops *sd_tracing_ops; //copy of original block_Device_operations but with request_function for tracing
 #endif

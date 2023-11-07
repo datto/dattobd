@@ -1406,9 +1406,6 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
         static long long tracing_fn_calls=0;
-        tracing_fn_calls++;
-        //this should be called less amount of times than when using ftrace
-        LOG_DEBUG("tracing_fn calls %llu",tracing_fn_calls);
 
         smp_rmb();
         tracer_for_each(dev, i)
@@ -1715,7 +1712,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 tracing_fn,
                 &snap_devices[minor]);
 #else
-        if(!dev-sd_tracing_ops){
+        if(!dev->sd_tracing_ops){
                 ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn, &dev->sd_tracing_ops);
                 if(ret) goto error;
 
