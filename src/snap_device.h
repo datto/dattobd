@@ -19,6 +19,26 @@
 #define ACTIVE 1
 #define UNVERIFIED 2
 
+#ifdef USE_BDOPS_SUBMIT_BIO
+struct tracing_ops {
+	struct block_device_operations *bd_ops;
+	atomic_t refs;
+};
+
+static inline struct tracing_ops* tracing_ops_get(struct tracing_ops *trops) {
+	if (trops) atomic_inc(&trops->refs);
+	return trops;
+}
+
+static inline void tracing_ops_put(struct tracing_ops *trops) {
+	//drop a reference to the tracing ops
+	if(atomic_dec_and_test(&trops->refs)) {
+		kfree(trops->bd_ops);
+		kfree(trops);
+	}
+}
+#endif
+
 struct snap_device {
         unsigned int sd_minor; // minor number of the snapshot
         unsigned long sd_state; // current state of the snapshot
@@ -56,7 +76,7 @@ struct snap_device {
                                     // underlying driver
 #ifdef HAVE_BDOPS_SUBMIT_BIO
         struct block_device_operations *bd_ops;
-        struct block_device_operations *tracing_ops; //copy of original block_Device_operations but with request_function for tracing
+        struct tracing_ops *sd_tracing_ops; //copy of original block_Device_operations but with request_function for tracing
 #endif
 };
 

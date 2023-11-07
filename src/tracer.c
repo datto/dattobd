@@ -154,8 +154,9 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
 void dattobd_free_request_tracking_ptr(struct snap_device *dev)
 {
 #ifdef USE_BDOPS_SUBMIT_BIO
-        if(dev->tracing_ops){
-                dev->tracing_ops=NULL;
+        if(dev->sd_tracing_ops){
+                tracing_ops_put(dev->sd_tracing_ops);
+                dev->sd_tracing_ops=NULL;
         }
 #else
         dev->sd_orig_request_fn = NULL;
@@ -1512,13 +1513,13 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
         return -EFAULT;
 }
 #else
-int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct block_device_operations** tracing_ops){
+int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct tracing_ops** trops){
         int i;
 	struct snap_device *dev;
 	struct block_device_operations *orig_ops = dattobd_get_bd_ops(bdev);
 	make_request_fn *orig_mrf = orig_ops->submit_bio;
         LOG_DEBUG("ENTER find_orig_bdops");
-        *tracing_ops=NULL;
+        *trops=NULL;
 
         if(orig_mrf != tracing_fn){
                 if(!orig_mrf){
@@ -1542,7 +1543,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 		if(orig_ops == dattobd_get_bd_ops(dev->sd_base_dev)){
 			*ops = dev->bd_ops;
 			*mrf = dev->sd_orig_request_fn;
-                        *tracing_ops=dev->tracing_ops;
+                        *trops=tracing_ops_get(dev->sd_tracing_ops);
                         LOG_DEBUG("found already tracked device with the same original bd_ops");
 			return 0;
 		}
@@ -1556,16 +1557,23 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 
 int tracer_alloc_ops(struct snap_device* dev){
         LOG_DEBUG("tracer_alloc_ops");
-        struct block_device_operations* new_bdops;
-        new_bdops=kmalloc(sizeof(struct block_device_operations), GFP_KERNEL);
-        if(!new_bdops){
+        struct tracing_ops* trops;
+        trops = kmalloc(sizeof(struct tracing_ops), GFP_KERNEL);
+	if(!trops) {
+		LOG_ERROR(-ENOMEM, "error allocating tracing ops struct");
+		return -ENOMEM;
+	}
+
+        trops->bd_ops=kmalloc(sizeof(struct block_device_operations), GFP_KERNEL);
+        if(!trops->bd_ops){
                 LOG_ERROR(-ENOMEM, "error while alocating new block_device_operations");
                 return -ENOMEM;
         }
-        memcpy(new_bdops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
+        memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         //setting tracing_fn as submit_bio, rest is just copied
-        new_bdops->submit_bio = tracing_fn;
-	dev->tracing_ops = new_bdops;
+        trops->bd_ops->submit_bio = tracing_fn;
+        atomic_set(&trops->refs, 1);
+	dev->sd_tracing_ops = trops;
 	return 0;       
 }
 
@@ -1707,11 +1715,11 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 tracing_fn,
                 &snap_devices[minor]);
 #else
-        if(!dev->tracing_ops){
-                ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn, &dev->tracing_ops);
+        if(!dev-sd_tracing_ops){
+                ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn, &dev->sd_tracing_ops);
                 if(ret) goto error;
 
-                if(!dev->tracing_ops){
+                if(!dev->sd_tracing_ops){
                         LOG_DEBUG("allocating block_device_operations with submit_bio replaced by our tracing function");
                         ret=tracer_alloc_ops(dev);
                         if(ret){
@@ -1724,7 +1732,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 ret = __tracer_transition_tracing(
                         dev,
                         dev->sd_base_dev,
-                        dev->tracing_ops,
+                        dev->sd_tracing_ops->bd_ops,
                         &snap_devices[minor]);
         }
 	else {
