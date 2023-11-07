@@ -1,7 +1,0 @@
-stages:
-  - create vm
-  - build dattobd
-
-include:
-  - local: .ci/create_vm.gitlab-ci.yml
-  - local: .ci/build_dattobd.gitlab-ci.yml
