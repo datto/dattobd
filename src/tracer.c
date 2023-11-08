@@ -205,6 +205,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         ret = tp_alloc(dev, bio, &tp);
         if (ret)
         {
+                // Tutaj submitowac?
                 LOG_ERROR(ret, "error tracing bio for snapshot");
                 tracer_set_fail_state(dev, ret);
                 goto call_orig;
@@ -213,6 +214,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         while (1) {
                 // allocate and populate read bio clone. This bio may not have all the
                 // pages we need due to queue restrictions
+                // Here is the difference
                 ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages,
                                         &new_bio, &bytes);
                 if (ret)
@@ -468,9 +470,6 @@ static void __tracer_init(struct snap_device *dev)
         bio_queue_init(&dev->sd_cow_bios);
         bio_queue_init(&dev->sd_orig_bios);
         sset_queue_init(&dev->sd_pending_ssets);
-#ifdef  USE_BDOPS_SUBMIT_BIO
-        dev->bd_ops= get_snap_ops();
-#endif
 }
 
 /**
@@ -1405,7 +1404,6 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         int i, ret = 0;
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
-        static long long tracing_fn_calls=0;
 
         smp_rmb();
         tracer_for_each(dev, i)
@@ -1717,6 +1715,7 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 if(ret) goto error;
 
                 if(!dev->sd_tracing_ops){
+                        //wchodzi tutaj
                         LOG_DEBUG("allocating block_device_operations with submit_bio replaced by our tracing function");
                         ret=tracer_alloc_ops(dev);
                         if(ret){
