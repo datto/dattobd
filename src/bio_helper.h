@@ -30,7 +30,7 @@
         #define USE_BDOPS_SUBMIT_BIO
 
         //void for red hat, blk_qc_t for ubuntu
-        typedef blk_qc_t (make_request_fn) (struct bio *bio);
+        typedef void (make_request_fn) (struct bio *bio);
 #endif
 
 // macros for working with bios

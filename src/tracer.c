@@ -1591,6 +1591,8 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
 
 #ifndef USE_BDOPS_SUBMIT_BIO
     if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev) != tracing_fn) return 0;
+#else
+        struct block_device_operations* ops=dattobd_get_bd_ops(dev->sd_base_dev);
 #endif
     if (dev != snap_devices[dev->sd_minor]) return 0;
 
@@ -1599,7 +1601,11 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
         tracer_for_each(cur_dev, i){
             if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) 
                 || cur_dev == dev) continue;
+#ifndef USE_BDOPS_SUBMIT_BIO
             if (q == bdev_get_queue(cur_dev->sd_base_dev)) return 0;
+#else
+                if(ops==dattobd_get_bd_ops(cur_dev->sd_base_dev)) return 0;
+#endif
         }
     }
 
