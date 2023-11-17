@@ -6,6 +6,17 @@
 # Location to install kernel module sources
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
+# Location for systemd shutdown script
+# "%{_vendor}" == "redhat" covers rhel, centos and fedora 
+# Ubuntu18 doesn't have /usr/lib/systemd/, but Ubuntu20 has both locations with the same content
+%if "%{_vendor}" == "redhat"
+%global _systemd_services          /usr/lib/systemd/system
+%global _systemd_shutdown          /usr/lib/systemd/system-shutdown
+%else
+%global _systemd_services          /lib/systemd/system
+%global _systemd_shutdown          /lib/systemd/system-shutdown
+%endif
+
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
@@ -106,7 +117,7 @@
 
 
 Name:            dattobd
-Version:         0.11.2
+Version:         0.11.3
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -135,6 +146,9 @@ BuildRequires:   gcc
 BuildRequires:   make
 BuildRequires:   rsync
 
+%if 0%{?fedora} || 0%{?rhel}
+BuildRequires:   systemd-rpm-macros
+%endif
 # Some targets (like EL5) expect a buildroot definition
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
@@ -270,7 +284,6 @@ OrderWithRequires: kernel-syms
 Kernel module sources for %{name} for DKMS to
 automatically build and install for each kernel.
 
-
 %prep
 %if ! %{with devmode}
 %setup -q
@@ -278,12 +291,10 @@ automatically build and install for each kernel.
 %setup -q -n %{name}
 %endif
 
-
 %build
 export CFLAGS="%{optflags}"
 make application
 make utils
-
 
 %install
 # Install library
@@ -372,9 +383,14 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 %endif
 %endif
 
+# Install systemd shutdown script
+mkdir -p %{buildroot}%{_systemd_shutdown}
+install -m 755 dist/shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/
+mkdir -p %{buildroot}%{_systemd_services}
+install -m 644 dist/shutdown/umount-rootfs.service    %{buildroot}%{_systemd_services}/umount-rootfs.service
+
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
-
 %preun -n %{dkmsname}
 
 %if "%{_vendor}" == "debbuild"
@@ -409,6 +425,7 @@ if [ "$1" -ge "1" ]; then
 fi
 
 
+
 %post utils
 %if 0%{?rhel} != 5
 # Generate initramfs
@@ -424,7 +441,6 @@ elif type "update-initramfs" &> /dev/null; then
 fi
 sleep 1 || :
 %endif
-
 
 %postun utils
 %if 0%{?rhel} != 5
@@ -450,14 +466,17 @@ fi
 %post -n %{libname}
 /sbin/ldconfig
 
+if [ ! -d %{_systemd_services}/reboot.target.wants/ ]; then
+   mkdir -p %{_systemd_services}/reboot.target.wants
+fi   
+ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+
 %postun -n %{libname}
 /sbin/ldconfig
-
 
 %clean
 # EL5 and SLE 11 require this section
 rm -rf %{buildroot}
-
 
 %files utils
 %if 0%{?suse_version}
@@ -487,6 +506,15 @@ rm -rf %{buildroot}
 %endif
 %endif
 %endif
+
+# Install systemd shutdown script
+%{_systemd_shutdown}/umount_rootfs.shutdown
+%{_systemd_services}/umount-rootfs.service
+
+
+%post 
+ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+
 %doc README.md doc/STRUCTURE.md
 %if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
@@ -569,10 +597,22 @@ rm -rf %{buildroot}
 %endif
 %endif
 
+%preun 
+systemctl stop umount-rootfs.service
+systemctl disable umount-rootfs.service
+
+%postun 
+unlink  %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+rm %{_systemd_shutdown}/umount_rootfs.shutdown
+rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+
 * Mon Oct 30 2023 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.2.5
 - Hotfix for customer 
+
+* Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
+- Fix memory leak on Ubuntu 20.04
 
 * Tue Feb 7 2023 Dakota Williams <drwilliams@datto.com> - 0.11.2
 - Similar update to configure test
@@ -785,3 +825,4 @@ rm -rf %{buildroot}
 
 * Fri May 29 2015 Neal Gompa <ngompa@datto.com> - 0.8.2-1
 - Initial packaging of dattobd kmod and utils
+

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2023 Datto Inc.
  */
 
 #include "tracer.h"
@@ -23,33 +23,40 @@
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/blk-mq.h>
+#include <linux/version.h>
 #ifdef HAVE_BLK_ALLOC_QUEUE
-//#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
+// #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #include <linux/percpu-refcount.h>
 #endif
 
 #if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
+// #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 
 #ifndef min_not_zero
 #define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
 #endif
 
-static int blk_stack_limits(struct request_queue *t, struct request_queue *b,
-                            sector_t offset)
+int blk_stack_limits(struct queue_limits *t, struct queue_limits *b,
+                     sector_t offset)
 {
         t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
         t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-        t->bounce_pfn = min_not_zero(t->bounce_pfn, b->bounce_pfn);
+        t->bounce = min_not_zero(t->bounce, b->bounce);
         t->seg_boundary_mask =
-                min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-        t->max_phys_segments =
-                min_not_zero(t->max_phys_segments, b->max_phys_segments);
-        t->max_hw_segments =
-                min_not_zero(t->max_hw_segments, b->max_hw_segments);
+            min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
+        t->max_segments =
+            min_not_zero(t->max_segments, b->max_segments);
+        t->max_segments =
+            min_not_zero(t->max_segments, b->max_segments);
         t->max_segment_size =
-                min_not_zero(t->max_segment_size, b->max_segment_size);
+            min_not_zero(t->max_segment_size, b->max_segment_size);
         return 0;
+}
+
+static int blk_stack_limits_request_queue(struct request_queue *t, struct request_queue *b,
+                                          sector_t offset)
+{
+        return blk_stack_limits(&t->limits, &b->limits, 0);
 }
 
 static int dattobd_bdev_stack_limits(struct request_queue *t,
@@ -57,11 +64,11 @@ static int dattobd_bdev_stack_limits(struct request_queue *t,
 {
         struct request_queue *bq = bdev_get_queue(bdev);
         start += get_start_sect(bdev);
-        return blk_stack_limits(t, bq, start << 9);
+        return blk_stack_limits_request_queue(t, bq, start << 9);
 }
 
 #elif !defined(HAVE_BDEV_STACK_LIMITS)
-//#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+// #elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 
 static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
                              sector_t start)
@@ -71,22 +78,22 @@ static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
         return blk_stack_limits(t, &bq->limits, start << 9);
 }
 
-#define dattobd_bdev_stack_limits(queue, bdev, start)                          \
+#define dattobd_bdev_stack_limits(queue, bdev, start) \
         bdev_stack_limits(&(queue)->limits, bdev, start)
 #else
-#define dattobd_bdev_stack_limits(queue, bdev, start)                          \
+#define dattobd_bdev_stack_limits(queue, bdev, start) \
         bdev_stack_limits(&(queue)->limits, bdev, start)
 #endif // # !HAVE_BDEV_STACK_LIMITS) && !HAVE_BLK_SET_DEFAULT_LIMITS
 
-// Helpers to get/set either the make_request_fn or the submit_bio function 
+// Helpers to get/set either the make_request_fn or the submit_bio function
 // pointers in a block device.
-static inline BIO_REQUEST_CALLBACK_FN* dattobd_get_bd_fn(
+static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
     struct block_device *bdev)
 {
 #ifdef USE_BDOPS_SUBMIT_BIO
-    return bdev->bd_disk->fops->submit_bio;
+        return bdev->bd_disk->fops->submit_bio;
 #else
-    return bdev->bd_disk->queue->make_request_fn;
+        return bdev->bd_disk->queue->make_request_fn;
 #endif
 }
 
@@ -94,37 +101,37 @@ static inline BIO_REQUEST_CALLBACK_FN* dattobd_get_bd_fn(
 #define blk_set_default_limits(ql)
 #endif
 
-#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space,    \
-                               cache_size, uuid, seqid)                        \
-        __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space,        \
+#define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, \
+                               cache_size, uuid, seqid)                     \
+        __tracer_setup_cow(dev, bdev, cow_path, size, fallocated_space,     \
                            cache_size, uuid, seqid, 0)
-#define __tracer_setup_cow_reload_snap(dev, bdev, cow_path, size, cache_size)  \
+#define __tracer_setup_cow_reload_snap(dev, bdev, cow_path, size, cache_size) \
         __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, NULL, 0, 1)
-#define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size)   \
+#define __tracer_setup_cow_reload_inc(dev, bdev, cow_path, size, cache_size) \
         __tracer_setup_cow(dev, bdev, cow_path, size, 0, cache_size, NULL, 0, 2)
-#define __tracer_setup_cow_reopen(dev, bdev, cow_path)                         \
+#define __tracer_setup_cow_reopen(dev, bdev, cow_path) \
         __tracer_setup_cow(dev, bdev, cow_path, 0, 0, 0, NULL, 0, 3)
 
 #define __tracer_destroy_cow_free(dev) __tracer_destroy_cow(dev, 0)
 #define __tracer_destroy_cow_sync_and_free(dev) __tracer_destroy_cow(dev, 1)
 #define __tracer_destroy_cow_sync_and_close(dev) __tracer_destroy_cow(dev, 2)
 
-#define __tracer_setup_inc_cow_thread(dev, minor)                              \
+#define __tracer_setup_inc_cow_thread(dev, minor) \
         __tracer_setup_cow_thread(dev, minor, 0)
-#define __tracer_setup_snap_cow_thread(dev, minor)                             \
+#define __tracer_setup_snap_cow_thread(dev, minor) \
         __tracer_setup_cow_thread(dev, minor, 1)
 #ifndef HAVE_BLK_SET_STACKING_LIMITS
 #define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
 #endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG
-#define dattobd_bioset_create(bio_size, bvec_size, scale)                      \
+#define dattobd_bioset_create(bio_size, bvec_size, scale) \
         bioset_create(bio_size, bvec_size, BIOSET_NEED_BVECS)
 #elif defined HAVE_BIOSET_CREATE_3
-#define dattobd_bioset_create(bio_size, bvec_size, scale)                      \
+#define dattobd_bioset_create(bio_size, bvec_size, scale) \
         bioset_create(bio_size, bvec_size, scale)
 #else
-#define dattobd_bioset_create(bio_size, bvec_size, scale)                      \
+#define dattobd_bioset_create(bio_size, bvec_size, scale) \
         bioset_create(bio_size, scale)
 #endif
 
@@ -146,9 +153,9 @@ static inline BIO_REQUEST_CALLBACK_FN* dattobd_get_bd_fn(
 
 void dattobd_free_request_tracking_ptr(struct snap_device *dev)
 {
-    dev->sd_orig_request_fn = NULL;
+        dev->sd_orig_request_fn = NULL;
 }
- 
+
 /**
  * snap_trace_bio() - Traces a bio when snapshotting.  For bio reads there is
  * nothing to do and the request is passed to the original driver.  For writes
@@ -390,8 +397,12 @@ static int bdev_is_already_traced(const struct block_device *bdev)
 static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
 {
         struct super_block *sb = dattobd_get_super(bdev);
+        struct super_block *sb_file = (dattobd_get_mnt(file))->mnt_sb;
         int ret = 0;
+
         if (sb) {
+                LOG_DEBUG("file_is_on_bdev() if(sb)");
+                LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
                 ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
                 dattobd_drop_super(sb);
         }
@@ -562,10 +573,14 @@ static int __tracer_setup_cow(struct snap_device *dev,
 {
         int ret;
         uint64_t max_file_size;
+
+ #ifdef HAVE_BDEVNAME       
         char bdev_name[BDEVNAME_SIZE];
-
-        bdevname(bdev, bdev_name);
-
+        bdevname(bdev, bdev_name);  
+        LOG_DEBUG("bdevname %s, cow_path: %s", bdev_name, cow_path);
+#else
+         LOG_DEBUG("bdevname %pg, cow_path: %s", bdev, cow_path);
+#endif
         if (open_method == 3) {
                 // reopen the cow manager
                 LOG_DEBUG("reopening the cow manager with file '%s'", cow_path);
@@ -619,7 +634,11 @@ static int __tracer_setup_cow(struct snap_device *dev,
         // verify that file is on block device
         if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
                 ret = -EINVAL;
+#ifdef HAVE_BDEVNAME
                 LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
+#else
+                LOG_ERROR(ret, "'%s' is not on '%pg'", cow_path, bdev);
+#endif
                 goto error;
         }
 
@@ -675,7 +694,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
         int ret;
 
         // open the base block device
-        LOG_DEBUG("finding block device");
+        LOG_DEBUG("ENTER __tracer_setup_base_dev");
         dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
@@ -853,7 +872,7 @@ error:
 }
 
 /**
- * __tracer_setup_cow_path() - Sets up the COW file path given a &struct file.
+ * __tracer_copy_cow_path() - Sets up the COW file path given a &struct file.
  *
  * @dev: The &struct snap_device object pointer.
  * @cow_file: The &struct file object pointer.
@@ -991,16 +1010,16 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         }
 
         // allocate request queue
-        LOG_DEBUG("allocating queue"); 
+        LOG_DEBUG("allocating queue");
 #ifdef HAVE_BLK_ALLOC_QUEUE_1
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
+        // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
         dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
 #elif defined HAVE_BLK_ALLOC_QUEUE_RH_2 // el8
         dev->sd_queue = blk_alloc_queue_rh(snap_mrf, NUMA_NO_NODE);
 #elif defined HAVE_BLK_ALLOC_QUEUE_2
         dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
 #elif !defined HAVE_BLK_ALLOC_DISK
-        //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+        // #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
         dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
 #else
         dev->sd_queue = dev->sd_gd->queue;
@@ -1016,7 +1035,9 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("setting up make request function");
         blk_queue_make_request(dev->sd_queue, snap_mrf);
 #endif
-
+#if defined HAVE_GD_OWNS_QUEUE
+        set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
+#endif
         // give our request queue the same properties as the base device's
         LOG_DEBUG("setting queue limits");
         blk_set_stacking_limits(&dev->sd_queue->limits);
@@ -1051,14 +1072,17 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // disable partition scanning (the device should not have any
         // sub-partitions)
         dev->sd_gd->flags |= GENHD_FL_NO_PART_SCAN;
+#elif defined  HAVE_GENHD_FL_NO_PART  
+        // with removal of genhd.h header file name of kernel's constant 
+        // was changed from GENHD_FL_NO_PART_SCAN to GENHD_FL_NO_PART
+        dev->sd_gd->flags |= GENHD_FL_NO_PART;
 #endif
 
         // set the device as read-only
         set_disk_ro(dev->sd_gd, 1);
 
-        // register gendisk with the kernel
-        LOG_DEBUG("adding disk");
-        add_disk(dev->sd_gd);
+        atomic64_set(&dev->sd_submitted_cnt, 0);
+        atomic64_set(&dev->sd_received_cnt, 0);
 
         LOG_DEBUG("starting mrf kernel thread");
         dev->sd_mrf_thread = kthread_run(snap_mrf_thread, dev,
@@ -1070,9 +1094,18 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
-        atomic64_set(&dev->sd_submitted_cnt, 0);
-        atomic64_set(&dev->sd_received_cnt, 0);
-
+        // register gendisk with the kernel
+        LOG_DEBUG("adding disk");
+ #ifdef HAVE_NONVOID_ADD_DISK   
+        ret = add_disk(dev->sd_gd);
+        if (ret)
+        {
+                LOG_ERROR(ret, "error creating snapshot disk");
+                goto error;
+        }
+#else 
+        add_disk(dev->sd_gd);
+#endif
         return 0;
 
 error:
@@ -1150,9 +1183,8 @@ static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
 
 unsigned char* funcname_submit_bio_noacct = "submit_bio_noacct";
 struct ftrace_ops ops_submit_bio_noacct = {
-	.func = ftrace_handler_submit_bio_noacct,
-	.flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_PERMANENT | FTRACE_OPS_FL_IPMODIFY
-};
+        .func = ftrace_handler_submit_bio_noacct,
+        .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_PERMANENT | FTRACE_OPS_FL_IPMODIFY};
 #endif
 
 int tracer_registered = 0;
@@ -1212,43 +1244,65 @@ static int __tracer_transition_tracing(
 {
         int ret;
         struct super_block *origsb = dattobd_get_super(bdev);
-        #ifdef HAVE_FREEZE_SB
+#ifdef HAVE_FREEZE_SB
         struct super_block *sb = NULL;
-        #endif
-        char bdev_name[BDEVNAME_SIZE];
-        MAYBE_UNUSED(ret);
+#endif
 
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
         bdevname(bdev, bdev_name);
+#endif        
+        MAYBE_UNUSED(ret);
         if(origsb){
                 dattobd_drop_super(origsb);
 
-                //freeze and sync block device
+                // freeze and sync block device
+#ifdef HAVE_BDEVNAME                
                 LOG_DEBUG("freezing '%s'", bdev_name);
+#else 
+                LOG_DEBUG("freezing '%pg'", bdev);         
+#endif                
 #ifdef HAVE_FREEZE_SB
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+                // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
                 sb = freeze_bdev(bdev);
                 if(!sb){
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR(-EFAULT, "error freezing '%s': null",
                                   bdev_name);
+#else 
+                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
+                                  bdev);                                
+#endif 
                         return -EFAULT;
-                }else if(IS_ERR(sb)){
+                } else if(IS_ERR(sb)){
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR((int)PTR_ERR(sb),
                                   "error freezing '%s': error", bdev_name);
+#else
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%pg': error", bdev);
+#endif
                         return (int)PTR_ERR(sb);
                 }
 #else
                 ret = freeze_bdev(bdev);
                 if (ret) {
+#ifdef HAVE_BDEVNAME                          
                         LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
                         return -ret;
                 }
 #endif
         }
         else {
+#ifdef HAVE_BDEVNAME  
                 LOG_WARN(
                         "warning: no super found for device '%s', "
                         "unable to freeze it",
                         bdev_name);
+#endif
         }
         smp_wmb();
         if(dev){
@@ -1262,7 +1316,7 @@ static int __tracer_transition_tracing(
                 }
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
-        }else{
+        } else {
                 LOG_DEBUG("ending tracing");
                 atomic_dec(&(*dev_ptr)->sd_active);
 #ifndef USE_BDOPS_SUBMIT_BIO
@@ -1277,16 +1331,24 @@ static int __tracer_transition_tracing(
         }
         if(origsb){
                 // thaw the block device
+#ifdef HAVE_BDEVNAME      
                 LOG_DEBUG("thawing '%s'", bdev_name);
+#else
+                LOG_DEBUG("thawing '%pg'", bdev);
+#endif                
 #ifdef HAVE_THAW_BDEV_INT
                 ret = thaw_bdev(bdev, sb);
 #else
                 ret = thaw_bdev(bdev);
 #endif
                 if(ret){
+#ifdef HAVE_BEDVNAME  
                         LOG_ERROR(ret, "error thawing '%s'", bdev_name);
-                        // We can't reasonably undo what we've done at this 
-                        // point, and we've replaced the mrf. pretend we 
+#else
+                        LOG_ERROR(ret, "error thawing '%pg'", bdev);
+#endif
+                        // We can't reasonably undo what we've done at this
+                        // point, and we've replaced the mrf. pretend we
                         // succeeded so we don't break the block device
                 }
         }
@@ -1300,7 +1362,7 @@ static int __tracer_transition_tracing(
  *
  * If the BIO has been marked as passthrough then the block device's
  * original device's function pointer for handling i/o is used to process the BIO.
- * Otherwise, depending on whether we're in snapshot or incremental mode, the appropriate 
+ * Otherwise, depending on whether we're in snapshot or incremental mode, the appropriate
  * handler is called.
  *
  * Return: varies across versions of Linux and is what's expected by each for
@@ -1507,17 +1569,17 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 static void __tracer_setup_tracing_unverified(struct snap_device *dev,
                                               unsigned int minor)
 {
-    minor_range_include(minor);
-    smp_wmb();
-    dev->sd_minor = minor;
-    snap_devices[minor] = dev;
-    smp_wmb();
+        minor_range_include(minor);
+        smp_wmb();
+        dev->sd_minor = minor;
+        snap_devices[minor] = dev;
+        smp_wmb();
 }
 
 /**
  * __tracer_setup_tracing() - Adds @minor to the range of included tracked
  *                            minors, saves the original io submit function ptr
- *                            and replaces it with the tracing_fn function ptr for 
+ *                            and replaces it with the tracing_fn function ptr for
  *                            the block device associated with our &struct snap_device.
  *
  * @dev: The &struct snap_device object pointer.
@@ -1833,6 +1895,8 @@ int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path,
         int ret;
         struct snap_device *dev;
 
+        LOG_DEBUG("ENTER tracer_active_inc_to_snap");
+
         // allocate new tracer
         ret = tracer_alloc(&dev);
         if (ret)
@@ -1960,6 +2024,7 @@ void __tracer_active_to_dormant(struct snap_device *dev)
 {
         int ret;
 
+        LOG_DEBUG("ENTER __tracer_active_to_dormant");
         // stop the cow thread
         __tracer_destroy_cow_thread(dev);
 
@@ -1996,6 +2061,7 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
                         *rel_path = dev->sd_cow_path;
         unsigned long cache_size = dev->sd_cache_size;
 
+        LOG_DEBUG("ENTER __tracer_unverified_snap_to_active");
         // remove tracing while we setup the struct
         __tracer_destroy_tracing(dev);
 
@@ -2012,7 +2078,11 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
                 goto error;
 
         // generate the full pathname
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+        ret = pathname_concat(user_mount_path, rel_path, &cow_path);        
+#else
         ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
+#endif
         if (ret)
                 goto error;
 
@@ -2086,6 +2156,8 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
                         *rel_path = dev->sd_cow_path;
         unsigned long cache_size = dev->sd_cache_size;
 
+        LOG_DEBUG("ENTER %s", __func__);
+
         // remove tracing while we setup the struct
         __tracer_destroy_tracing(dev);
 
@@ -2102,7 +2174,11 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
                 goto error;
 
         // generate the full pathname
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+        ret = pathname_concat(user_mount_path, rel_path, &cow_path);        
+#else
         ret = user_mount_pathname_concat(user_mount_path, rel_path, &cow_path);
+#endif
         if (ret)
                 goto error;
 
@@ -2168,9 +2244,15 @@ void __tracer_dormant_to_active(struct snap_device *dev,
         int ret;
         char *cow_path;
 
+        LOG_DEBUG("ENTER __tracer_dormant_to_active");
+
         // generate the full pathname
-        ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path,
-                                         &cow_path);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+        ret = pathname_concat(user_mount_path, dev->sd_cow_path, &cow_path);        
+#else
+        ret = user_mount_pathname_concat(user_mount_path, dev->sd_cow_path, &cow_path);
+#endif
         if (ret)
                 goto error;
 

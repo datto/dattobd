@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2022-2023 Datto Inc.
  */
 
 #include "includes.h"
@@ -620,6 +620,33 @@ static void bio_destructor_snap_dev(struct bio *bio)
 }
 #endif
 
+
+#ifndef HAVE_BIO_FREE_PAGES
+/**
+ * bio_free_pages - Frees up bio pages
+ *
+ * @bio: The &struct bio which describes the I/O
+ * 
+ * See https://github.com/torvalds/linux/blob/v6.3/block/bio.c#L1434
+ */
+static void bio_free_pages(struct bio *bio)
+{
+        struct bio_vec *bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter_all;
+	bio_for_each_segment_all(bvec, bio, iter_all) {
+#else
+	int i = 0;
+	bio_for_each_segment_all(bvec, bio, i) {
+#endif
+		struct page *bv_page = bvec->bv_page;
+		if (bv_page) {
+			__free_page(bv_page);
+		}
+	}
+}
+#endif
+
 /**
  * bio_free_clone() - Cleans up a bio allocated with bio_make_read_clone().
  *
@@ -630,12 +657,7 @@ static void bio_destructor_snap_dev(struct bio *bio)
  */
 void bio_free_clone(struct bio *bio)
 {
-        int i;
-
-        for (i = 0; i < bio->bi_vcnt; i++) {
-                if (bio->bi_io_vec[i].bv_page)
-                        __free_page(bio->bi_io_vec[i].bv_page);
-        }
+        bio_free_pages(bio);
         bio_put(bio);
 }
 
@@ -682,7 +704,11 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
         // allocate bio clone, instruct the allocator to not make I/O requests
         // while trying to allocate memory to prevent any possible lock
         // contention.
+#ifdef HAVE_BIO_ALLOC_BIOSET_5
+        new_bio = bio_alloc_bioset(orig_bio->bi_bdev, actual_pages, REQ_OP_READ, GFP_NOIO, bs);
+#else
         new_bio = bio_alloc_bioset(GFP_NOIO, actual_pages, bs);
+#endif
         if (!new_bio) {
                 ret = -ENOMEM;
                 LOG_ERROR(ret,
