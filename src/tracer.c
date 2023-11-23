@@ -186,7 +186,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         unsigned int bytes, pages;
 
         // if we don't need to cow this bio just call the real mrf normally
-        if (!bio_needs_cow(bio, dev->sd_cow_inode))
+        if (!bio_needs_cow(bio, dev->sd_cow_inode) || tracer_read_fail_state(dev))
                 goto call_orig;
 
         // the cow manager works in 4096 byte blocks, so read clones must also
@@ -205,7 +205,6 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         ret = tp_alloc(dev, bio, &tp);
         if (ret)
         {
-                // Tutaj submitowac?
                 LOG_ERROR(ret, "error tracing bio for snapshot");
                 tracer_set_fail_state(dev, ret);
                 goto call_orig;
@@ -228,7 +227,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                 atomic64_inc(&dev->sd_submitted_cnt);
                 smp_wmb();
 
-                dattobd_submit_bio(new_bio);
+                dev->sd_orig_request_fn(bio);
 
                 // if our bio didn't cover the entire clone we must keep creating bios
                 // until we have
@@ -260,7 +259,8 @@ error:
         return 0;
 
 call_orig:
-        return SUBMIT_BIO_REAL(dev, bio);
+        dev->sd_orig_request_fn(bio);
+        return 0;
 }
 
 /**
@@ -362,7 +362,7 @@ out:
         }
 
         // call the original mrf
-        ret = SUBMIT_BIO_REAL(dev, bio);
+        dev->sd_orig_request_fn(bio);
 
         return ret;
 }
@@ -1425,17 +1425,30 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                                         ret = inc_trace_bio(dev, bio);
                                 goto out;
                         }
-                }
-
-                // Now we can submit the bio.
-                ret = SUBMIT_BIO_PASSTHROUGH(dev, bio);
-
-                goto out;
-                
+                }         
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
-        ret = SUBMIT_BIO_PASSTHROUGH(NULL, bio);
+        if(dev->sd_orig_request_fn != NULL){
+                LOG_DEBUG("there is original request function");
+                dev->sd_orig_request_fn(bio);
+        }
+        else if(bio->bi_bdev->bd_disk->fops->submit_bio){ //This is not valid since 5.12
+                LOG_DEBUG("there is submit_bio function");
+                if(bio->bi_bdev->bd_disk->fops->submit_bio == tracing_fn){
+                        LOG_DEBUG("submit_bio is equal to tracing mrf so calling dattobd_null_mrf");
+                        dattobd_snap_null_mrf(bio); 
+                }else{
+                        LOG_DEBUG("submit_bio function differs from tracing mrf- so calling it");
+                        bio->bi_bdev->bd_disk->fops->submit_bio(bio);
+                }
+        }
+        else{
+                LOG_DEBUG("Error, tracing_fn could not find original make request function or bio");
+                submit_bio_noacct( bio);
+        }
+#else
+        ret = SUBMIT_BIO_PASSTHROUGH(dev, bio);
 #endif
 
 out:
@@ -1520,7 +1533,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
                 if(!orig_mrf){
                         LOG_DEBUG("original mrf is empty, setting it to submit_bio_noacct");
                         //in the future change this to mq interface
-                        orig_mrf=submit_bio_noacct;
+                        orig_mrf=dattobd_snap_null_mrf;
                 }else{
                         LOG_DEBUG("original mrf is not empt orig_mrf= %p, orig ops=%p", orig_mrf, orig_ops);
                 }
@@ -1565,7 +1578,6 @@ int tracer_alloc_ops(struct snap_device* dev){
                 return -ENOMEM;
         }
         memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
-        //setting tracing_fn as submit_bio, rest is just copied
         trops->bd_ops->submit_bio = tracing_fn;
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;

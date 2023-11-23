@@ -53,6 +53,10 @@ void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf)
 #endif
 
 #ifdef USE_BDOPS_SUBMIT_BIO
+MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
+	MRF_RETURN_VALUE(dattobd_blk_mq_submit_bio(bio));
+}
+
 MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
 {
     // Before we can submit our bio to the original device... 
