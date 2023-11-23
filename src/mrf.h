@@ -50,8 +50,6 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio);
 #endif
 
 #ifdef USE_BDOPS_SUBMIT_BIO
-MRF_RETURN_TYPE (*elastio_blk_mq_submit_bio)(struct bio *) = (BLK_MQ_SUBMIT_BIO_ADDR != 0) ?
-	(MRF_RETURN_TYPE (*)(struct bio *)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio);
 MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio);
 make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev);
