@@ -1401,6 +1401,9 @@ static asmlinkage MRF_RETURN_TYPE tracing_fn(struct bio *bio)
 static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 #endif
 {
+        static int number_of_calls=0;
+        number_of_calls++;
+        LOG_DEBUG("tracing_fn number of calls %d", number_of_calls);
         int i, ret = 0;
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
@@ -1433,14 +1436,14 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 LOG_DEBUG("there is original request function");
                 dev->sd_orig_request_fn(bio);
         }
-        else if(bio->bi_bdev->bd_disk->fops->submit_bio){ //This is not valid since 5.12
+        else if(dattobd_bio_bi_disk(bio)->fops->submit_bio){ //This is not valid since 5.12
                 LOG_DEBUG("there is submit_bio function");
-                if(bio->bi_bdev->bd_disk->fops->submit_bio == tracing_fn){
+                if(dattobd_bio_bi_disk(bio)->fops->submit_bio == tracing_fn){
                         LOG_DEBUG("submit_bio is equal to tracing mrf so calling dattobd_null_mrf");
                         dattobd_snap_null_mrf(bio); 
                 }else{
                         LOG_DEBUG("submit_bio function differs from tracing mrf- so calling it");
-                        bio->bi_bdev->bd_disk->fops->submit_bio(bio);
+                        dattobd_bio_bi_disk(bio)->fops->submit_bio(bio);
                 }
         }
         else{
@@ -1545,13 +1548,21 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
         }else{
                 LOG_DEBUG("original make request function is already replaced with tracing_fn");
         }
-
+//gdzies tutaj jest blad
         tracer_for_each(dev, i){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
 		if(orig_ops == dattobd_get_bd_ops(dev->sd_base_dev)){
 			*ops = dev->bd_ops;
 			*mrf = dev->sd_orig_request_fn;
                         *trops=tracing_ops_get(dev->sd_tracing_ops);
+                        if((*trops)->bd_ops->submit_bio==blk_mq_submit_bio){
+                                LOG_DEBUG("submit_bio is blk_mq_submit_bio");
+                        }else if((*trops)->bd_ops->submit_bio==tracing_fn){
+                                LOG_DEBUG("submit_bio is tracing_fn");
+                        }else{
+                                LOG_DEBUG("submit_bio is ??");
+                        }
+                        (*trops)->bd_ops->submit_bio=dattobd_snap_null_mrf;
                         LOG_DEBUG("found already tracked device with the same original bd_ops");
 			return 0;
 		}
