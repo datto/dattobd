@@ -54,7 +54,7 @@ void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
-	dattobd_blk_mq_submit_bio(bio);
+	blk_mq_submit_bio(bio);
     MRF_RETURN_TYPE a;
     return a;
 }
@@ -90,7 +90,7 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
 }
 //Look here-> see what should be called, what not
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio){
-	return blk_mq_submit_bio(dattobd_bio_bi_disk(bio)->fops->submit_bio, dattobd_bio_get_queue(bio), bio);
+	return dattobd_call_mrf(dattobd_bio_bi_disk(bio)->fops->submit_bio, dattobd_bio_get_queue(bio), bio);
 }
 
 int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
