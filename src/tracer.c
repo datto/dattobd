@@ -227,7 +227,17 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                 atomic64_inc(&dev->sd_submitted_cnt);
                 smp_wmb();
 
-                dev->sd_orig_request_fn(bio);
+#ifdef USE_BDOPS_SUBMIT_BIO
+        if(dev->sd_orig_request_fn){
+                LOG_DEBUG("snap: there is an original request fn");
+                dev->sd_orig_request_fn(new_bio);
+        }else{
+                LOG_DEBUG("snap: there is no original request fn");
+                dattobd_submit_bio(new_bio);
+        }
+#else
+                dattobd_submit_bio(new_bio);
+#endif
 
                 // if our bio didn't cover the entire clone we must keep creating bios
                 // until we have
@@ -259,8 +269,10 @@ error:
         return 0;
 
 call_orig:
-        dev->sd_orig_request_fn(bio);
-        return 0;
+        LOG_DEBUG("snap call_orig section calling SUBMIT_BIO_PASSTHROUGH");
+        return SUBMIT_BIO_PASSTHROUGH(dev, bio);
+        //dev->sd_orig_request_fn(bio);
+        //return 0;
 }
 
 /**
