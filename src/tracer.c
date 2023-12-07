@@ -187,7 +187,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 
         // if we don't need to cow this bio just call the real mrf normally
         if (!bio_needs_cow(bio, dev->sd_cow_inode) || tracer_read_fail_state(dev))
-                goto call_orig;
+        {
+                dev->sd_orig_request_fn(bio);
+        }
 
         // the cow manager works in 4096 byte blocks, so read clones must also
         // be 4096 byte aligned
@@ -207,7 +209,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         {
                 LOG_ERROR(ret, "error tracing bio for snapshot");
                 tracer_set_fail_state(dev, ret);
-                goto call_orig;
+                goto error;
         }
 
         while (1) {
@@ -229,6 +231,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(dev->sd_orig_request_fn){
+                //tutaj jest blad
                 LOG_DEBUG("snap: there is an original request fn");
                 dev->sd_orig_request_fn(new_bio);
         }else{
@@ -267,12 +270,6 @@ error:
                 tp_put(tp);
         
         return 0;
-
-call_orig:
-        LOG_DEBUG("snap call_orig section calling SUBMIT_BIO_PASSTHROUGH");
-        return SUBMIT_BIO_PASSTHROUGH(dev, bio);
-        //dev->sd_orig_request_fn(bio);
-        //return 0;
 }
 
 /**
@@ -1597,6 +1594,7 @@ int tracer_alloc_ops(struct snap_device* dev){
 
         trops->bd_ops=kmalloc(sizeof(struct block_device_operations), GFP_KERNEL);
         if(!trops->bd_ops){
+                kfree(trops);
                 LOG_ERROR(-ENOMEM, "error while alocating new block_device_operations");
                 return -ENOMEM;
         }
@@ -1756,7 +1754,6 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 if(ret) goto error;
 
                 if(!dev->sd_tracing_ops){
-                        //wchodzi tutaj
                         LOG_DEBUG("allocating block_device_operations with submit_bio replaced by our tracing function");
                         ret=tracer_alloc_ops(dev);
                         if(ret){
