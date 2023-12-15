@@ -188,7 +188,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         // if we don't need to cow this bio just call the real mrf normally
         if (!bio_needs_cow(bio, dev->sd_cow_inode) || tracer_read_fail_state(dev))
         {
-#ifdef #ifdef HAVE_NONVOID_SUBMIT_BIO_1
+#ifdef HAVE_NONVOID_SUBMIT_BIO_1
                 return dev->sd_orig_request_fn(bio);
 #else
                 dev->sd_orig_request_fn(bio);
