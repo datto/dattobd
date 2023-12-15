@@ -177,8 +177,6 @@ static void agent_exit(void)
 
         //restore_system_call_table();
 
-        //unregister_tracer_filter();
-
         unregister_ftrace_hooks();
 
         unregister_ioctl_control_interface();
@@ -340,12 +338,6 @@ static int __init agent_init(void)
                 LOG_ERROR(ret, "error registering control device");
                 goto error;
         }
-
-        /*ret = register_tracer_filter();
-        if (ret) {
-                LOG_ERROR(ret, "error registering i/o tracing");
-                goto error;
-        }*/
 
         ret = register_ftrace_hooks();
         if (ret) {

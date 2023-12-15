@@ -220,7 +220,6 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         while (1) {
                 // allocate and populate read bio clone. This bio may not have all the
                 // pages we need due to queue restrictions
-                // Here is the difference
                 ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages,
                                         &new_bio, &bytes);
                 if (ret)
@@ -236,11 +235,8 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(dev->sd_orig_request_fn){
-                //tutaj jest blad
-                //LOG_DEBUG("snap: there is an original request fn");
                 dev->sd_orig_request_fn(new_bio);
         }else{
-                //LOG_DEBUG("snap: there is no original request fn");
                 dattobd_submit_bio(new_bio);
         }
 #else
@@ -296,7 +292,6 @@ static int inc_make_sset(struct snap_device *dev, sector_t sect,
         struct sector_set *sset;
 
         // allocate sector set to hold record of change sectors
-        LOG_DEBUG("inc_make_sset %ld with length %d",sect, len);
         sset = kmalloc(sizeof(struct sector_set), GFP_NOIO);
         if (!sset) {
                 LOG_ERROR(-ENOMEM, "error allocating sector set");
@@ -342,7 +337,6 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio)
                 goto out;
         }
 #endif
-        LOG_DEBUG("inc trace loop-before");
         bio_for_each_segment (bvec, bio, iter) {
                 if (page_get_inode(bio_iter_page(bio, iter)) !=
                     dev->sd_cow_inode) {
@@ -361,7 +355,6 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio)
                 }
                 end_sect += (bio_iter_len(bio, iter) >> 9);
         }
-        LOG_DEBUG("inc trace loop-before");
 
         if (is_initialized && end_sect - start_sect > 0) {
                 ret = inc_make_sset(dev, start_sect, end_sect - start_sect);
@@ -377,7 +370,11 @@ out:
         }
 
         // call the original mrf
+#ifdef USE_BDOPS_SUBMIT_BIO
         dev->sd_orig_request_fn(bio);
+#else
+        SUBMIT_BIO_REAL(dev,bio);
+#endif
 
         return ret;
 }
@@ -1192,58 +1189,6 @@ error:
         __tracer_destroy_cow_thread(dev);
         return ret;
 }
-/*
-#ifdef USE_BDOPS_SUBMIT_BIO
-#ifdef HAVE_FTRACE_REGS
-static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
-        unsigned long parent_ip,
-        struct ftrace_ops *fops,
-        struct ftrace_regs *fregs);
-#else
-static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
-        unsigned long parent_ip,
-        struct ftrace_ops *fops,
-        struct pt_regs *fregs);
-#endif
-
-unsigned char* funcname_submit_bio_noacct = "submit_bio_noacct";
-struct ftrace_ops ops_submit_bio_noacct = {
-        .func = ftrace_handler_submit_bio_noacct,
-        .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_PERMANENT | FTRACE_OPS_FL_IPMODIFY};
-#endif
-
-int tracer_registered = 0;
-int register_tracer_filter(void)
-{
-        int ret = 0;
-#ifdef USE_BDOPS_SUBMIT_BIO
-        ret = ftrace_set_filter(
-                &ops_submit_bio_noacct,
-                funcname_submit_bio_noacct,
-                strlen(funcname_submit_bio_noacct),
-                0);
-        if (ret)
-        {
-                return ret;
-        }
-
-        ret = register_ftrace_function(&ops_submit_bio_noacct);
-#endif
-        tracer_registered = 1;
-        return ret;
-}
-
-int unregister_tracer_filter(void)
-{
-        if (tracer_registered) {
-                tracer_registered = 0;
-#ifdef USE_BDOPS_SUBMIT_BIO
-                return unregister_ftrace_function(&ops_submit_bio_noacct);
-#endif
-        }
-        return 0;
-}
-*/
 
 /**
  * __tracer_transition_tracing() - Starts or ends tracing on @bdev depending
@@ -1416,9 +1361,6 @@ static asmlinkage MRF_RETURN_TYPE tracing_fn(struct bio *bio)
 static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 #endif
 {
-        static int number_of_calls=0;
-        number_of_calls++;
-        //LOG_DEBUG("tracing_fn number of calls %d", number_of_calls);
         int i, ret = 0;
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
@@ -1445,30 +1387,27 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                                         ret = inc_trace_bio(dev, bio);
                                 goto out;
                         }
-                }         
+                } 
+#ifndef USE_BDOPS_SUBMIT_BIO
+        ret = SUBMIT_BIO_REAL(dev, bio);
+        goto out;
+#else
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(orig_fn){
-                LOG_DEBUG("there is original request function");
                 orig_fn(bio);
         }
-        else if(dattobd_bio_bi_disk(bio)->fops->submit_bio){ //This is not valid since 5.12
-                LOG_DEBUG("there is submit_bio function");
+        else if(dattobd_bio_bi_disk(bio)->fops->submit_bio){
                 if(dattobd_bio_bi_disk(bio)->fops->submit_bio == tracing_fn){
-                        LOG_DEBUG("submit_bio is equal to tracing mrf so calling dattobd_null_mrf");
                         dattobd_snap_null_mrf(bio); 
                 }else{
-                        LOG_DEBUG("submit_bio function differs from tracing mrf- so calling it");
                         dattobd_bio_bi_disk(bio)->fops->submit_bio(bio);
                 }
         }
         else{
-                LOG_DEBUG("Error, tracing_fn could not find original make request function or bio");
                 submit_bio_noacct( bio);
         }
-#else
-        ret = SUBMIT_BIO_PASSTHROUGH(dev, bio);
 #endif
 
 out:
@@ -1551,7 +1490,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 
         if(orig_mrf != tracing_fn){
                 if(!orig_mrf){
-                        LOG_DEBUG("original mrf is empty, setting it to submit_bio_noacct");
+                        LOG_DEBUG("original mrf is empty, setting it to dattobd_snap_null_mrf");
                         //in the future change this to mq interface
                         orig_mrf=dattobd_snap_null_mrf;
                 }else{
@@ -1565,22 +1504,13 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
         }else{
                 LOG_DEBUG("original make request function is already replaced with tracing_fn");
         }
-//gdzies tutaj jest blad
+
         tracer_for_each(dev, i){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
 		if(orig_ops == dattobd_get_bd_ops(dev->sd_base_dev)){
 			*ops = dev->bd_ops;
 			*mrf = dev->sd_orig_request_fn;
                         *trops=tracing_ops_get(dev->sd_tracing_ops);
-                        /*
-                        if((*trops)->bd_ops->submit_bio==blk_mq_submit_bio){
-                                LOG_DEBUG("submit_bio is blk_mq_submit_bio");
-                        }else if((*trops)->bd_ops->submit_bio==tracing_fn){
-                                LOG_DEBUG("submit_bio is tracing_fn");
-                        }else{
-                                LOG_DEBUG("submit_bio is ??");
-                        }
-                        (*trops)->bd_ops->submit_bio=dattobd_snap_null_mrf;*/
                         LOG_DEBUG("found already tracked device with the same original bd_ops");
 			return 0;
 		}
@@ -1975,22 +1905,13 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         __tracer_copy_cow(old_dev, dev);
 
         // setup the cow thread
-        LOG_DEBUG("tracer_setup_inc_cow_thread");
         ret = __tracer_setup_inc_cow_thread(dev, old_dev->sd_minor);
-        LOG_DEBUG("after");
         if (ret)
                 goto error;
 
         // inject the tracing function
-        LOG_DEBUG("copying request_fn");
         dev->sd_orig_request_fn = old_dev->sd_orig_request_fn;
-        LOG_DEBUG("ended copying");
-        if(dev->sd_orig_request_fn==NULL){
-                LOG_DEBUG("active_snap_to_inc: sd_orig_request_fn is NULL");
-        }
-        LOG_DEBUG("setting up tracing");
         ret = __tracer_setup_tracing(dev, old_dev->sd_minor);
-        LOG_DEBUG("trace setup");
         if (ret)
                 goto error;
 
@@ -1999,9 +1920,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
 
         // stop the old cow thread. Must be done before starting the new cow
         // thread to prevent concurrent access.
-        LOG_DEBUG("destroying old thread");
         __tracer_destroy_cow_thread(old_dev);
-        LOG_DEBUG("thread destroyd");
 
         // sanity check to ensure no errors have occurred while cleaning up the
         // old cow thread
@@ -2026,9 +1945,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
 
         // wake up new cow thread. Must happen regardless of errors syncing the
         // old cow thread in order to ensure no IO's are leaked.
-        LOG_DEBUG("waking up process");
         wake_up_process(dev->sd_cow_thread);
-        LOG_DEBUG("woken");
 
         // truncate the cow file
         ret = cow_truncate_to_index(dev->sd_cow);
@@ -2050,9 +1967,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         }
 
         // destroy the unneeded fields of the old_dev and the old_dev itself
-        LOG_DEBUG("gonna destroy snap");
         __tracer_destroy_snap(old_dev);
-        LOG_DEBUG("destroyd");
         kfree(old_dev);
 
         return 0;

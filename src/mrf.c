@@ -61,8 +61,8 @@ MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
     percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
     dattobd_blk_mq_submit_bio(bio);
     #ifdef HAVE_NONVOID_SUBMIT_BIO_1
-        MRF_RETURN_TYPE a;
-        return a;
+        MRF_RETURN_TYPE exists_to_align_api_only;
+        return exists_to_align_api_only;
     #else
         return;
     #endif
@@ -97,7 +97,7 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
     // submit_bio impl. also knows to account for null function ptrs.
     return submit_bio(bio);
 }
-//Look here-> see what should be called, what not
+
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio){
 	return dattobd_call_mrf(dattobd_bio_bi_disk(bio)->fops->submit_bio, dattobd_bio_get_queue(bio), bio);
 }
