@@ -53,9 +53,14 @@ void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf)
 #endif
 
 #ifdef USE_BDOPS_SUBMIT_BIO
+
+MRF_RETURN_TYPE (*dattobd_blk_mq_submit_bio)(struct bio*)= (BLK_MQ_SUBMIT_BIO_ADDR != 0) ? 
+    (MRF_RETURN_TYPE (*)(struct bio*)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void*)kfree)-(void*)KFREE_ADDR)): NULL;
+
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
     percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
-	blk_mq_submit_bio(bio);
+	//blk_mq_submit_bio(bio);
+    dattobd_blk_mq_submit_bio(bio);
     MRF_RETURN_TYPE a;
     return a;
 }
