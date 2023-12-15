@@ -34,7 +34,6 @@
 
 #define BIO_REQUEST_CALLBACK_FN submit_bio_fn
 #define SUBMIT_BIO_REAL dattobd_call_mrf_real
-#define SUBMIT_BIO_PASSTHROUGH dattobd_submit_bio_real
 #else
 #define BIO_REQUEST_CALLBACK_FN make_request_fn
 #define SUBMIT_BIO_REAL dattobd_call_mrf_real

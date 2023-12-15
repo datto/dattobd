@@ -189,11 +189,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         if (!bio_needs_cow(bio, dev->sd_cow_inode) || tracer_read_fail_state(dev))
         {
 #ifdef HAVE_NONVOID_SUBMIT_BIO_1
-#ifdef USE_BDOPS_SUBMIT_BIO
-                return dev->sd_orig_request_fn(bio);
-#else
                 return SUBMIT_BIO_REAL(dev, bio);
-#endif
 #else
                 dev->sd_orig_request_fn(bio);
                 return 0;
@@ -239,7 +235,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(dev->sd_orig_request_fn){
-                dev->sd_orig_request_fn(new_bio);
+                SUBMIT_BIO_REAL(dev,new_bio);
         }else{
                 dattobd_submit_bio(new_bio);
         }
@@ -374,11 +370,7 @@ out:
         }
 
         // call the original mrf
-#ifdef USE_BDOPS_SUBMIT_BIO
-        dev->sd_orig_request_fn(bio);
-#else
         SUBMIT_BIO_REAL(dev,bio);
-#endif
 
         return ret;
 }
