@@ -1391,7 +1391,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 #ifndef USE_BDOPS_SUBMIT_BIO
         ret = SUBMIT_BIO_REAL(dev, bio);
         goto out;
-#else
+#endif
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
@@ -1413,27 +1413,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 out:
         MRF_RETURN(ret);
 }
-/*
-#ifdef USE_BDOPS_SUBMIT_BIO
-#ifdef HAVE_FTRACE_REGS
-static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
-        unsigned long parent_ip,
-        struct ftrace_ops *fops,
-        struct ftrace_regs *fregs)
-{
-        ftrace_instruction_pointer_set(fregs, (unsigned long)tracing_fn);
-}
-#else
-static void notrace ftrace_handler_submit_bio_noacct(unsigned long ip,
-        unsigned long parent_ip,
-        struct ftrace_ops *fops,
-        struct pt_regs *fregs)
-{
-        fregs->ip = (unsigned long)tracing_fn;
-}
-#endif
-#endif
-*/
+
 #ifndef USE_BDOPS_SUBMIT_BIO
 
 /**
