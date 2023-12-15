@@ -59,10 +59,13 @@ MRF_RETURN_TYPE (*dattobd_blk_mq_submit_bio)(struct bio*)= (BLK_MQ_SUBMIT_BIO_AD
 
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
     percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
-	//blk_mq_submit_bio(bio);
     dattobd_blk_mq_submit_bio(bio);
-    MRF_RETURN_TYPE a;
-    return a;
+    #ifdef HAVE_NONVOID_SUBMIT_BIO_1
+        MRF_RETURN_TYPE a;
+        return a;
+    #else
+        return;
+    #endif
 }
 
 MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
