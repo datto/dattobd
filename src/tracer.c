@@ -214,7 +214,11 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         {
                 LOG_ERROR(ret, "error tracing bio for snapshot");
                 tracer_set_fail_state(dev, ret);
+#ifdef USE_BDOPS_SUBMIT_BIO
                 goto error;
+#else
+                return SUBMIT_BIO_REAL(dev, bio);
+#endif
         }
 
         while (1) {
