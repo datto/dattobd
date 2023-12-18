@@ -191,7 +191,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 #ifdef HAVE_NONVOID_SUBMIT_BIO_1
                 return SUBMIT_BIO_REAL(dev, bio);
 #else
-                dev->sd_orig_request_fn(bio);
+                SUBMIT_BIO_REAL(dev,bio);
                 return 0;
 #endif
         }
