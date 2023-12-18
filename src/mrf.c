@@ -99,7 +99,7 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
 }
 
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio){
-	return dattobd_call_mrf(dattobd_bio_bi_disk(bio)->fops->submit_bio, dattobd_bio_get_queue(bio), bio);
+	return dattobd_call_mrf(dev->sd_orig_request_fn, dattobd_bio_get_queue(bio), bio);
 }
 
 int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
