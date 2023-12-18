@@ -171,6 +171,14 @@ typedef enum req_op req_op_t;
 typedef enum req_opf req_op_t;
 #endif
 
+
+//#ifdef HAVE_BIO_SET_OP_ATTRS
+//void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+//{
+//        bio->bi_opf = op | op_flags;
+//}
+//#endif
+
 /**
  * dattobd_set_bio_ops() - Sets the op and its flags.
  *

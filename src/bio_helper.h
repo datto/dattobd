@@ -112,17 +112,19 @@ typedef enum req_op {
         REQ_OP_FLUSH, /* request for cache flush */
 } req_op_t;
 
+#ifndef HAVE_ENUM_REQ_OPF
 extern void dattobd_set_bio_ops(struct bio *bio, req_op_t op,
                                 unsigned op_flags);
+                                #endif
 #else
 
 typedef enum req_op req_op_t;
-        #ifndef HAVE_BIO_SET_OP_ATTRS
-        void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
-        {
-                bio->bi_opf = op | op_flags;
-        }
-        #endif
+/*
+#ifdef HAVE_BIO_SET_OP_ATTRS
+#define dattobd_set_bio_ops(bio, op, flags) bio_set_op_attrs(bio, op, flags)
+#endif
+*/
+
 #endif
 
 #define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
