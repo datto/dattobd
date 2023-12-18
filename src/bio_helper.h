@@ -117,11 +117,12 @@ extern void dattobd_set_bio_ops(struct bio *bio, req_op_t op,
 #else
 
 typedef enum req_op req_op_t;
-void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
-{
-        bio->bi_opf = op | op_flags;
-}
-
+        #ifndef HAVE_BIO_SET_OP_ATTRS
+        void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+        {
+                bio->bi_opf = op | op_flags;
+        }
+        #endif
 #endif
 
 #define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
