@@ -111,21 +111,16 @@ typedef enum req_op {
         REQ_OP_WRITE_SAME, /* write same block many times */
         REQ_OP_FLUSH, /* request for cache flush */
 } req_op_t;
-
-#ifndef HAVE_ENUM_REQ_OPF
-extern void dattobd_set_bio_ops(struct bio *bio, req_op_t op,
-                                unsigned op_flags);
-                                #endif
-#else
-
+#endif
 typedef enum req_op req_op_t;
-/*
-#ifdef HAVE_BIO_SET_OP_ATTRS
-#define dattobd_set_bio_ops(bio, op, flags) bio_set_op_attrs(bio, op, flags)
-#endif
-*/
 
-#endif
+
+void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+{
+        bio->bi_opf = op | op_flags;
+}
+
+
 
 #define bio_is_discard(bio) ((bio)->bi_rw & REQ_DISCARD)
 #define dattobd_submit_bio(bio) submit_bio(0, bio)
