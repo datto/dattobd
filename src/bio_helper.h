@@ -111,7 +111,7 @@ typedef enum req_op {
         REQ_OP_WRITE_SAME, /* write same block many times */
         REQ_OP_FLUSH, /* request for cache flush */
 } req_op_t;
-#endif-=
+#endif
 typedef enum req_op req_op_t;
 
 
