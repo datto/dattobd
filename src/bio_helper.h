@@ -114,7 +114,8 @@ typedef enum req_op {
 #endif
 typedef enum req_op req_op_t;
 
-
+extern void dattobd_set_bio_ops(struct bio *bio, req_op_t op,	
+                                unsigned op_flags);
 
 
 
