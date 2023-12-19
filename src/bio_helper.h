@@ -111,14 +111,11 @@ typedef enum req_op {
         REQ_OP_WRITE_SAME, /* write same block many times */
         REQ_OP_FLUSH, /* request for cache flush */
 } req_op_t;
-#endif
+#endif-=
 typedef enum req_op req_op_t;
 
 
-void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
-{
-        bio->bi_opf = op | op_flags;
-}
+
 
 
 
