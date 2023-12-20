@@ -3,7 +3,11 @@
 
 static inline bool dattobd_within_module(unsigned long addr, const struct module *mod)
 {
-	return within_module_init(addr, mod) || within_module_core(addr, mod);
+        #ifdef HAVE_WITHIN_MODULE
+                return within_module(addr, mod);
+        #else
+	        return within_module_init(addr, mod) || within_module_core(addr, mod);
+        #endif
 }
 
 int (*orig_path_mount)(const char *dev_name, struct path *path,
