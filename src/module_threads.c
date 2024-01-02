@@ -104,12 +104,12 @@ int snap_cow_thread(void *data)
 
         while (!kthread_should_stop() || !bio_queue_empty(bq) ||
                atomic64_read(&dev->sd_submitted_cnt) !=
-                       atomic64_read(&dev->sd_received_cnt)) {
+                       atomic64_read(&dev->sd_received_cnt)) { 
                 // wait for a bio to process or a kthread_stop call
                 wait_event_interruptible(bq->event,
                                          kthread_should_stop() ||
                                                  !bio_queue_empty(bq));
-
+               
                 if (!is_failed && tracer_read_fail_state(dev)) {
                         LOG_DEBUG(
                                 "error detected in cow thread, cleaning up cow");
@@ -117,6 +117,12 @@ int snap_cow_thread(void *data)
 
                         if (dev->sd_cow)
                                 cow_free_members(dev->sd_cow);
+                }
+
+                int should_stop=kthread_should_stop();
+                if(should_stop){
+                        LOG_DEBUG("stopping snap thread in if");
+                        break;
                 }
 
                 if (bio_queue_empty(bq))
@@ -199,12 +205,9 @@ int snap_mrf_thread(void *data)
                 // submit the original bio to the block IO layer
                 dattobd_bio_op_set_flag(bio, DATTOBD_PASSTHROUGH);
 
-                // blk_qc_t (*)(struct request_queue *, struct bio *)’ 
-                // {aka ‘unsigned int (*)(struct request_queue *, struct bio *)’} but argument is of type ‘struct snap_device *’
-                ret = SUBMIT_BIO_REAL(
-                    dev,
-                    bio
-                );
+                // blk_qc_t (*)(struct request_queue *, struct bio *)’                 // {aka ‘unsigned int (*)(struct request_queue *, struct bio *)’} but argument is of type ‘struct snap_device *’
+
+                SUBMIT_BIO_REAL(dev,bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
                 if (ret)
                         generic_make_request(bio);

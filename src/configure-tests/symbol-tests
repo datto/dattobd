@@ -2,4 +2,5 @@ sys_mount
 sys_umount
 sys_oldumount
 sys_call_table
-printk
+blk_mq_submit_bio
+kfree
