@@ -1,6 +1,15 @@
 #include "ftrace_hooking.h"
 #include <linux/kprobes.h>
 
+static inline bool dattobd_within_module(unsigned long addr, const struct module *mod)
+{
+        #ifdef HAVE_WITHIN_MODULE
+                return within_module(addr, mod);
+        #else
+	        return within_module_init(addr, mod) || within_module_core(addr, mod);
+        #endif
+}
+
 int (*orig_path_mount)(const char *dev_name, struct path *path,
 		const char *type_page, unsigned long flags, void *data_page);
 
@@ -329,7 +338,7 @@ static void notrace ftrace_callback_handler(unsigned long ip, unsigned long pare
 #if USE_FENTRY_OFFSET
 	regs->ip = (unsigned long)hook->function;
 #else
-	if (!within_module(parent_ip, THIS_MODULE))
+	if (!dattobd_within_module(parent_ip, THIS_MODULE))
 		regs->ip = (unsigned long)hook->function;
 #endif //USE_FENTRY_OFFSET
 }
