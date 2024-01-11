@@ -87,7 +87,7 @@ void dattobd_bio_copy_dev(struct bio *dst, struct bio *src)
 #ifndef HAVE_SUBMIT_BIO_1
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
 
-#ifndef HAVE_ENUM_REQ_OP
+#ifndef HAVE_ENUM_REQ_OP 
 /**
  * dattobd_set_bio_ops() - Sets the I/O operation and additional flags in the
  * @bio.
@@ -124,6 +124,13 @@ void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 }
 #endif
 
+#ifndef HAVE_BIO_BI_OPF 
+void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
+{
+       bio->bi_rw = 0;
+       bio->bi_rw |= op ;
+}
+#endif
 /**
  * dattobd_bio_op_flagged() - Checks the bio for a given flag.
  *
