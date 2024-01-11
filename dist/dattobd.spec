@@ -607,7 +607,7 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
- * Tue Oct 31 2023 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
+ * Wed Jan 10 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
  - Fix unmounting before shutdown on all distros
 
 * Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
