@@ -153,7 +153,6 @@ BuildRequires: systemd-rpm-macros
 %{?systemd_requires}
 %endif
 
-
 # Some targets (like EL5) expect a buildroot definition
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
