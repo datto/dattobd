@@ -146,9 +146,13 @@ BuildRequires:   gcc
 BuildRequires:   make
 BuildRequires:   rsync
 
-%if 0%{?fedora} || 0%{?rhel}
-BuildRequires:   systemd-rpm-macros
+%if 0%{?rhel} < 8
+BuildRequires: systemd
+%else
+BuildRequires: systemd-rpm-macros
+%{?systemd_requires}
 %endif
+
 # Some targets (like EL5) expect a buildroot definition
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
