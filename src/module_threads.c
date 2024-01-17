@@ -119,7 +119,7 @@ int snap_cow_thread(void *data)
                                 cow_free_members(dev->sd_cow);
                 }
 
-#if defined USE_BDOPS_SUBMIT_BIO && defined HAVE_BIO_BI_REMAINING
+#if defined USE_BDOPS_SUBMIT_BIO && defined HAVE_FOPS_FALLOCATE
 //not having it for .deb causes infinite loop and failure, having this for rpms causes objdump caused by not being able to save cached data during unmounting
                 int should_stop=kthread_should_stop();
                 if(should_stop){
