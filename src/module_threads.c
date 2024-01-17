@@ -119,11 +119,13 @@ int snap_cow_thread(void *data)
                                 cow_free_members(dev->sd_cow);
                 }
 
+#ifdef USE_BDOPS_SUBMIT_BIO
                 int should_stop=kthread_should_stop();
                 if(should_stop){
-                        LOG_DEBUG("stopping snap thread in if");
+                        LOG_DEBUG("stopping snap thread in conditional");
                         break;
                 }
+#endif
 
                 if (bio_queue_empty(bq))
                         continue;
