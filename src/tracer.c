@@ -1283,6 +1283,7 @@ static int __tracer_transition_tracing(
                         bdev_name);
 #endif
         }
+        LOG_DEBUG("stopped freezing, smb");
         smp_wmb();
         if(dev){
                 LOG_DEBUG("starting tracing");
