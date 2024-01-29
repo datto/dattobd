@@ -149,6 +149,7 @@ int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 static int __cow_sync_and_free_sections(struct cow_manager *cm,
                                         unsigned long thresh)
 {
+        LOG_DEBUG("__cow_sync_and_free_sections");
         int ret;
         unsigned long i;
 
