@@ -172,7 +172,6 @@ int snap_cow_thread(void *data)
                 }
         }
         LOG_DEBUG("snap_cow_thread has stopped");
-
         return 0;
 }
 
