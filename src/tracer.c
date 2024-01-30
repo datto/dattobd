@@ -924,6 +924,7 @@ static void __tracer_bioset_exit(struct snap_device *dev)
                 dev->sd_bioset = NULL;
         }
 #else
+        LOG_DEBUG("freeing bio set");
         bioset_exit(&dev->sd_bioset);
 #endif
 }

@@ -80,6 +80,7 @@ int inc_sset_thread(void *data)
                 // free the sector set
                 kfree(sset);
         }
+        LOG_DEBUG("inc_sset_thread has stopped");
 
         return 0;
 }
@@ -170,6 +171,7 @@ int snap_cow_thread(void *data)
                         bio_free_clone(bio);
                 }
         }
+        LOG_DEBUG("snap_cow_thread has stopped");
 
         return 0;
 }
