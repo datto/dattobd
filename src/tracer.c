@@ -1018,32 +1018,18 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
-                // allocate a gendisk struct
-#if !defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && defined IS_CENTOS  
+        // allocate a gendisk struct 
         LOG_DEBUG("allocating gendisk");
-        #ifdef HAVE_BLK_ALLOC_DISK
-                dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
-        #else
-                dev->sd_gd = alloc_disk(1);
-        #endif
 
-        if (!dev->sd_gd) {
-                ret = -ENOMEM;
-                LOG_ERROR(ret, "error allocating gendisk");
-                goto error;
-        }
+#ifdef HAVE_BLK_ALLOC_DISK
+                dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+#else
+                dev->sd_gd = alloc_disk(1);
 #endif
 
         // allocate request queue
         LOG_DEBUG("allocating queue");
-#ifdef HAVE_MAKE_REQUEST_FN_IN_QUEUE || !defined IS_CENTOS
-        LOG_DEBUG("allocating gendisk");
-        dev->sd_gd = alloc_disk(1);
-        if (!dev->sd_gd) {
-                ret = -ENOMEM;
-                LOG_ERROR(ret, "error allocating gendisk");
-                goto error;
-        }
+#if defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && !defined IS_CENTOS
         dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
 #elif defined HAVE_BLK_ALLOC_QUEUE_1
         // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
