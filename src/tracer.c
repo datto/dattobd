@@ -1379,8 +1379,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH))
                 {
                         dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
-                        static int counter=0;
-                        LOG_DEBUG("suspected place #1 %d",++counter);
+                        goto call_orig;
                 }
                 else
                 {
@@ -1399,6 +1398,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 #endif
         } // tracer_for_each(dev, i)
 
+call_orig:
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(orig_fn){
                 orig_fn(bio);
