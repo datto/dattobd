@@ -158,6 +158,7 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
                 tracing_ops_put(dev->sd_tracing_ops);
                 dev->sd_tracing_ops=NULL;
         }
+        dev->sd_tracing_ops=NULL;
 #else
         dev->sd_orig_request_fn = NULL;
 #endif
@@ -1378,6 +1379,8 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH))
                 {
                         dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
+                        static int counter=0;
+                        LOG_DEBUG("suspected place #1 %d",++counter);
                 }
                 else
                 {
