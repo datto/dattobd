@@ -9,6 +9,7 @@
 
 #include "includes.h"
 #include "userspace_copy_helpers.h"
+#include "snap_device.h"
 
 #define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
 #define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
