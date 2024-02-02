@@ -8,6 +8,7 @@
 #include "filesystem.h"
 #include "logging.h"
 #include "snap_device.h"
+#include "filesystem.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
