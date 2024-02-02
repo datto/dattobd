@@ -12,7 +12,7 @@
 #include "includes.h"
 #include "logging.h"
 #include "module_control.h"
-#include "filesystem.h"
+#include "snap_device.h"
 #include "tracer.h"
 #include "tracer_helper.h"
 #include "userspace_copy_helpers.h"

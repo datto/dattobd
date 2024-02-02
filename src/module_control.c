@@ -12,7 +12,7 @@
 #include "ioctl_handlers.h"
 #include "logging.h"
 #include "proc_seq_file.h"
-#include "filesystem.h"
+#include "snap_device.h"
 #include "tracer.h"
 #include "tracer_helper.h"
 #include "ftrace_hooking.h"

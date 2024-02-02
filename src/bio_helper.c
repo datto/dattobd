@@ -8,7 +8,7 @@
 
 #include "bio_helper.h"
 #include "logging.h"
-#include "filesystem.h"
+#include "snap_device.h"
 #include "tracer_helper.h"
 #include "tracing_params.h"
 #include <linux/bio.h>

@@ -3,7 +3,7 @@
 #include "includes.h"
 #include "ioctl_handlers.h"
 #include "module_control.h"
-#include "filesystem.h"
+#include "snap_device.h"
 #include "tracer_helper.h"
 
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos);

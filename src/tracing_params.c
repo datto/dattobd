@@ -9,7 +9,7 @@
 #include "bio_queue.h"
 #include "includes.h"
 #include "logging.h"
-#include "filesystem.h"
+#include "snap_device.h"
 
 /**
  * tp_alloc() - Allocates and initializes tracing params and increments the

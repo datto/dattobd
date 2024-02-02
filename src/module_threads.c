@@ -10,7 +10,7 @@
 #include "cow_manager.h"
 #include "logging.h"
 #include "mrf.h"
-#include "filesystem.h"
+#include "snap_device.h"
 #include "snap_handle.h"
 #include "sset_queue.h"
 #include "submit_bio.h"

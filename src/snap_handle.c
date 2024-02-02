@@ -10,6 +10,7 @@
 #include "cow_manager.h"
 #include "filesystem.h"
 #include "logging.h"
+#include "snap_device.h"
 
 // macros for snapshot bio modes of operation.
 #define READ_MODE_COW_FILE 1

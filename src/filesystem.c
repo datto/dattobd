@@ -8,7 +8,7 @@
 #include "includes.h"
 #include "logging.h"
 #include "userspace_copy_helpers.h"
-#include "filesystem.h"
+#include "snap_device.h"
 
 // if this isn't defined, we don't need it anyway
 #ifndef FMODE_NONOTIFY
