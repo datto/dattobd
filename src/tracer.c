@@ -1610,7 +1610,7 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 				}
 
 				wake_up_process(dev->sd_cow_thread);
-				wait_for_bio_complete(dev);
+                                //TODO: Maybe some waiting mechanism will be needed
 				__tracer_destroy_cow_thread(dev);
                } 
 
