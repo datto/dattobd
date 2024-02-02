@@ -612,7 +612,7 @@ rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
 * Fri Feb 02 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.6
-- Fix slab issues
+- Fix issue with wrong slab allocation flags that led to system reboot
 
 * Thu Jan 11 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.5
 - Fix CentOS7 building
