@@ -88,7 +88,7 @@ int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
  */
 int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 {
-        int ret;
+        int ret, i;
         int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
         ret = __cow_alloc_section(cm, sect_idx, 0);
