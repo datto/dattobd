@@ -44,7 +44,7 @@ static int kern_path(const char *name, unsigned int flags, struct path *path)
  *
  * Return: The number of bytes read or a negative errno.
  */
-static ssize_t dattobd_kernel_read(struct cow_manager *cm, void *buf, size_t count,
+static ssize_t dattobd_kernel_read(struct file *filp, struct snap_device* dev, void *buf, size_t count,
                                    loff_t *pos)
 {
         ssize_t ret;
@@ -53,7 +53,7 @@ static ssize_t dattobd_kernel_read(struct cow_manager *cm, void *buf, size_t cou
 #ifndef HAVE_KERNEL_READ_PPOS
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
         mm_segment_t old_fs;
-        file_unlock(cm->filp);
+        file_unlock(filp);
 
         old_fs = get_fs();
         set_fs(get_ds());
@@ -70,7 +70,7 @@ static ssize_t dattobd_kernel_read(struct cow_manager *cm, void *buf, size_t cou
         }else{
 		LOG_DEBUG("DIO: reading %lu sectors...", count / SECTOR_SIZE);
 
-		ret = file_read_block(cm->dev, buf, *pos, count / SECTOR_SIZE);
+		ret = file_read_block(dev, buf, *pos, count / SECTOR_SIZE);
 		if (!ret) ret = count;
 
 		return ret;
@@ -88,7 +88,7 @@ static ssize_t dattobd_kernel_read(struct cow_manager *cm, void *buf, size_t cou
  *
  * Return: The number of bytes written or a negative errno.
  */
-static ssize_t dattobd_kernel_write(struct cow_manager *cm, const void *buf,
+static ssize_t dattobd_kernel_write(struct file *filp,struct snap_device* dev, const void *buf,
                                     size_t count, loff_t *pos)
 {
         ssize_t ret;
@@ -105,15 +105,15 @@ static ssize_t dattobd_kernel_write(struct cow_manager *cm, const void *buf,
 
         return ret;
 #else
-        file_unlock(cm->filp);
-        ret= kernel_write(cm->filp, buf, count, pos);
-        file_lock(cm->filp);
+        file_unlock(filp);
+        ret= kernel_write(filp, buf, count, pos);
+        file_lock(filp);
         return ret;
 #endif
         }else{
 		LOG_DEBUG("DIO: writing %lu sectors...", count / SECTOR_SIZE);
 
-		ret = file_write_block(cm->dev, buf, *pos, count / SECTOR_SIZE);
+		ret = file_write_block(dev, buf, *pos, count / SECTOR_SIZE);
 		if (!ret) ret = count;
 
 		return ret;
@@ -133,16 +133,16 @@ static ssize_t dattobd_kernel_write(struct cow_manager *cm, const void *buf,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
+int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf, sector_t offset,
             unsigned long len)
 {
         ssize_t ret;
         loff_t off = (loff_t)offset;
 
         if (is_write)
-                ret = dattobd_kernel_write(cm, buf, len, &off);
+                ret = dattobd_kernel_write(filp, dev, buf, len, &off);
         else
-                ret = dattobd_kernel_read(cm, buf, len, &off);
+                ret = dattobd_kernel_read(filp, dev, buf, len, &off);
 
         if (ret < 0) {
                 LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu",
@@ -173,7 +173,7 @@ int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_write(cm, buf, offset, len) file_io(cm, 1, buf, offset, len)
+#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
 
 /**
  * file_read() - Store @len bytes of data from offset @offset within @filp into
@@ -188,7 +188,7 @@ int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_read(cm, buf, offset, len) file_io(cm, 0, buf, offset, len)
+#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 /**
  * file_close() - Closes the file object.
@@ -824,7 +824,7 @@ int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
 
         // if not page aligned, write zeros to that point
         if (offset % PAGE_SIZE != 0) {
-                ret = file_write(cm, page_buf, offset,
+                ret = file_write(cm->filp, cm->dev, page_buf, offset,
                                  PAGE_SIZE - (offset % PAGE_SIZE));
                 if (ret)
                         goto error;
@@ -834,7 +834,7 @@ int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
 
         // write a page of zeros at a time
         for (i = 0; i < write_count; i++) {
-                ret = file_write(cm, page_buf, offset + (PAGE_SIZE * i),
+                ret = file_write(cm->filp, cm->dev, page_buf, offset + (PAGE_SIZE * i),
                                  PAGE_SIZE);
                 if (ret)
                         goto error;

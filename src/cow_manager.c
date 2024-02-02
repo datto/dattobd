@@ -7,8 +7,6 @@
 #include "cow_manager.h"
 #include "filesystem.h"
 #include "logging.h"
-#include "snap_device.h"
-#include "filesystem.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
@@ -101,7 +99,7 @@ int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
 		int cow_file_offset = COW_BLOCK_SIZE * i;
 
-        ret = file_read(cm, cm->sects[sect_idx].mappings,
+        ret = file_read(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
                         cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
                         cm->sect_size * 8);
         if (ret)
@@ -135,7 +133,7 @@ int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
 		int cow_file_offset = COW_BLOCK_SIZE * i;
 
-        ret = file_write(cm, cm->sects[sect_idx].mappings,
+        ret = file_write(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
                          cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
                          cm->sect_size * 8);
         if (ret) {
@@ -279,7 +277,7 @@ int __cow_write_header(struct cow_manager *cm, int is_clean)
         ch.version = cm->version;
         ch.nr_changed_blocks = cm->nr_changed_blocks;
 
-        ret = file_write(cm, &ch, 0, sizeof(struct cow_header));
+        ret = file_write(cm->filp, cm->dev, &ch, 0, sizeof(struct cow_header));
         if (ret) {
                 LOG_ERROR(ret, "error syncing cow manager header");
                 return ret;
@@ -311,7 +309,7 @@ int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc)
         int ret;
         struct cow_header ch;
 
-        ret = file_read(cm, &ch, 0, sizeof(struct cow_header));
+        ret = file_read(cm->filp, cm->dev, &ch, 0, sizeof(struct cow_header));
         if (ret)
                 goto error;
 
@@ -913,7 +911,7 @@ static int __cow_write_data(struct cow_manager *cm, void *buf)
                 goto error;
         }
 
-        ret = file_write(cm, buf, curr_size, COW_BLOCK_SIZE);
+        ret = file_write(cm->filp, cm->dev, buf, curr_size, COW_BLOCK_SIZE);
         if (ret)
                 goto error;
 
@@ -992,7 +990,7 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
         if (block_off >= COW_BLOCK_SIZE)
                 return -EINVAL;
 
-        ret = file_read(cm, buf, (block_pos * COW_BLOCK_SIZE) + block_off,
+        ret = file_read(cm->filp, cm->dev, buf, (block_pos * COW_BLOCK_SIZE) + block_off,
                         len);
         if (ret) {
                 LOG_ERROR(ret, "error reading cow data");

@@ -8,6 +8,7 @@
 #define COW_MANAGER_H_
 
 #include "dattobd.h"
+#include "snap_device.h"
 #include "filesystem.h"
 
 #ifndef __KERNEL__

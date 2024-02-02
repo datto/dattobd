@@ -9,10 +9,9 @@
 
 #include "includes.h"
 #include "userspace_copy_helpers.h"
-#include "cow_manager.h"
 
-#define file_write(cm, buf, offset, len) file_io(cm, 1, buf, offset, len)
-#define file_read(cm, buf, offset, len) file_io(cm, 0, buf, offset, len)
+#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
+#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 #define file_unlink(filp) __file_unlink(filp, 0, 0)
 #define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
@@ -62,7 +61,7 @@ struct path {
 typedef mode_t fmode_t;
 #endif
 
-int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
+int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf, sector_t offset,
             unsigned long len);
 
 void file_close(struct file *f);
