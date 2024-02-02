@@ -10,8 +10,8 @@
 #include "includes.h"
 #include "userspace_copy_helpers.h"
 
-#define file_write(filp, buf, offset, len) file_io(filp, 1, buf, offset, len)
-#define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
+#define file_write(cm, buf, offset, len) file_io(cm, 1, buf, offset, len)
+#define file_read(cm, buf, offset, len) file_io(cm, 0, buf, offset, len)
 
 #define file_unlink(filp) __file_unlink(filp, 0, 0)
 #define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
@@ -19,7 +19,7 @@
 
 #define file_lock(filp) file_switch_lock(filp, true, false)
 #define file_unlock(filp) file_switch_lock(filp, false, false)
-#define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, ture)
+#define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, true)
 
 #ifndef HAVE_STRUCT_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
@@ -61,7 +61,7 @@ struct path {
 typedef mode_t fmode_t;
 #endif
 
-int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
+int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
             unsigned long len);
 
 void file_close(struct file *f);
@@ -89,7 +89,7 @@ int user_mount_pathname_concat(const char __user *user_mount_path,
 
 int file_truncate(struct file *filp, loff_t len);
 
-int file_allocate(struct file *f, uint64_t offset, uint64_t length);
+int file_allocate(struct cow_manager *cm, uint64_t offset, uint64_t length);
 
 int __file_unlink(struct file *filp, int close, int force);
 

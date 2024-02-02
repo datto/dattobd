@@ -44,7 +44,7 @@ static int kern_path(const char *name, unsigned int flags, struct path *path)
  *
  * Return: The number of bytes read or a negative errno.
  */
-static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
+static ssize_t dattobd_kernel_read(struct cow_manager *cm, void *buf, size_t count,
                                    loff_t *pos)
 {
         ssize_t ret;
@@ -53,7 +53,7 @@ static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
 #ifndef HAVE_KERNEL_READ_PPOS
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
         mm_segment_t old_fs;
-        file_unlock(filp);
+        file_unlock(cm->filp);
 
         old_fs = get_fs();
         set_fs(get_ds());
@@ -62,9 +62,9 @@ static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
         file_lock(filp);
         return ret;
 #else
-        file_unlock(filp);
-        ret=kernel_read(filp, buf, count, pos);
-        file_lock(filp);
+        file_unlock(cm->filp);
+        ret=kernel_read(cm->filp, buf, count, pos);
+        file_lock(cm->filp);
         return ret;
 #endif
         }else{
@@ -88,7 +88,7 @@ static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
  *
  * Return: The number of bytes written or a negative errno.
  */
-static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
+static ssize_t dattobd_kernel_write(struct cow_manager *cm, const void *buf,
                                     size_t count, loff_t *pos)
 {
         ssize_t ret;
@@ -105,9 +105,9 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
 
         return ret;
 #else
-        file_unlock(filp);
-        ret= kernel_write(filp, buf, count, pos);
-        file_lock(filp);
+        file_unlock(cm->filp);
+        ret= kernel_write(cm->filp, buf, count, pos);
+        file_lock(cm->filp);
         return ret;
 #endif
         }else{
@@ -123,7 +123,7 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
 /**
  * file_io() - Reads or writes to the supplied file.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager
  * @is_write: An integer encoded bool indicating a write or read operation.
  * @buf: Input/output buffer for write/read, respectively.
  * @offset: Byte offset of the first sequential access within @filp.
@@ -133,16 +133,16 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
+int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
             unsigned long len)
 {
         ssize_t ret;
         loff_t off = (loff_t)offset;
 
         if (is_write)
-                ret = dattobd_kernel_write(filp, buf, len, &off);
+                ret = dattobd_kernel_write(cm, buf, len, &off);
         else
-                ret = dattobd_kernel_read(filp, buf, len, &off);
+                ret = dattobd_kernel_read(cm, buf, len, &off);
 
         if (ret < 0) {
                 LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu",
@@ -173,7 +173,7 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_write(filp, buf, offset, len) file_io(filp, 1, buf, offset, len)
+#define file_write(cm, buf, offset, len) file_io(cm, 1, buf, offset, len)
 
 /**
  * file_read() - Store @len bytes of data from offset @offset within @filp into
@@ -188,7 +188,7 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
+#define file_read(cm, buf, offset, len) file_io(cm, 0, buf, offset, len)
 
 /**
  * file_close() - Closes the file object.
@@ -793,7 +793,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * within the range specified by @offset and @length.  Attempts to use
  * @real_fallocate with a fallback of writing zeroes if that fails.
  *
- * @f: A &struct file object.
+ * @cm: A &struct cow_manager object.
  * @offset: The offset into @f indicating the start of the allocation.
  * @length: The number of byte to allocate starting at @offset.
  *
@@ -801,7 +801,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * * 0 - success
  * * !0 - errno indicating the error.
  */
-int file_allocate(struct file *f, uint64_t offset, uint64_t length)
+int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
 {
         int ret = 0;
         char *page_buf = NULL;
@@ -809,7 +809,7 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
         char *abs_path = NULL;
         int abs_path_len;
 
-        file_get_absolute_pathname(f, &abs_path, &abs_path_len);
+        file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
 
         // allocate page of zeros
         page_buf = (char *)get_zeroed_page(GFP_KERNEL);
@@ -824,7 +824,7 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
 
         // if not page aligned, write zeros to that point
         if (offset % PAGE_SIZE != 0) {
-                ret = file_write(f, page_buf, offset,
+                ret = file_write(cm, page_buf, offset,
                                  PAGE_SIZE - (offset % PAGE_SIZE));
                 if (ret)
                         goto error;
@@ -834,7 +834,7 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
 
         // write a page of zeros at a time
         for (i = 0; i < write_count; i++) {
-                ret = file_write(f, page_buf, offset + (PAGE_SIZE * i),
+                ret = file_write(cm, page_buf, offset + (PAGE_SIZE * i),
                                  PAGE_SIZE);
                 if (ret)
                         goto error;
