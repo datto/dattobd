@@ -134,7 +134,7 @@ int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
 		int cow_file_offset = COW_BLOCK_SIZE * i;
 
-        ret = file_write(cm, cm->sects[sect_idx].mappings,
+        ret = file_io(cm,1, cm->sects[sect_idx].mappings,
                          cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
                          cm->sect_size * 8);
         if (ret) {
