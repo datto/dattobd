@@ -1018,13 +1018,13 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
         }
 
-        // allocate a gendisk struct 
+        // allocate a gendisk struct
         LOG_DEBUG("allocating gendisk");
 
 #ifdef HAVE_BLK_ALLOC_DISK
-                dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+        dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
 #else
-                dev->sd_gd = alloc_disk(1);
+        dev->sd_gd = alloc_disk(1);
 #endif
         if (!dev->sd_gd) {
                 ret = -ENOMEM;
