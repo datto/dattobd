@@ -9,7 +9,6 @@
 
 #include "includes.h"
 #include "userspace_copy_helpers.h"
-#include "cow_manager.h"
 
 #define file_write(cm, buf, offset, len) file_io(cm, 1, buf, offset, len)
 #define file_read(cm, buf, offset, len) file_io(cm, 0, buf, offset, len)
