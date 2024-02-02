@@ -112,7 +112,7 @@ void dattobd_inode_unlock(struct inode *inode);
 #define dattobd_inode_lock inode_lock
 #define dattobd_inode_unlock inode_unlock
 #endif
-
+/*
 struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm);
 
 void dattobd_vm_area_free(struct vm_area_struct *vma);
@@ -128,5 +128,5 @@ int file_write_block(struct snap_device* dev, void* block, size_t offset, size_t
 int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len);
 
 sector_t sector_by_offset(struct snap_device*dev, size_t offset);
-
+*/
 #endif /* FILESYSTEM_H_ */

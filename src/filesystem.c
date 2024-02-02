@@ -173,7 +173,7 @@ int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
+//#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
 
 /**
  * file_read() - Store @len bytes of data from offset @offset within @filp into
@@ -188,7 +188,7 @@ int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
+//#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 /**
  * file_close() - Closes the file object.
