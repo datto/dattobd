@@ -62,7 +62,7 @@ static ssize_t dattobd_kernel_read(struct file *filp, struct snap_device* dev, v
         file_lock(filp);
         return ret;
 #else
-        file_unlock(cfilp);
+        file_unlock(filp);
         ret=kernel_read(filp, buf, count, pos);
         file_lock(filp);
         return ret;
