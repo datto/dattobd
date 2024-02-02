@@ -17,6 +17,10 @@
 #define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
 #define file_unlink_and_close_force(filp) __file_unlink(filp, 1, 1)
 
+#define file_lock(filp) file_switch_lock(filp, true, false)
+#define file_unlock(filp) file_switch_lock(filp, false, false)
+#define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, ture)
+
 #ifndef HAVE_STRUCT_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 #define dattobd_get_dentry(f) (f)->f_dentry
@@ -108,5 +112,21 @@ void dattobd_inode_unlock(struct inode *inode);
 #define dattobd_inode_lock inode_lock
 #define dattobd_inode_unlock inode_unlock
 #endif
+
+struct vm_are_struct* dattobd_vm_area_allocate(struct mm_struct* mm);
+
+void dattobd_vm_area_free(struct vm_area_struct *vma);
+
+void dattobd_mm_lock(struct mm_struct* mm);
+
+void dattobd_mm_unlock(struct mm_struct* mm);
+
+void file_switch_lock(struct file* filp, bool lock, bool mark_dirty);
+
+int file_write_block(struct snap_device* dev, void* block, size_t offset, size_t len);
+
+int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len);
+
+sector_t sector_by_offset(struct snap_device*dev, size_t offset);
 
 #endif /* FILESYSTEM_H_ */

@@ -64,6 +64,8 @@ struct snap_device {
                                            // read/writes
         struct bio_queue sd_orig_bios; // list of outstanding original bios
         struct sset_queue sd_pending_ssets; // list of outstanding sector sets
+	struct fiemap_extent *sd_cow_extents; //cow file extents
+	unsigned int sd_cow_ext_cnt; //cow file extents count
 #ifndef HAVE_BIOSET_INIT
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
         struct bio_set *sd_bioset; // allocation pool for bios
