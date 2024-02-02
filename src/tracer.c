@@ -16,7 +16,7 @@
 #include "module_control.h"
 #include "module_threads.h"
 #include "mrf.h"
-#include "snap_device.h"
+#include "filesystem.h"
 #include "snap_ops.h"
 #include "submit_bio.h"
 #include "task_helper.h"

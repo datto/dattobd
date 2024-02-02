@@ -8,7 +8,7 @@
 
 #include "includes.h"
 #include "logging.h"
-#include "snap_device.h"
+#include "filesystem.h"
 #include "tracer_helper.h"
 
 /**

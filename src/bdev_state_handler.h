@@ -15,7 +15,6 @@
 #include "ioctl_handlers.h"
 #include "logging.h"
 #include "paging_helper.h"
-#include "snap_device.h"
 #include "task_helper.h"
 #include "tracer.h"
 #include "tracer_helper.h"

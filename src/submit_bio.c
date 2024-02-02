@@ -11,7 +11,7 @@
 #include "includes.h"
 #include "logging.h"
 #include "paging_helper.h"
-#include "snap_device.h"
+#include "filesystem.h"
 
 #ifdef USE_BDOPS_SUBMIT_BIO
 
