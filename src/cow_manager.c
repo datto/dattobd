@@ -7,6 +7,7 @@
 #include "cow_manager.h"
 #include "filesystem.h"
 #include "logging.h"
+#include "snap_device.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
