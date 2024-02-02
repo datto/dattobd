@@ -1000,7 +1000,7 @@ void dattobd_inode_unlock(struct inode *inode)
         mutex_unlock(&inode->i_mutex);
 }
 
-struct vm_are_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
+struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 {
         static const struct vm_operations_struct dummy_vm_ops = {};
 

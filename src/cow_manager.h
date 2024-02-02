@@ -17,6 +17,7 @@
 #define COW_SECTION_SIZE 4096
 
 #define cow_write_filler_mapping(cm, pos) __cow_write_mapping(cm, pos, 1)
+static unsigned long elastio_snap_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
 
 /**
  * struct cow_section - maintains data and usage statistics for a cow section.

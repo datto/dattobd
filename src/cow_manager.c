@@ -89,6 +89,7 @@ int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
 int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         int ret;
+        int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
         ret = __cow_alloc_section(cm, sect_idx, 0);
         if (ret)
@@ -125,7 +126,7 @@ error:
  */
 int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 {
-        int ret;
+        int i, ret;
         int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
         for (i = 0; i < sect_size_bytes / COW_BLOCK_SIZE; i++) {
@@ -1013,7 +1014,7 @@ int cow_get_file_extents(struct snap_device* dev, struct file* filp)
 	struct page *pg;
 	__user uint8_t *cow_ext_buf;
 
-        unsigned long cow_ext_buf_size = ALIGN(elastio_snap_cow_ext_buf_size, PAGE_SIZE);
+        unsigned long cow_ext_buf_size = ALIGN(dattobd_cow_ext_buf_size, PAGE_SIZE);
 
         int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start, u64 len);
 

@@ -113,7 +113,7 @@ void dattobd_inode_unlock(struct inode *inode);
 #define dattobd_inode_unlock inode_unlock
 #endif
 
-struct vm_are_struct* dattobd_vm_area_allocate(struct mm_struct* mm);
+struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm);
 
 void dattobd_vm_area_free(struct vm_area_struct *vma);
 
