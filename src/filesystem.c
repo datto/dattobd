@@ -62,9 +62,9 @@ static ssize_t dattobd_kernel_read(struct file *filp, struct snap_device* dev, v
         file_lock(filp);
         return ret;
 #else
-        file_unlock(cm->filp);
-        ret=kernel_read(cm->filp, buf, count, pos);
-        file_lock(cm->filp);
+        file_unlock(cfilp);
+        ret=kernel_read(filp, buf, count, pos);
+        file_lock(filp);
         return ret;
 #endif
         }else{
@@ -801,7 +801,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * * 0 - success
  * * !0 - errno indicating the error.
  */
-int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
+int file_allocate(struct file *filp, struct snap_device* dev,  uint64_t offset, uint64_t length)
 {
         int ret = 0;
         char *page_buf = NULL;
@@ -809,7 +809,7 @@ int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
         char *abs_path = NULL;
         int abs_path_len;
 
-        file_get_absolute_pathname(cm->filp, &abs_path, &abs_path_len);
+        file_get_absolute_pathname(filp, &abs_path, &abs_path_len);
 
         // allocate page of zeros
         page_buf = (char *)get_zeroed_page(GFP_KERNEL);
@@ -824,7 +824,7 @@ int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
 
         // if not page aligned, write zeros to that point
         if (offset % PAGE_SIZE != 0) {
-                ret = file_write(cm->filp, cm->dev, page_buf, offset,
+                ret = file_write(filp, dev, page_buf, offset,
                                  PAGE_SIZE - (offset % PAGE_SIZE));
                 if (ret)
                         goto error;
@@ -834,12 +834,12 @@ int file_allocate(struct cow_manager *cm,  uint64_t offset, uint64_t length)
 
         // write a page of zeros at a time
         for (i = 0; i < write_count; i++) {
-                ret = file_write(cm->filp, cm->dev, page_buf, offset + (PAGE_SIZE * i),
+                ret = file_write(filp, dev, page_buf, offset + (PAGE_SIZE * i),
                                  PAGE_SIZE);
                 if (ret)
                         goto error;
         }
-        file_lock(f);
+        file_lock(filp);
 
 out:
         if (page_buf)

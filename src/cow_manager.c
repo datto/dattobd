@@ -716,7 +716,7 @@ int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
 
         LOG_DEBUG("allocating cow file (%llu bytes)",
                   (unsigned long long)file_max);
-        ret = file_allocate(cm, 0, file_max);
+        ret = file_allocate(cm->filp, cm->dev, 0, file_max);
         if (ret)
                 goto error;
 

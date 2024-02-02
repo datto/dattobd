@@ -89,7 +89,7 @@ int user_mount_pathname_concat(const char __user *user_mount_path,
 
 int file_truncate(struct file *filp, loff_t len);
 
-int file_allocate(struct cow_manager *cm, uint64_t offset, uint64_t length);
+int file_allocate(struct file *filp, struct snap_device* dev, uint64_t offset, uint64_t length);
 
 int __file_unlink(struct file *filp, int close, int force);
 
