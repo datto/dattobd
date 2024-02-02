@@ -164,7 +164,7 @@ int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
  * file_write() - Writes @len bytes of data to offset @offset within @filp from
  * @buf.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager object.
  * @buf: Input buffer for write.
  * @offset: Byte offset of the first sequential access within @filp.
  * @len: The number of bytes in the transfer.
@@ -179,7 +179,7 @@ int file_io(struct cow_manager *cm, int is_write, void *buf, sector_t offset,
  * file_read() - Store @len bytes of data from offset @offset within @filp into
  * @buf.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager object.
  * @buf: Output buffer for read.
  * @offset: Byte offset of the first sequential access within @filp.
  * @len: The number of bytes in the transfer.
