@@ -1000,9 +1000,14 @@ void dattobd_inode_unlock(struct inode *inode)
 {
         mutex_unlock(&inode->i_mutex);
 }
+#endif
+
+struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
+	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
 struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 {
+        struct vm_area_struct *vma;
         static const struct vm_operations_struct dummy_vm_ops = {};
 
 	if (!vm_area_cache) {
@@ -1066,7 +1071,7 @@ void file_switch_lock(struct file* filp, bool lock, bool mark_dirty)
         iput(inode);
 }
 
-int file_write_block(struct snap_device* dev, void* block, size_t offset, size_t len)
+int file_write_block(struct snap_device* dev, const void* block, size_t offset, size_t len)
 {
         int ret;
 	int bytes;
@@ -1105,7 +1110,7 @@ write_bio:
 	}
 
         dattobd_bio_set_dev(new_bio, bdev);
-        dattobd_set_bio_ops(bio, REQ_OP_READ, 0);
+        dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
         //from bio_helper.h
         bio_sector(new_bio) = start_sect;
 	bio_idx(new_bio) = 0;
@@ -1213,7 +1218,7 @@ read_bio:
 		goto out;
 	}
         dattobd_bio_set_dev(new_bio, bdev);
-        dattobd_set_bio_ops(bio, REQ_OP_READ, 0);
+        dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
         bio_sector(new_bio) = start_sect;
 	bio_idx(new_bio) = 0;
 
@@ -1259,15 +1264,17 @@ read_bio:
 #else
 		bio_for_each_segment_all(bvec, new_bio, i) {
 #endif
-			struct page *pg = bvec->bv_page;
+                        struct page *pg = bvec->bv_page;
 			char *data = kmap(pg);
 			WARN_ON(bytes_to_read != bvec->bv_len);
-			memcpy(buf + buf_offset, data, bytes_to_read);
+			memcpy(block + buf_offset, data, bytes_to_read);
 			kunmap(pg);
 			// in an impossible case if we have more
 			// than one page (should never happen)
 			break;
 		}
+
+
 
         pg->mapping = NULL;
 	bio_free_pages(new_bio);
@@ -1299,4 +1306,4 @@ sector_t sector_by_offset(struct snap_device*dev, size_t offset)
 	return SECTOR_INVALID;
 }
 
-#endif
+

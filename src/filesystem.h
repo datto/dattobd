@@ -45,6 +45,7 @@
 
 // takes a value and the log of the value it should be rounded up to
 #define NUM_SEGMENTS(x, log_size) (((x) + (1 << (log_size)) - 1) >> (log_size))
+#define SECTOR_INVALID ~(u64)0
 
 struct file;
 struct dentry;
@@ -124,7 +125,7 @@ void dattobd_mm_unlock(struct mm_struct* mm);
 
 void file_switch_lock(struct file* filp, bool lock, bool mark_dirty);
 
-int file_write_block(struct snap_device* dev, void* block, size_t offset, size_t len);
+int file_write_block(struct snap_device* dev, const void* block, size_t offset, size_t len);
 
 int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len);
 
