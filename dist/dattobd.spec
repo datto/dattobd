@@ -117,7 +117,7 @@
 
 
 Name:            dattobd
-Version:         0.11.5
+Version:         0.11.6
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -611,13 +611,16 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
- * Thu Jan 11 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.5
- - Fix CentOS7 building
+* Fri Feb 02 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.6
+- Fix issue with wrong slab allocation flags that led to system reboot
 
- * Wed Jan 10 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
- - Fix unmounting before shutdown on all distros
- - Implement submit_bio-based IO tracking
- - Fix CentOS7 building
+* Thu Jan 11 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.5
+- Fix CentOS7 building
+
+* Wed Jan 10 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.4
+- Fix unmounting before shutdown on all distros
+- Implement submit_bio-based IO tracking
+- Fix CentOS7 building
 
 * Tue May 19 2023 Lukasz Fulek <lukasz.fulek@datto.com> - 0.11.3
 - Fix memory leak on Ubuntu 20.04
