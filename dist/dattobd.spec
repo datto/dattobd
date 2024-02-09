@@ -117,7 +117,7 @@
 
 
 Name:            dattobd
-Version:         0.11.6
+Version:         0.11.7
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -611,6 +611,9 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+* Fri Feb 09 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.7
+- Implement tracking bios in dormant state
+
 * Fri Feb 02 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.6
 - Fix issue with wrong slab allocation flags that led to system reboot
 
