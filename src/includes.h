@@ -23,5 +23,6 @@
 #include <linux/seq_file.h>
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
+#include <linux/fiemap.h>
 
 #endif

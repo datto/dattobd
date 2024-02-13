@@ -4,3 +4,7 @@ sys_oldumount
 sys_call_table
 blk_mq_submit_bio
 kfree
+vm_area_alloc
+vm_area_free
+insert_vm_struct
+vm_area_cachep

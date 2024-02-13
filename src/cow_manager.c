@@ -88,17 +88,23 @@ int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
  */
 int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 {
-        int ret;
+        int ret, i;
+        int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
         ret = __cow_alloc_section(cm, sect_idx, 0);
         if (ret)
                 goto error;
 
-        ret = file_read(cm->filp, cm->sects[sect_idx].mappings,
+        for (i = 0; i < sect_size_bytes / COW_BLOCK_SIZE; i++) {
+		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
+		int cow_file_offset = COW_BLOCK_SIZE * i;
+
+        ret = file_read(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
                         cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
                         cm->sect_size * 8);
         if (ret)
                 goto error;
+        }
 
         return 0;
 
@@ -120,14 +126,20 @@ error:
  */
 int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 {
-        int ret;
+        int i, ret;
+        int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
-        ret = file_write(cm->filp, cm->sects[sect_idx].mappings,
+        for (i = 0; i < sect_size_bytes / COW_BLOCK_SIZE; i++) {
+		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
+		int cow_file_offset = COW_BLOCK_SIZE * i;
+
+        ret = file_write(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
                          cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
                          cm->sect_size * 8);
         if (ret) {
                 LOG_ERROR(ret, "error writing cow manager section to file");
                 return ret;
+        }
         }
 
         return 0;
@@ -265,7 +277,7 @@ int __cow_write_header(struct cow_manager *cm, int is_clean)
         ch.version = cm->version;
         ch.nr_changed_blocks = cm->nr_changed_blocks;
 
-        ret = file_write(cm->filp, &ch, 0, sizeof(struct cow_header));
+        ret = file_write(cm->filp, cm->dev, &ch, 0, sizeof(struct cow_header));
         if (ret) {
                 LOG_ERROR(ret, "error syncing cow manager header");
                 return ret;
@@ -297,7 +309,7 @@ int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc)
         int ret;
         struct cow_header ch;
 
-        ret = file_read(cm->filp, &ch, 0, sizeof(struct cow_header));
+        ret = file_read(cm->filp, cm->dev, &ch, 0, sizeof(struct cow_header));
         if (ret)
                 goto error;
 
@@ -458,6 +470,9 @@ int cow_sync_and_close(struct cow_manager *cm)
         if (ret)
                 goto error;
 
+        ret = cow_get_file_extents(cm->dev, cm->filp);
+	if(ret) goto error;
+
         if (cm->filp)
                 file_close(cm->filp);
         cm->filp = NULL;
@@ -569,12 +584,12 @@ int cow_reload(const char *path, uint64_t elements, unsigned long sect_size,
 
         cm->allocated_sects = 0;
         cm->sect_size = sect_size;
-        cm->log_sect_pages = get_order(sect_size * 8);
+        cm->log_sect_pages = get_order(sect_size * sizeof(uint64_t));
         cm->total_sects =
                 NUM_SEGMENTS(elements, cm->log_sect_pages + PAGE_SHIFT - 3);
         cm->allowed_sects =
                 __cow_calculate_allowed_sects(cache_size, cm->total_sects);
-        cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * 8));
+        cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * sizeof(uint64_t)));
 
         ret = __cow_open_header(cm, index_only, 1);
         if (ret)
@@ -701,7 +716,7 @@ int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
 
         LOG_DEBUG("allocating cow file (%llu bytes)",
                   (unsigned long long)file_max);
-        ret = file_allocate(cm->filp, 0, file_max);
+        ret = file_allocate(cm->filp, cm->dev, 0, file_max);
         if (ret)
                 goto error;
 
@@ -896,7 +911,7 @@ static int __cow_write_data(struct cow_manager *cm, void *buf)
                 goto error;
         }
 
-        ret = file_write(cm->filp, buf, curr_size, COW_BLOCK_SIZE);
+        ret = file_write(cm->filp, cm->dev, buf, curr_size, COW_BLOCK_SIZE);
         if (ret)
                 goto error;
 
@@ -975,7 +990,7 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
         if (block_off >= COW_BLOCK_SIZE)
                 return -EINVAL;
 
-        ret = file_read(cm->filp, buf, (block_pos * COW_BLOCK_SIZE) + block_off,
+        ret = file_read(cm->filp, cm->dev, buf, (block_pos * COW_BLOCK_SIZE) + block_off,
                         len);
         if (ret) {
                 LOG_ERROR(ret, "error reading cow data");
@@ -983,4 +998,138 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
         }
 
         return 0;
+}
+
+int cow_get_file_extents(struct snap_device* dev, struct file* filp)
+{
+	int ret;
+	struct fiemap_extent_info fiemap_info;
+	unsigned int fiemap_mapped_extents_size, i_ext;
+	struct fiemap_extent *extent;
+	char parent_process_name[TASK_COMM_LEN];
+	unsigned long vm_flags = VM_READ | VM_WRITE;
+	unsigned long start_addr;
+	struct task_struct *task;
+	struct vm_area_struct *vma;
+	struct page *pg;
+	__user uint8_t *cow_ext_buf;
+
+        unsigned long cow_ext_buf_size = ALIGN(dattobd_cow_ext_buf_size, PAGE_SIZE);
+
+        int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start, u64 len);
+
+        int (*insert_vm_struct)(struct mm_struct *mm, struct vm_area_struct *vma) = (INSERT_VM_STRUCT_ADDR != 0) ?
+        (int (*)(struct mm_struct *mm, struct vm_area_struct *vma)) (INSERT_VM_STRUCT_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+        	if (!insert_vm_struct) {
+		LOG_ERROR(-ENOTSUPP, "insert_vm_struct() was not found");
+		return -ENOTSUPP;
+	}
+
+        fiemap = NULL;
+	task = get_current();
+
+        LOG_DEBUG("getting cow file extents from filp=%p", filp);
+	LOG_DEBUG("attempting page stealing from %s", get_task_comm(parent_process_name, task));
+
+        dattobd_mm_lock(task->mm);
+        start_addr = get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+
+        if (IS_ERR_VALUE(start_addr))
+		return start_addr; // returns -EPERM if failed
+
+
+        vma = dattobd_vm_area_allocate(task->mm);
+
+	if (!vma) {
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "vm_area_alloc() failed");
+		dattobd_mm_unlock(task->mm);
+		return ret;
+	}
+
+        vma->vm_start = start_addr;
+	vma->vm_end = start_addr + cow_ext_buf_size;
+	*(unsigned long *) &vma->vm_flags = vm_flags;
+	vma->vm_page_prot = vm_get_page_prot(vm_flags);
+	vma->vm_pgoff = 0;
+
+        ret = insert_vm_struct(task->mm, vma);
+        if (ret < 0) {
+		ret = -EINVAL;
+		LOG_ERROR(ret, "insert_vm_struct() failed");
+		dattobd_vm_area_free(vma);
+		dattobd_mm_unlock(task->mm);
+		return ret;
+	}
+
+        pg = alloc_pages(GFP_USER, get_order(cow_ext_buf_size));
+	if (!pg) {
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "alloc_page() failed");
+		dattobd_vm_area_free(vma);
+		dattobd_mm_unlock(task->mm);
+		return ret;
+	}
+
+        SetPageReserved(pg);
+	ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(pg), cow_ext_buf_size, PAGE_SHARED);
+	if (ret < 0) {
+		LOG_ERROR(ret, "remap_pfn_range() failed");
+		ClearPageReserved(pg);
+		__free_pages(pg, get_order(cow_ext_buf_size));
+		dattobd_vm_area_free(vma);
+		dattobd_mm_unlock(task->mm);
+		return ret;
+	}
+
+        cow_ext_buf = (__user uint8_t *) start_addr;
+
+	if (filp->f_inode->i_op)
+		fiemap = filp->f_inode->i_op->fiemap;
+
+        if (fiemap) {
+		int64_t fiemap_max = ~0ULL & ~(1ULL << 63);
+		int max_num_extents = cow_ext_buf_size; // used for do_div() as it overwrites the first argument
+
+		fiemap_info.fi_flags = FIEMAP_FLAG_SYNC;
+		fiemap_info.fi_extents_mapped = 0;
+		do_div(max_num_extents, sizeof(struct fiemap_extent));
+		fiemap_info.fi_extents_max = max_num_extents;
+		fiemap_info.fi_extents_start = (struct fiemap_extent __user *)cow_ext_buf;
+
+		ret = fiemap(filp->f_inode, &fiemap_info, 0, fiemap_max);
+
+		LOG_DEBUG("fiemap for cow file (ret %d), extents %u (max %u)", ret,
+				fiemap_info.fi_extents_mapped, fiemap_info.fi_extents_max);
+
+		if (!ret && fiemap_info.fi_extents_mapped > 0) {
+			if (dev->sd_cow_extents) kfree(dev->sd_cow_extents);
+			fiemap_mapped_extents_size = fiemap_info.fi_extents_mapped * sizeof(struct fiemap_extent);
+			dev->sd_cow_extents = kmalloc(fiemap_mapped_extents_size, GFP_KERNEL);
+			if (dev->sd_cow_extents) {
+                                //TODO: closely watch
+				ret = copy_from_user(dev->sd_cow_extents, cow_ext_buf, fiemap_mapped_extents_size);
+				if (!ret) {
+					dev->sd_cow_ext_cnt = fiemap_info.fi_extents_mapped;
+					WARN(dev->sd_cow_ext_cnt == max_num_extents, "max num of extents read, increase cow_ext_buf_size");
+					extent = dev->sd_cow_extents;
+					for (i_ext = 0; i_ext < fiemap_info.fi_extents_mapped; ++i_ext, ++extent) {
+						LOG_DEBUG("   cow file extent: log 0x%llx, phy 0x%llx, len %llu", extent->fe_logical, extent->fe_physical, extent->fe_length);
+					}
+				}
+			}
+		}
+	} else {
+		ret = -ENOTSUPP;
+		LOG_ERROR(ret, "fiemap not supported");
+		goto out;
+	}
+
+out:
+	ClearPageReserved(pg);
+	dattobd_mm_unlock(task->mm);
+	vm_munmap(vma->vm_start, cow_ext_buf_size);
+	__free_pages(pg, get_order(cow_ext_buf_size));
+	return ret;
 }
