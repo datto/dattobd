@@ -561,6 +561,19 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method)
                 }
         }
 
+        if (close_method != 2 && dev->sd_cow_extents) {
+		LOG_DEBUG("destroying cow file extents");
+		kfree(dev->sd_cow_extents);
+		dev->sd_cow_extents = NULL;
+		dev->sd_cow_ext_cnt = 0;
+		dev->sd_cow_inode = NULL;
+	} else {
+		LOG_DEBUG("preserving cow file extents");
+	}
+
+        dev->sd_falloc_size = 0;
+	dev->sd_cache_size = 0;
+
         return ret;
 }
 
@@ -844,6 +857,10 @@ static void __tracer_copy_cow(const struct snap_device *src,
                               struct snap_device *dest)
 {
         dest->sd_cow = src->sd_cow;
+        // copy cow file extents and update the device
+	dest->sd_cow_extents = src->sd_cow_extents;
+	dest->sd_cow_ext_cnt = src->sd_cow_ext_cnt;
+
         dest->sd_cow_inode = src->sd_cow_inode;
         dest->sd_cache_size = src->sd_cache_size;
         dest->sd_falloc_size = src->sd_falloc_size;
@@ -1580,6 +1597,26 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
                 LOG_DEBUG("replacing make_request_fn if needed");
                 if(__tracer_should_reset_mrf(dev)){
                         LOG_DEBUG("__tracer_should_reset_mrf is true");
+
+                if (!test_bit(ACTIVE, &dev->sd_state)) {
+				int ret = 0;
+				LOG_DEBUG("flushing bio requests");
+
+				if (!test_bit(SNAPSHOT, &dev->sd_state)) {
+					ret = __tracer_setup_inc_cow_thread(dev, dev->sd_minor);
+				} else {
+					ret = __tracer_setup_snap_cow_thread(dev, dev->sd_minor);
+				}
+
+				if(ret) {
+					LOG_ERROR(ret, "Failed to setup cow thread for device with minor %i and flush bio requests", dev->sd_minor);
+				}
+
+				wake_up_process(dev->sd_cow_thread);
+                                //TODO: Maybe some waiting mechanism will be needed
+				__tracer_destroy_cow_thread(dev);
+               } 
+
 #ifndef USE_BDOPS_SUBMIT_BIO
                         __tracer_transition_tracing(
                             NULL,

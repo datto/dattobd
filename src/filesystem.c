@@ -8,6 +8,7 @@
 #include "includes.h"
 #include "logging.h"
 #include "userspace_copy_helpers.h"
+#include "snap_device.h"
 
 // if this isn't defined, we don't need it anyway
 #ifndef FMODE_NONOTIFY
@@ -44,23 +45,37 @@ static int kern_path(const char *name, unsigned int flags, struct path *path)
  *
  * Return: The number of bytes read or a negative errno.
  */
-static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
+static ssize_t dattobd_kernel_read(struct file *filp, struct snap_device* dev, void *buf, size_t count,
                                    loff_t *pos)
 {
+        ssize_t ret;
+
+        if(filp){
 #ifndef HAVE_KERNEL_READ_PPOS
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
         mm_segment_t old_fs;
-        ssize_t ret;
+        file_unlock(filp);
 
         old_fs = get_fs();
         set_fs(get_ds());
         ret = vfs_read(filp, (char __user *)buf, count, pos);
         set_fs(old_fs);
-
+        file_lock(filp);
         return ret;
 #else
-        return kernel_read(filp, buf, count, pos);
+        file_unlock(filp);
+        ret=kernel_read(filp, buf, count, pos);
+        file_lock(filp);
+        return ret;
 #endif
+        }else{
+		LOG_DEBUG("DIO: reading %lu sectors...", count / SECTOR_SIZE);
+
+		ret = file_read_block(dev, buf, *pos, count / SECTOR_SIZE);
+		if (!ret) ret = count;
+
+		return ret;
+        }
 }
 
 /**
@@ -74,13 +89,15 @@ static ssize_t dattobd_kernel_read(struct file *filp, void *buf, size_t count,
  *
  * Return: The number of bytes written or a negative errno.
  */
-static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
+static ssize_t dattobd_kernel_write(struct file *filp,struct snap_device* dev, const void *buf,
                                     size_t count, loff_t *pos)
 {
+        ssize_t ret;
+
+        if(filp){
 #ifndef HAVE_KERNEL_WRITE_PPOS
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
         mm_segment_t old_fs;
-        ssize_t ret;
 
         old_fs = get_fs();
         set_fs(get_ds());
@@ -89,14 +106,25 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
 
         return ret;
 #else
-        return kernel_write(filp, buf, count, pos);
+        file_unlock(filp);
+        ret= kernel_write(filp, buf, count, pos);
+        file_lock(filp);
+        return ret;
 #endif
+        }else{
+		LOG_DEBUG("DIO: writing %lu sectors...", count / SECTOR_SIZE);
+
+		ret = file_write_block(dev, buf, *pos, count / SECTOR_SIZE);
+		if (!ret) ret = count;
+
+		return ret;
+        }
 }
 
 /**
  * file_io() - Reads or writes to the supplied file.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager
  * @is_write: An integer encoded bool indicating a write or read operation.
  * @buf: Input/output buffer for write/read, respectively.
  * @offset: Byte offset of the first sequential access within @filp.
@@ -106,16 +134,16 @@ static ssize_t dattobd_kernel_write(struct file *filp, const void *buf,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
+int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf, sector_t offset,
             unsigned long len)
 {
         ssize_t ret;
         loff_t off = (loff_t)offset;
 
         if (is_write)
-                ret = dattobd_kernel_write(filp, buf, len, &off);
+                ret = dattobd_kernel_write(filp, dev, buf, len, &off);
         else
-                ret = dattobd_kernel_read(filp, buf, len, &off);
+                ret = dattobd_kernel_read(filp, dev, buf, len, &off);
 
         if (ret < 0) {
                 LOG_ERROR((int)ret, "error performing file '%s': %llu, %lu",
@@ -137,7 +165,7 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  * file_write() - Writes @len bytes of data to offset @offset within @filp from
  * @buf.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager object.
  * @buf: Input buffer for write.
  * @offset: Byte offset of the first sequential access within @filp.
  * @len: The number of bytes in the transfer.
@@ -146,13 +174,13 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_write(filp, buf, offset, len) file_io(filp, 1, buf, offset, len)
+//#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
 
 /**
  * file_read() - Store @len bytes of data from offset @offset within @filp into
  * @buf.
  *
- * @filp: A pointer to the file object.
+ * @cm: A pointer to the cow manager object.
  * @buf: Output buffer for read.
  * @offset: Byte offset of the first sequential access within @filp.
  * @len: The number of bytes in the transfer.
@@ -161,7 +189,7 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-#define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
+//#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 /**
  * file_close() - Closes the file object.
@@ -170,6 +198,7 @@ int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
  */
 inline void file_close(struct file *f)
 {
+        file_unlock_mark_dirty(f);
         filp_close(f, NULL);
 }
 
@@ -765,7 +794,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * within the range specified by @offset and @length.  Attempts to use
  * @real_fallocate with a fallback of writing zeroes if that fails.
  *
- * @f: A &struct file object.
+ * @cm: A &struct cow_manager object.
  * @offset: The offset into @f indicating the start of the allocation.
  * @length: The number of byte to allocate starting at @offset.
  *
@@ -773,7 +802,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * * 0 - success
  * * !0 - errno indicating the error.
  */
-int file_allocate(struct file *f, uint64_t offset, uint64_t length)
+int file_allocate(struct file *filp, struct snap_device* dev,  uint64_t offset, uint64_t length)
 {
         int ret = 0;
         char *page_buf = NULL;
@@ -781,25 +810,7 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
         char *abs_path = NULL;
         int abs_path_len;
 
-        file_get_absolute_pathname(f, &abs_path, &abs_path_len);
-
-        // try regular fallocate
-        ret = real_fallocate(f, offset, length);
-        if (ret && ret != -EOPNOTSUPP)
-                goto error;
-        else if (!ret)
-                goto out;
-
-        // fallocate isn't supported, fall back on writing zeros
-        if (!abs_path) {
-                LOG_WARN("fallocate is not supported for this file system, "
-                         "falling back on "
-                         "writing zeros");
-        } else {
-                LOG_WARN("fallocate is not supported for '%s', falling back on "
-                         "writing zeros",
-                         abs_path);
-        }
+        file_get_absolute_pathname(filp, &abs_path, &abs_path_len);
 
         // allocate page of zeros
         page_buf = (char *)get_zeroed_page(GFP_KERNEL);
@@ -814,7 +825,7 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
 
         // if not page aligned, write zeros to that point
         if (offset % PAGE_SIZE != 0) {
-                ret = file_write(f, page_buf, offset,
+                ret = file_write(filp, dev, page_buf, offset,
                                  PAGE_SIZE - (offset % PAGE_SIZE));
                 if (ret)
                         goto error;
@@ -824,11 +835,12 @@ int file_allocate(struct file *f, uint64_t offset, uint64_t length)
 
         // write a page of zeros at a time
         for (i = 0; i < write_count; i++) {
-                ret = file_write(f, page_buf, offset + (PAGE_SIZE * i),
+                ret = file_write(filp, dev, page_buf, offset + (PAGE_SIZE * i),
                                  PAGE_SIZE);
                 if (ret)
                         goto error;
         }
+        file_lock(filp);
 
 out:
         if (page_buf)
@@ -988,5 +1000,310 @@ void dattobd_inode_unlock(struct inode *inode)
 {
         mutex_unlock(&inode->i_mutex);
 }
-
 #endif
+
+struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
+	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
+{
+        struct vm_area_struct *vma;
+        static const struct vm_operations_struct dummy_vm_ops = {};
+
+	if (!vm_area_cache) {
+		LOG_ERROR(-ENOTSUPP, "vm_area_cachep was not found");
+		return NULL;
+	}
+	vma = kmem_cache_zalloc(*vm_area_cache, GFP_KERNEL);
+	if (!vma) {
+		LOG_ERROR(-ENOMEM, "kmem_cache_zalloc() failed");
+		return NULL;
+	}
+
+	vma->vm_mm = mm;
+	vma->vm_ops = &dummy_vm_ops;
+	INIT_LIST_HEAD(&vma->anon_vma_chain);
+	return vma;
+}
+
+void dattobd_vm_area_free(struct vm_area_struct *vma)
+{
+        kmem_cache_free(*vm_area_cache, vma);
+}
+
+void dattobd_mm_lock(struct mm_struct* mm)
+{
+#ifdef HAVE_MMAP_WRITE_LOCK
+	mmap_write_lock(mm);
+#else
+	down_write(&mm->mmap_sem);
+#endif
+}
+
+void dattobd_mm_unlock(struct mm_struct* mm)
+{
+#ifdef HAVE_MMAP_WRITE_LOCK
+	mmap_write_unlock(mm);
+#else
+	up_write(&mm->mmap_sem);
+#endif
+}
+
+void file_switch_lock(struct file* filp, bool lock, bool mark_dirty)
+{
+        struct inode* inode;
+
+        if(!filp) return;
+
+        inode= dattobd_get_dentry(filp)->d_inode;
+        igrab(inode);
+
+        if(lock){
+                inode->i_flags |= S_IMMUTABLE;
+        }else{
+                inode->i_flags &= ~S_IMMUTABLE;
+        }
+
+        if(mark_dirty){
+                mark_inode_dirty(inode);
+        }
+
+        iput(inode);
+}
+
+int file_write_block(struct snap_device* dev, const void* block, size_t offset, size_t len)
+{
+        int ret;
+	int bytes;
+	char *data;
+	struct page *pg;
+	struct bio_set *bs;
+	struct bio *new_bio;
+	struct block_device *bdev;
+	sector_t start_sect;
+	int sectors_processed;
+	int iterations_done;
+	int bytes_written;
+
+        ret = 0;
+	bs = dev_bioset(dev);
+	bdev = dev->sd_base_dev;
+	sectors_processed = 0;
+
+write_bio: 
+        start_sect = sector_by_offset(dev, offset);
+	if (start_sect == SECTOR_INVALID) {
+		LOG_WARN("Possible write IO to the end of file (offset=%lu)", offset);
+		ret = -EFAULT;
+		goto out;
+	}
+
+#ifdef HAVE_BIO_ALLOC
+	new_bio = bio_alloc(GFP_NOIO, 1);
+#else
+	new_bio = bio_alloc(bdev, 1, 0, GFP_KERNEL);
+#endif
+        if(!new_bio){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating bio (write) - bs = %p", bs);
+		goto out;
+	}
+
+        dattobd_bio_set_dev(new_bio, bdev);
+        dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
+        //from bio_helper.h
+        bio_sector(new_bio) = start_sect;
+	bio_idx(new_bio) = 0;
+
+        pg = alloc_page(GFP_NOIO);
+	if(!pg){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating read bio page");
+		goto out;
+	}
+
+	data = kmap(pg);
+	iterations_done = 0;
+	bytes_written = 0;
+
+        do {
+		bytes_written = iterations_done * SECTOR_SIZE;
+		memcpy(data + bytes_written, block + sectors_processed * SECTOR_SIZE, SECTOR_SIZE);
+		offset += SECTOR_SIZE;
+		sectors_processed++;
+		iterations_done++;
+	} while (sectors_processed < len &&
+			sector_by_offset(dev, offset) == start_sect + iterations_done);
+
+	kunmap(pg);
+
+        bytes_written = iterations_done * SECTOR_SIZE;
+	bytes = bio_add_page(new_bio, pg, bytes_written, 0);
+	if(bytes != bytes_written){
+		LOG_DEBUG("bio_add_page() error!");
+		__free_page(pg);
+		ret = -EFAULT;
+		goto out;
+	}
+
+        if (dev->sd_cow_inode)
+		pg->mapping = dev->sd_cow_inode->i_mapping;
+
+
+	ret = dattobd_submit_bio_wait(new_bio);
+	if (ret) {
+		LOG_ERROR(ret, "submit_bio_wait() error!");
+		goto out;
+	}
+
+        pg->mapping = NULL;
+	bio_free_pages(new_bio);
+	bio_put(new_bio);
+	new_bio = NULL;
+
+	if (sectors_processed != len)
+		goto write_bio;
+
+out:
+	if (new_bio) {
+		pg->mapping = NULL;
+		bio_free_pages(new_bio);
+		bio_put(new_bio);
+	}
+
+	return ret;
+}
+
+int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len)
+{
+        int ret;
+	int bytes;
+	struct page *pg;
+	struct bio_set *bs;
+	struct bio *new_bio;
+	struct block_device *bdev;
+	sector_t start_sect;
+	struct bio_vec *bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+#else
+	int i = 0;
+#endif
+	int sectors_processed;
+	int iterations_done;
+	int bytes_to_read;
+	int buf_offset;
+
+	ret = 0;
+	bs = dev_bioset(dev);
+	bdev = dev->sd_base_dev;
+	sectors_processed = 0;
+WARN_ON(len > SECTORS_PER_BLOCK);
+
+read_bio:
+	start_sect = sector_by_offset(dev, offset);
+	if (start_sect == SECTOR_INVALID) {
+		LOG_WARN("Possible read IO to the end of file (offset=%lu)", offset);
+		ret = -EFAULT;
+		goto out;
+	}
+#ifdef HAVE_BIO_ALLOC
+	new_bio = bio_alloc(GFP_NOIO, 1);
+#else
+	new_bio = bio_alloc(bdev, 1, 0, GFP_KERNEL);
+#endif
+        if(!new_bio){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating bio (read) - bs = %p", bs);
+		goto out;
+	}
+        dattobd_bio_set_dev(new_bio, bdev);
+        dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
+        bio_sector(new_bio) = start_sect;
+	bio_idx(new_bio) = 0;
+
+	//allocate a page and add it to our bio
+	pg = alloc_page(GFP_NOIO);
+	if(!pg){
+		ret = -ENOMEM;
+		LOG_ERROR(ret, "error allocating read bio page");
+		goto out;
+	}
+
+	iterations_done = 0;
+	bytes_to_read = 0;
+	buf_offset = sectors_processed * SECTOR_SIZE;
+
+        do {
+		offset += SECTOR_SIZE;
+		sectors_processed++;
+		iterations_done++;
+	} while (sectors_processed < len &&
+			sector_by_offset(dev, offset) == start_sect + iterations_done);
+
+	bytes_to_read = iterations_done * SECTOR_SIZE;
+	bytes = bio_add_page(new_bio, pg, bytes_to_read, 0);
+	if(bytes != bytes_to_read){
+		LOG_DEBUG("bio_add_page() error!");
+		__free_page(pg);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (dev->sd_cow_inode)
+		pg->mapping = dev->sd_cow_inode->i_mapping;
+
+        ret = dattobd_submit_bio_wait(new_bio);
+	if (ret) {
+		LOG_ERROR(ret, "submit_bio_wait() error!");
+		goto out;
+	}
+
+#ifdef HAVE_BVEC_ITER_ALL
+		bio_for_each_segment_all(bvec, new_bio, iter) {
+#else
+		bio_for_each_segment_all(bvec, new_bio, i) {
+#endif
+                        struct page *pg = bvec->bv_page;
+			char *data = kmap(pg);
+			WARN_ON(bytes_to_read != bvec->bv_len);
+			memcpy(block + buf_offset, data, bytes_to_read);
+			kunmap(pg);
+			// in an impossible case if we have more
+			// than one page (should never happen)
+			break;
+		}
+
+
+
+        pg->mapping = NULL;
+	bio_free_pages(new_bio);
+	bio_put(new_bio);
+	new_bio = NULL;
+
+	if (sectors_processed != len)
+		goto read_bio;
+        
+out:
+	if (new_bio) {
+		pg->mapping = NULL;
+		bio_free_pages(new_bio);
+		bio_put(new_bio);
+	}
+
+	return ret;
+}
+
+sector_t sector_by_offset(struct snap_device*dev, size_t offset)
+{
+        unsigned int i;
+	struct fiemap_extent *extent = dev->sd_cow_extents;
+	for (i = 0; i < dev->sd_cow_ext_cnt; i++) {
+		if (offset >= extent[i].fe_logical && offset < extent[i].fe_logical + extent[i].fe_length)
+			return (extent[i].fe_physical + (offset - extent[i].fe_logical)) >> 9;
+	}
+
+	return SECTOR_INVALID;
+}
+
+

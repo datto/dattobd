@@ -9,13 +9,18 @@
 
 #include "includes.h"
 #include "userspace_copy_helpers.h"
+#include "snap_device.h"
 
-#define file_write(filp, buf, offset, len) file_io(filp, 1, buf, offset, len)
-#define file_read(filp, buf, offset, len) file_io(filp, 0, buf, offset, len)
+#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
+#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 #define file_unlink(filp) __file_unlink(filp, 0, 0)
 #define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
 #define file_unlink_and_close_force(filp) __file_unlink(filp, 1, 1)
+
+#define file_lock(filp) file_switch_lock(filp, true, false)
+#define file_unlock(filp) file_switch_lock(filp, false, false)
+#define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, true)
 
 #ifndef HAVE_STRUCT_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
@@ -40,6 +45,7 @@
 
 // takes a value and the log of the value it should be rounded up to
 #define NUM_SEGMENTS(x, log_size) (((x) + (1 << (log_size)) - 1) >> (log_size))
+#define SECTOR_INVALID ~(u64)0
 
 struct file;
 struct dentry;
@@ -57,7 +63,7 @@ struct path {
 typedef mode_t fmode_t;
 #endif
 
-int file_io(struct file *filp, int is_write, void *buf, sector_t offset,
+int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf, sector_t offset,
             unsigned long len);
 
 void file_close(struct file *f);
@@ -85,7 +91,7 @@ int user_mount_pathname_concat(const char __user *user_mount_path,
 
 int file_truncate(struct file *filp, loff_t len);
 
-int file_allocate(struct file *f, uint64_t offset, uint64_t length);
+int file_allocate(struct file *filp, struct snap_device* dev, uint64_t offset, uint64_t length);
 
 int __file_unlink(struct file *filp, int close, int force);
 
@@ -108,5 +114,21 @@ void dattobd_inode_unlock(struct inode *inode);
 #define dattobd_inode_lock inode_lock
 #define dattobd_inode_unlock inode_unlock
 #endif
+
+struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm);
+
+void dattobd_vm_area_free(struct vm_area_struct *vma);
+
+void dattobd_mm_lock(struct mm_struct* mm);
+
+void dattobd_mm_unlock(struct mm_struct* mm);
+
+void file_switch_lock(struct file* filp, bool lock, bool mark_dirty);
+
+int file_write_block(struct snap_device* dev, const void* block, size_t offset, size_t len);
+
+int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len);
+
+sector_t sector_by_offset(struct snap_device*dev, size_t offset);
 
 #endif /* FILESYSTEM_H_ */
