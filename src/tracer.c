@@ -730,7 +730,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
 
         // open the base block device
         LOG_DEBUG("ENTER __tracer_setup_base_dev");
-        dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+        dev->sd_base_dev = dattobd_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;

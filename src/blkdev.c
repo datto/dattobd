@@ -6,7 +6,7 @@
 
 #include "blkdev.h"
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_1
 
 /**
  * dattobd_lookup_bdev() - Looks up the inode associated with the path, verifies
@@ -60,7 +60,7 @@ fail:
 
 #endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 
 /**

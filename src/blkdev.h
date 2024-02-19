@@ -33,7 +33,13 @@ struct block_device;
 #define dattobd_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
 #endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !defined HAVE_BLKDEV_GET_BY_PATH_1
+#define dattobd_blkdev_get_by_path(path, mode, holder) blkdev_get_by_path(path,mode,holder)
+#else
+#define dattobd_blkdev_get_by_path(path, mode, holder) blkdev_get_by_path(path,mode,holder,NULL)
+#endif 
+
+#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
                                         void *holder);
