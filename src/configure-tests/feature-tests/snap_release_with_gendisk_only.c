@@ -12,7 +12,7 @@ static int snap_open(struct gendisk *disk, blk_mode_t mode){
 	return 0;
 }
 
-static int snap_release(struct gendisk *disk){
+static void snap_release(struct gendisk *disk){
 	return 0;
 }
 
