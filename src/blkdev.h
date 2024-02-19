@@ -48,8 +48,11 @@ struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
 #ifdef HAVE_BD_SUPER
 #define dattobd_get_super(bdev) (bdev)->bd_super
 #define dattobd_drop_super(sb)
-#else
+#elif defined HAVE_GET_SUPER
 #define dattobd_get_super(bdev) get_super(bdev)
+#define dattobd_drop_super(sb) drop_super(sb)
+#else 
+#define dattobd_get_super(bdev) get_active_super(bdev)
 #define dattobd_drop_super(sb) drop_super(sb)
 #endif
 
