@@ -13,12 +13,10 @@ static int snap_open(struct gendisk *disk, blk_mode_t mode){
 }
 
 static void snap_release(struct gendisk *disk){
-	return 0;
 }
 
 static inline void dummy(void){
 	struct gendisk gd;
-	struct block_device bd;
 	struct block_device_operations bdo = {
 		.open = snap_open,
 		.release = snap_release,
