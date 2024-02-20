@@ -1157,8 +1157,7 @@ write_bio:
 	}
 
         pg->mapping = NULL;
-	bio_free_pages(new_bio);
-	bio_put(new_bio);
+	bio_free_clone(new_bio);
 	new_bio = NULL;
 
 	if (sectors_processed != len)
@@ -1167,8 +1166,7 @@ write_bio:
 out:
 	if (new_bio) {
 		pg->mapping = NULL;
-		bio_free_pages(new_bio);
-		bio_put(new_bio);
+		bio_free_clone(new_bio);
 	}
 
 	return ret;
@@ -1277,8 +1275,7 @@ read_bio:
 
 
         pg->mapping = NULL;
-	bio_free_pages(new_bio);
-	bio_put(new_bio);
+	bio_free_clone(new_bio);
 	new_bio = NULL;
 
 	if (sectors_processed != len)
@@ -1287,8 +1284,7 @@ read_bio:
 out:
 	if (new_bio) {
 		pg->mapping = NULL;
-		bio_free_pages(new_bio);
-		bio_put(new_bio);
+                bio_free_clone(new_bio);
 	}
 
 	return ret;
