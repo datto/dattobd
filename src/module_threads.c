@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2022 Datto Inc.
+ * Copyright (C) 2024 Datto Inc.
  */
 
 #include "module_threads.h"
@@ -80,6 +80,7 @@ int inc_sset_thread(void *data)
                 // free the sector set
                 kfree(sset);
         }
+        LOG_DEBUG("inc_sset_thread has stopped");
 
         return 0;
 }
@@ -119,11 +120,14 @@ int snap_cow_thread(void *data)
                                 cow_free_members(dev->sd_cow);
                 }
 
+#if defined USE_BDOPS_SUBMIT_BIO && defined HAVE_FOPS_FALLOCATE
+//not having it for .deb causes infinite loop and failure, having this for rpms causes objdump caused by not being able to save cached data during unmounting
                 int should_stop=kthread_should_stop();
                 if(should_stop){
-                        LOG_DEBUG("stopping snap thread in if");
+                        LOG_DEBUG("stopping snap thread in conditional");
                         break;
                 }
+#endif
 
                 if (bio_queue_empty(bq))
                         continue;
@@ -167,7 +171,7 @@ int snap_cow_thread(void *data)
                         bio_free_clone(bio);
                 }
         }
-
+        LOG_DEBUG("snap_cow_thread has stopped");
         return 0;
 }
 

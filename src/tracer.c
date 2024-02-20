@@ -158,6 +158,7 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
                 tracing_ops_put(dev->sd_tracing_ops);
                 dev->sd_tracing_ops=NULL;
         }
+        dev->sd_tracing_ops=NULL;
 #else
         dev->sd_orig_request_fn = NULL;
 #endif
@@ -941,6 +942,7 @@ static void __tracer_bioset_exit(struct snap_device *dev)
                 dev->sd_bioset = NULL;
         }
 #else
+        LOG_DEBUG("freeing bio set");
         bioset_exit(&dev->sd_bioset);
 #endif
 }
@@ -1303,6 +1305,7 @@ static int __tracer_transition_tracing(
                         bdev_name);
 #endif
         }
+        LOG_DEBUG("stopped freezing, smb");
         smp_wmb();
         if(dev){
                 LOG_DEBUG("starting tracing");
@@ -1396,6 +1399,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                 if (dattobd_bio_op_flagged(bio, DATTOBD_PASSTHROUGH))
                 {
                         dattobd_bio_op_clear_flag(bio, DATTOBD_PASSTHROUGH);
+                        goto call_orig;
                 }
                 else
                 {
@@ -1414,6 +1418,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
 #endif
         } // tracer_for_each(dev, i)
 
+call_orig:
 #ifdef USE_BDOPS_SUBMIT_BIO
         if(orig_fn){
                 orig_fn(bio);
