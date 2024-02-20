@@ -105,4 +105,8 @@ struct super_block* get_superblock(struct block_device* bdev){
 }
 #endif
 
+struct super_block* get_superblock(struct block_device* bdev){
+        return NULL;
+}
+
 #endif
