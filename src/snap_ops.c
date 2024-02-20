@@ -72,7 +72,7 @@ static int snap_open(struct gendisk *disk, blk_mode_t mode)
 
 static void snap_release(struct gendisk *gd)
 {
-        return __tracer_close(gd->private_data);
+        __tracer_close(gd->private_data);
 }
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode)
