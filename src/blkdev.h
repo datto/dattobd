@@ -52,8 +52,8 @@ struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
 #define dattobd_get_super(bdev) get_super(bdev)
 #define dattobd_drop_super(sb) drop_super(sb)
 #else 
-struct super_block* (*dattobd_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
-	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+struct super_block* get_superblock(struct block_device*);
+#define dattobd_get_super(bdev) get_superblock (bdev)
 #define dattobd_drop_super(sb) drop_super(sb)
 #endif
 
