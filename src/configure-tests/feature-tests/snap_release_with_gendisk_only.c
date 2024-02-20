@@ -24,6 +24,6 @@ static inline void dummy(void){
 		.release = snap_release,
 	};
 
-	bdo.open(&bd, FMODE_READ);
-	bdo.release(&gd, FMODE_READ);
+	bdo.open(&gd, FMODE_READ);
+	bdo.release(&gd);
 }
