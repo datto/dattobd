@@ -95,7 +95,7 @@ struct block_device *blkdev_get_by_path(const char *pathname, fmode_t mode,
 
         return bdev;
 }
-
+#endif
 #if !defined HAVE_BD_SUPER && !defined HAVE_GET_SUPER
 struct super_block* (*dattobd_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
@@ -103,10 +103,4 @@ struct super_block* (*dattobd_get_super)(struct block_device *) = (GET_SUPER_ADD
 struct super_block* get_superblock(struct block_device* bdev){
         return dattobd_get_super(bdev);
 }
-#endif
-
-struct super_block* get_superblock(struct block_device* bdev){
-        return NULL;
-}
-
 #endif
