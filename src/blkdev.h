@@ -14,6 +14,8 @@ struct block_device;
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 #define dattobd_blkdev_put(bdev) blkdev_put(bdev);
+#elif defined HAVE_BLKDEV_PUT_2
+#define dattobd_blkdev_put(bdev) blkdev_put(bdev,NULL);
 #else
 //wchodzi tutaj
 #define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);

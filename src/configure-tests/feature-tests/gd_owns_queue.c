@@ -9,6 +9,6 @@
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-    struct gendisk *sd_gd; = NULL;
+    struct gendisk *sd_gd = NULL;
     set_bit(GD_OWNS_QUEUE, &sd_gd->state);
 }

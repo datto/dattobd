@@ -87,6 +87,8 @@ struct block_device *blkdev_get_by_path(const char *pathname, fmode_t mode,
         if ((mode & FMODE_WRITE) && bdev_read_only(bdev)) {
 #ifdef HAVE_BLKDEV_PUT_1
                 blkdev_put(bdev);
+#elif defined HAVE_BLKDEV_PUT_2
+                blkdev_put(bdev,NULL);
 #else
                 blkdev_put(bdev, mode);
 #endif
