@@ -905,7 +905,7 @@ int __file_unlink(struct file *filp, int close, int force)
         //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
         ret = vfs_unlink(&init_user_ns, dir_inode, file_dentry, NULL);
 #elif defined HAVE_USER_NAMESPACE_ARGS_2
-        ret = vfs_unlink(&nop_mnt_idmap, dir_inode, file_dentry, NULL);
+        ret = vfs_unlink(file_mnt_idmap(filp), dir_inode, file_dentry, NULL);
 #else
         ret = vfs_unlink(dir_inode, file_dentry, NULL);
 #endif

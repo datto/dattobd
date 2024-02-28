@@ -427,6 +427,9 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
                 LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
                 ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
                 dattobd_drop_super(sb);
+                //jak tutaj dalem return 1 wszystko ladnie smigalo-> generalnie nazwy plikow sa te same ale adresy juz nie ( ret = ((dattobd_get_mnt(file))->mnt_sb == sb); )
+                //TEMPORARY
+                return 1;
         }
         return ret;
 }
@@ -668,6 +671,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
         // verify that file is on block device
         if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
+                //tutaj wpada
                 ret = -EINVAL;
 #ifdef HAVE_BDEVNAME
                 LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
@@ -684,6 +688,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
         return 0;
 
 error:
+        //tutaj wpada
         LOG_ERROR(ret, "error setting up cow manager");
         if (open_method != 3)
                 __tracer_destroy_cow_free(dev);
@@ -976,6 +981,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
+//wchodzi tutaj
                 blk_put_queue(dev->sd_queue);
 #endif
                 dev->sd_queue = NULL;
@@ -1846,6 +1852,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
 
         // setup the cow manager
+        //tutaj error i potem error
         ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path,
                                      dev->sd_size, fallocated_space, cache_size,
                                      NULL, 1);
@@ -1884,6 +1891,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
         return 0;
 
 error:
+        //tutaj blad
         LOG_ERROR(ret, "error setting up tracer as active snapshot");
         tracer_destroy(dev);
         return ret;
