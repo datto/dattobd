@@ -423,13 +423,9 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
         int ret = 0;
 
         if (sb) {
-                LOG_DEBUG("file_is_on_bdev() if(sb)");
                 LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
                 ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
                 dattobd_drop_super(sb);
-                //jak tutaj dalem return 1 wszystko ladnie smigalo-> generalnie nazwy plikow sa te same ale adresy juz nie ( ret = ((dattobd_get_mnt(file))->mnt_sb == sb); )
-                //TEMPORARY
-                return 1;
         }
         return ret;
 }
@@ -713,6 +709,7 @@ static void __tracer_destroy_base_dev(struct snap_device *dev)
 
         if (dev->sd_base_dev) {
                 LOG_DEBUG("freeing base block device");
+                //TUTAJ
                 dattobd_blkdev_put(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;
         }

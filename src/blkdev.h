@@ -55,7 +55,8 @@ struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
 #define dattobd_get_super(bdev) get_super(bdev)
 #define dattobd_drop_super(sb) drop_super(sb)
 #else 
-#define dattobd_get_super(bdev) bdev->bd_inode->i_sb;
+struct super_block* dattobd_get_active_superblock(struct block_device*)
+#define dattobd_get_super(bdev) dattobd_get_active_superblock(bdev);
 #define dattobd_drop_super(sb)
 #endif
 #endif /* BLKDEV_H_ */

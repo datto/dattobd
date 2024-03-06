@@ -705,14 +705,10 @@ int file_truncate(struct file *filp, loff_t len)
 
         if (ret) {
                 LOG_ERROR(ret, "error performing truncation");
-                goto error;
+                return ret;
         }
 
         return 0;
-
-error:
-        LOG_ERROR(ret, "error truncating file");
-        return ret;
 }
 
 #ifdef HAVE_VFS_FALLOCATE
