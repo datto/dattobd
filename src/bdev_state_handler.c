@@ -217,7 +217,6 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
         else
                 ret = __handle_bdev_mount_writable(dir_name, bdev, idx_out);
         if (ret) {
-                // no block device found that matched an incremental
                 LOG_DEBUG("no block device found that matched an incremental %s", dir_name);
                 goto out;
         }
