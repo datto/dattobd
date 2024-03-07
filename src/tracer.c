@@ -1551,7 +1551,7 @@ int tracer_alloc_ops(struct snap_device* dev){
         memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         trops->bd_ops->submit_bio = tracing_fn;
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
-        trops->has_submit_bio=dev->sd_base_dev->bd_has_submit_bio;
+        trops->has_submit_bio=true;
 #endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
