@@ -1337,7 +1337,7 @@ static int __tracer_transition_tracing(
                         bdev->bd_disk->fops= bd_ops;
                 }
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
-        bdev->bd_has_submit_bio=dev->st_tracing_ops->has_submit_bio;
+        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
 #endif
 #endif
                 *dev_ptr = dev;
