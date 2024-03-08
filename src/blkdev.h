@@ -17,7 +17,6 @@ struct block_device;
 #elif defined HAVE_BLKDEV_PUT_2
 #define dattobd_blkdev_put(bdev) blkdev_put(bdev,NULL);
 #else
-//wchodzi tutaj
 #define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
@@ -36,13 +35,7 @@ struct block_device;
 #define dattobd_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
 #endif
 
-#if !defined HAVE_BLKDEV_GET_BY_PATH_1
-#define dattobd_blkdev_get_by_path(path, mode, holder) blkdev_get_by_path(path,mode,holder)
-#else
-#define dattobd_blkdev_get_by_path(path, mode, holder) blkdev_get_by_path(path,mode,holder,NULL)
-#endif 
-
-#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_1
+#ifndef HAVE_BLKDEV_GET_BY_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
                                         void *holder);

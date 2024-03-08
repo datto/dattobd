@@ -667,7 +667,6 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
         // verify that file is on block device
         if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
-                //tutaj wpada
                 ret = -EINVAL;
 #ifdef HAVE_BDEVNAME
                 LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
@@ -684,7 +683,6 @@ static int __tracer_setup_cow(struct snap_device *dev,
         return 0;
 
 error:
-        //tutaj wpada
         LOG_ERROR(ret, "error setting up cow manager");
         if (open_method != 3)
                 __tracer_destroy_cow_free(dev);
@@ -709,7 +707,6 @@ static void __tracer_destroy_base_dev(struct snap_device *dev)
 
         if (dev->sd_base_dev) {
                 LOG_DEBUG("freeing base block device");
-                //TUTAJ
                 dattobd_blkdev_put(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;
         }
@@ -1864,7 +1861,6 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
 
         // setup the cow manager
-        //tutaj error i potem error
         ret = __tracer_setup_cow_new(dev, dev->sd_base_dev, cow_path,
                                      dev->sd_size, fallocated_space, cache_size,
                                      NULL, 1);
@@ -1903,7 +1899,6 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
         return 0;
 
 error:
-        //tutaj blad
         LOG_ERROR(ret, "error setting up tracer as active snapshot");
         tracer_destroy(dev);
         return ret;
