@@ -1223,7 +1223,8 @@ error:
  * @new_bio_tracking_ptr: Optional function pointer to be used by the snapshot disk
  *         i/o handling, may be NULL to continue using the current function pointer.
  * @dev_ptr: Contains the output &struct snap_device when successful.
- *
+ * @start_tracing: flag which determines whether we should start tracing or end it
+ * 
  * Return:
  * * 0 - success
  * * !0 - errno indicating the error
