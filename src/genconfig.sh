@@ -27,6 +27,13 @@ SYSTEM_MAP_FILE="/lib/modules/${KERNEL_VERSION}/System.map"
 if [ ! -f "$SYSTEM_MAP_FILE" ]; then
 	# Use fallback location
 	SYSTEM_MAP_FILE="/boot/System.map-${KERNEL_VERSION}"
+	if [ -f "$SYSTEM_MAP_FILE" ]; then
+		if ! grep -q "__per_cpu_start" "$SYSTEM_MAP_FILE"; then
+			SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
+		fi
+	else
+		SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
+	fi
 fi
 
 
