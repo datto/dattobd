@@ -26,6 +26,9 @@
 #define get_zeroed_pages(flags, order)                                         \
         __get_free_pages(((flags) | __GFP_ZERO), order)
 
+
+static unsigned long dattobd_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
+
 /**
  * __cow_free_section() - Frees the memory used to track the section at
  * offset @sect_idx and marks the array entry as unused.
@@ -99,8 +102,8 @@ int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
 		int cow_file_offset = COW_BLOCK_SIZE * i;
 
-        ret = file_read(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
-                        cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
+        ret = file_read(cm->filp, cm->dev, cm->sects[sect_idx].mappings+ mapping_offset,
+                        cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE+ cow_file_offset,
                         cm->sect_size * 8);
         if (ret)
                 goto error;
@@ -133,8 +136,8 @@ int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
 		int cow_file_offset = COW_BLOCK_SIZE * i;
 
-        ret = file_write(cm->filp, cm->dev, cm->sects[sect_idx].mappings,
-                         cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
+        ret = file_write(cm->filp, cm->dev, cm->sects[sect_idx].mappings+ mapping_offset,
+                         cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE+ cow_file_offset,
                          cm->sect_size * 8);
         if (ret) {
                 LOG_ERROR(ret, "error writing cow manager section to file");
@@ -958,7 +961,7 @@ int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf)
                 goto error;
 
         // write the data
-        ret = __cow_write_data(cm, buf);
+        ret = __cow_write_data(cm, buf); //cow file max size exceeded, "error writing cow data"
         if (ret)
                 goto error;
 
@@ -1000,6 +1003,13 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
         return 0;
 }
 
+/**
+ * cow_get_file_extents- EXT and XFS tries to avoid fragmentation by prealocating more data than currently neededfro the file. We had and issue with modyfing extends during maintanance operations
+ * processed on XFS. This function checks locations of extents, accesses this memory (and protects it from being allocated) and links snap_device to this.
+ * 
+ * @dev: snap device
+ * @filp: file
+*/
 int cow_get_file_extents(struct snap_device* dev, struct file* filp)
 {
 	int ret;

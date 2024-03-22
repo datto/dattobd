@@ -1559,9 +1559,9 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev)
 {
     int i;
     struct snap_device *cur_dev;
-    struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
 
 #ifndef USE_BDOPS_SUBMIT_BIO
+    struct request_queue *q = bdev_get_queue(dev->sd_base_dev);
     if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev) != tracing_fn) return 0;
 #else
         struct block_device_operations* ops=dattobd_get_bd_ops(dev->sd_base_dev);
