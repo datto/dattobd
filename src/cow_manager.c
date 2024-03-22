@@ -826,6 +826,35 @@ error:
         return ret;
 }
 
+
+/**
+ * cow_block_has_data() - 
+ *
+ * @cm: The &struct cow_manager associated with the &struct snap_device.
+ * @pos: The section index offset within the cache.
+ *
+ * Return:
+ * * false - pos does not have data in "memory"
+ * * true - pos has data in "memory"
+ */
+bool cow_block_has_data(struct cow_manager *cm, uint64_t pos)
+{
+        uint64_t sect_idx = pos;
+        uint64_t block_mapping;
+        unsigned long sect_pos = do_div(sect_idx, cm->sect_size);
+
+        if (!cm->sects[sect_idx].mappings) {
+                return false;
+        }
+        block_mapping = cm->sects[sect_idx].mappings[sect_pos];
+        if(block_mapping) return true;
+        return false;
+
+}
+
+
+
+
 /**
  * __cow_write_mapping() - Writes the specified section to the COW file.
  *
