@@ -646,7 +646,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
                         // create and open the cow manager
                         LOG_DEBUG("creating cow manager");
-                        ret = cow_init(cow_path, SECTOR_TO_BLOCK(size),
+                        ret = cow_init(dev, cow_path, SECTOR_TO_BLOCK(size),
                                        COW_SECTION_SIZE, dev->sd_cache_size,
                                        max_file_size, uuid, seqid,
                                        &dev->sd_cow);
