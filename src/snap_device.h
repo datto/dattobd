@@ -23,6 +23,9 @@
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
 	atomic_t refs;
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bool has_submit_bio;
+#endif
 };
 
 static inline struct tracing_ops* tracing_ops_get(struct tracing_ops *trops) {

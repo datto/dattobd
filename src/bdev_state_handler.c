@@ -122,7 +122,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
                 if (test_bit(UNVERIFIED, &dev->sd_state)) {
                         // get the block device for the unverified tracer we are
                         // looking into
-                        cur_bdev = blkdev_get_by_path(dev->sd_bdev_path,
+                        cur_bdev = dattobd_blkdev_get_by_path(dev->sd_bdev_path,
                                                       FMODE_READ, NULL);
                         if (IS_ERR(cur_bdev)) {
                                 cur_bdev = NULL;
@@ -217,7 +217,6 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
         else
                 ret = __handle_bdev_mount_writable(dir_name, bdev, idx_out);
         if (ret) {
-                // no block device found that matched an incremental
                 LOG_DEBUG("no block device found that matched an incremental %s", dir_name);
                 goto out;
         }
@@ -257,7 +256,7 @@ void post_umount_check(int dormant_ret, int umount_ret, unsigned int idx,
         // reactivate
         if (umount_ret) {
                 struct block_device *bdev;
-                bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+                bdev = dattobd_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
                 if (!bdev || IS_ERR(bdev)) {
                         LOG_DEBUG("device gone, moving to error state");
                         tracer_set_fail_state(dev, -ENODEV);

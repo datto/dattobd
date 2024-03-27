@@ -423,7 +423,6 @@ static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
         int ret = 0;
 
         if (sb) {
-                LOG_DEBUG("file_is_on_bdev() if(sb)");
                 LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
                 ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
                 dattobd_drop_super(sb);
@@ -730,7 +729,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
 
         // open the base block device
         LOG_DEBUG("ENTER __tracer_setup_base_dev");
-        dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+        dev->sd_base_dev = dattobd_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;
@@ -976,7 +975,9 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
+#ifndef HAVE_BD_HAS_SUBMIT_BIO
                 blk_put_queue(dev->sd_queue);
+#endif
 #endif
                 dev->sd_queue = NULL;
         }
@@ -1222,7 +1223,8 @@ error:
  * @new_bio_tracking_ptr: Optional function pointer to be used by the snapshot disk
  *         i/o handling, may be NULL to continue using the current function pointer.
  * @dev_ptr: Contains the output &struct snap_device when successful.
- *
+ * @start_tracing: flag which determines whether we should start tracing or end it
+ * 
  * Return:
  * * 0 - success
  * * !0 - errno indicating the error
@@ -1232,13 +1234,15 @@ static int __tracer_transition_tracing(
     struct snap_device *dev,
     struct block_device *bdev,
     BIO_REQUEST_CALLBACK_FN *new_bio_tracking_ptr,
-    struct snap_device **dev_ptr)
+    struct snap_device **dev_ptr,
+    bool start_tracing)
 #else
 static int __tracer_transition_tracing(
     struct snap_device *dev,
     struct block_device *bdev,
     const struct block_device_operations *bd_ops,
-    struct snap_device **dev_ptr)
+    struct snap_device **dev_ptr,
+    bool start_tracing)
 #endif
 {
         int ret;
@@ -1304,7 +1308,7 @@ static int __tracer_transition_tracing(
 #endif
         }
         smp_wmb();
-        if(dev){
+        if(start_tracing){
                 LOG_DEBUG("starting tracing");
                 *dev_ptr = dev;
                 smp_wmb();
@@ -1317,6 +1321,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=true;
+#endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
         } else {
@@ -1332,6 +1339,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+#endif
 #endif
                 *dev_ptr = dev;
                 smp_wmb();
@@ -1519,7 +1529,6 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 	*ops = NULL;
 	*mrf = NULL;
 	return -EFAULT;
-
 }
 
 int tracer_alloc_ops(struct snap_device* dev){
@@ -1539,6 +1548,9 @@ int tracer_alloc_ops(struct snap_device* dev){
         }
         memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         trops->bd_ops->submit_bio = tracing_fn;
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        trops->has_submit_bio=dev->sd_base_dev->bd_has_submit_bio;
+#endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
 	return 0;       
@@ -1613,33 +1625,35 @@ static void __tracer_destroy_tracing(struct snap_device *dev)
 				}
 
 				wake_up_process(dev->sd_cow_thread);
-                                //TODO: Maybe some waiting mechanism will be needed
 				__tracer_destroy_cow_thread(dev);
                } 
 
 #ifndef USE_BDOPS_SUBMIT_BIO
                         __tracer_transition_tracing(
-                            NULL,
+                            dev,
                             dev->sd_base_dev,
                             dev->sd_orig_request_fn,
-                            &snap_devices[dev->sd_minor]
+                            &snap_devices[dev->sd_minor],
+                            false
                         );
 #else
                         __tracer_transition_tracing(
-                            NULL,
+                            dev,
                             dev->sd_base_dev,
                             dev->bd_ops,
-                            &snap_devices[dev->sd_minor]
+                            &snap_devices[dev->sd_minor],
+                            false
                         );
 #endif
                 }
         else
         {
                 __tracer_transition_tracing(
-                        NULL,
+                        dev,
                         dev->sd_base_dev,
                         NULL,
-                        &snap_devices[dev->sd_minor]
+                        &snap_devices[dev->sd_minor],
+                        false
                 );
         }
         smp_wmb();
@@ -1706,7 +1720,8 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                 dev,
                 dev->sd_base_dev,
                 tracing_fn,
-                &snap_devices[minor]);
+                &snap_devices[minor],
+                true);
 #else
         if(!dev->sd_tracing_ops){
                 ret=find_orig_bdops(dev->sd_base_dev, &dev->bd_ops,&dev->sd_orig_request_fn, &dev->sd_tracing_ops);
@@ -1726,7 +1741,8 @@ int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor)
                         dev,
                         dev->sd_base_dev,
                         dev->sd_tracing_ops->bd_ops,
-                        &snap_devices[minor]);
+                        &snap_devices[minor],
+                        true);
         }
 	else {
 		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
@@ -1940,7 +1956,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
 
         // stop the old cow thread. Must be done before starting the new cow
         // thread to prevent concurrent access.
-        __tracer_destroy_cow_thread(old_dev);
+        __tracer_destroy_cow_thread(old_dev); 
 
         // sanity check to ensure no errors have occurred while cleaning up the
         // old cow thread
@@ -1965,7 +1981,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
 
         // wake up new cow thread. Must happen regardless of errors syncing the
         // old cow thread in order to ensure no IO's are leaked.
-        wake_up_process(dev->sd_cow_thread);
+        wake_up_process(dev->sd_cow_thread); 
 
         // truncate the cow file
         ret = cow_truncate_to_index(dev->sd_cow);
