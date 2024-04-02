@@ -860,7 +860,8 @@ static void __tracer_copy_cow(const struct snap_device *src,
         // copy cow file extents and update the device
 	dest->sd_cow_extents = src->sd_cow_extents;
 	dest->sd_cow_ext_cnt = src->sd_cow_ext_cnt;
-
+        dest->sd_cow->dev = dest;
+        
         dest->sd_cow_inode = src->sd_cow_inode;
         dest->sd_cache_size = src->sd_cache_size;
         dest->sd_falloc_size = src->sd_falloc_size;
