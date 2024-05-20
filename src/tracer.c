@@ -646,7 +646,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
                         // create and open the cow manager
                         LOG_DEBUG("creating cow manager");
-                        ret = cow_init(cow_path, SECTOR_TO_BLOCK(size),
+                        ret = cow_init(dev, cow_path, SECTOR_TO_BLOCK(size),
                                        COW_SECTION_SIZE, dev->sd_cache_size,
                                        max_file_size, uuid, seqid,
                                        &dev->sd_cow);
@@ -730,7 +730,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
 
         // open the base block device
         LOG_DEBUG("ENTER __tracer_setup_base_dev");
-        dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+        dev->sd_base_dev = dattodb_blkdev_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;
@@ -860,8 +860,9 @@ static void __tracer_copy_cow(const struct snap_device *src,
         // copy cow file extents and update the device
 	dest->sd_cow_extents = src->sd_cow_extents;
 	dest->sd_cow_ext_cnt = src->sd_cow_ext_cnt;
-
+        dest->sd_cow->dev = dest;
         dest->sd_cow_inode = src->sd_cow_inode;
+
         dest->sd_cache_size = src->sd_cache_size;
         dest->sd_falloc_size = src->sd_falloc_size;
 }

@@ -118,4 +118,5 @@ struct block_device *dattodb_blkdev_by_path(const char *path, fmode_t mode,
 
 #else
         return _blkdev_get_by_path(path, mode, holder);
+#endif
 }
