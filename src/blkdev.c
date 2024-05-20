@@ -6,7 +6,8 @@
 
 #include "blkdev.h"
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_4
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 
 /**
  * dattobd_lookup_bdev() - Looks up the inode associated with the path, verifies
@@ -58,13 +59,8 @@ fail:
         goto out;
 }
 
-#endif
-
-#ifndef HAVE_BLKDEV_GET_BY_PATH
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-
 /**
- * blkdev_get_by_path() - Fetches the @block_device struct associated with the
+ * _blkdev_get_by_path() - Fetches the @block_device struct associated with the
  * @pathname.  This is very similar to @dattobd_lookup_bdev with minor
  * additional validation.
  *
@@ -76,7 +72,7 @@ fail:
  * On success the @block_device structure otherwise an error created via
  * ERR_PTR().
  */
-struct block_device *blkdev_get_by_path(const char *pathname, fmode_t mode,
+static struct block_device *_blkdev_get_by_path(const char *pathname, fmode_t mode,
                                         void *holder)
 {
         struct block_device *bdev;
@@ -97,3 +93,29 @@ struct block_device *blkdev_get_by_path(const char *pathname, fmode_t mode,
 }
 
 #endif
+
+/**
+ * dattodb_blkdev_by_path() - Fetches the @block_device struct associated with the
+ * @path. This function uses different methods based on available kernel functions
+ * to retrieve the block device.
+ *
+ * @path: the path name of a block special file.
+ * @mode: The mode used to open the block special file, likely just FMODE_READ.
+ * @holder: unused
+ *
+ * Return:
+ * On success the @block_device structure otherwise an error created via
+ * ERR_PTR().
+ */
+struct block_device *dattodb_blkdev_by_path(const char *path, fmode_t mode,
+                                        void *holder)
+{
+#if defined HAVE_BLKDEV_GET_BY_PATH_4
+        return blkdev_get_by_path(path, mode, holder, NULL);
+
+#elif defined HAVE_BLKDEV_GET_BY_PATH
+        return blkdev_get_by_path(path, mode, holder);
+
+#else
+        return _blkdev_get_by_path(path, mode, holder);
+}
