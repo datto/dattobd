@@ -80,11 +80,7 @@ static struct block_device *_blkdev_get_by_path(const char *pathname, fmode_t mo
                 return bdev;
 
         if ((mode & FMODE_WRITE) && bdev_read_only(bdev)) {
-#ifdef HAVE_BLKDEV_PUT_1
-                blkdev_put(bdev);
-#else
-                blkdev_put(bdev, mode);
-#endif
+                dattobd_blkdev_put(bdev);
                 return ERR_PTR(-EACCES);
         }
 
@@ -164,5 +160,28 @@ void dattobd_drop_super(struct super_block *sb)
 
 #else
         return;
+#endif
+}
+
+/**
+ * dattobd_blkdev_put() - Releases a reference to a block device.
+ * This function performs the appropriate action based on the available
+ * kernel functions to release or drop the superblock.
+ *
+ * @bd: block device structure pointer to be released.
+ *
+ * Return:
+ * void.
+ */
+void dattobd_blkdev_put(struct block_device *bd) 
+{
+#if defined HAVE_BLKDEV_PUT_1
+        return blkdev_put(bd);
+
+#elif defined HAVE_BLKDEV_PUT_2
+        return blkdev_put(bd,NULL);
+
+#else
+        return blkdev_put(bd, FMODE_READ);
 #endif
 }
