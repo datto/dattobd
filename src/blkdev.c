@@ -100,7 +100,7 @@ static struct block_device *_blkdev_get_by_path(const char *pathname, fmode_t mo
  *
  * @path: the path name of a block special file.
  * @mode: The mode used to open the block special file, likely just FMODE_READ.
- * @holder: unused
+ * @holder: unused.
  *
  * Return:
  * On success the @block_device structure otherwise an error created via
@@ -117,5 +117,52 @@ struct block_device *dattodb_blkdev_by_path(const char *path, fmode_t mode,
 
 #else
         return _blkdev_get_by_path(path, mode, holder);
+#endif
+}
+
+/**
+ * dattobd_get_super() - Scans the superblock list and finds the superblock of the 
+ * file system mounted on the @bd given. This function uses different methods 
+ * based on available kernel functions to retrieve the super block.
+ *
+ * @block_device: mounted block device structure pointer.
+ *
+ * Return:
+ * On success the @super_block structure pointer otherwise NULL.
+ */
+struct super_block *dattobd_get_super(struct block_device * bd)
+{
+#if defined HAVE_BD_SUPER
+        return (bd != NULL) ? bd->bd_super : NULL;
+
+#elif defined HAVE_GET_SUPER
+        return get_super(bdev);
+
+#else
+        struct super_block* (*get_active_superblock)(struct block_device*)= (GET_ACTIVE_SUPER_ADDR != 0) ? (struct super_block* (*)(struct block_device*))(GET_ACTIVE_SUPER_ADDR +(long long)(((void*)kfree)-(void*)KFREE_ADDR)):NULL;
+        return get_active_superblock(bd);
+#endif
+}
+
+/**
+ * dattobd_drop_super() - Releases the superblock of the file system.
+ * This function performs the appropriate action based on the available
+ * kernel functions to release or drop the superblock.
+ *
+ * @sb: super block structure pointer to be released.
+ *
+ * Return:
+ * void.
+ */
+void dattobd_drop_super(struct super_block *sb) 
+{
+#if defined HAVE_BD_SUPER
+        return;
+
+#elif defined HAVE_GET_SUPER
+        return drop_super(sb);
+
+#else
+        return;
 #endif
 }
