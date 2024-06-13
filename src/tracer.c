@@ -976,7 +976,9 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
+#ifndef HAVE_BD_HAS_SUBMIT_BIO
                 blk_put_queue(dev->sd_queue);
+#endif
 #endif
                 dev->sd_queue = NULL;
         }
@@ -1317,6 +1319,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=true;
+#endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
         } else {
@@ -1332,6 +1337,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+#endif
 #endif
                 *dev_ptr = dev;
                 smp_wmb();
@@ -1523,7 +1531,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 }
 
 int tracer_alloc_ops(struct snap_device* dev){
-        LOG_DEBUG("tracer_alloc_ops");
+        LOG_DEBUG("%s", __func__);
         struct tracing_ops* trops;
         trops = kmalloc(sizeof(struct tracing_ops), GFP_KERNEL);
 	if(!trops) {
@@ -1539,6 +1547,9 @@ int tracer_alloc_ops(struct snap_device* dev){
         }
         memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         trops->bd_ops->submit_bio = tracing_fn;
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        trops->has_submit_bio=dev->sd_base_dev->bd_has_submit_bio;
+#endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
 	return 0;       
