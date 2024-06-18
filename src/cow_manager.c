@@ -642,6 +642,7 @@ error:
  * cow_init() - Allocates a &struct cow_manager object and initializes it.
  *              Also creates the COW backing file on disk and writes a
  *              header into it.
+ * @dev:  The &struct snap_device that keeps snapshot device state.
  * @path: The path to the COW file.
  * @elements: typically the number of sectors on the block device.
  * @sect_size: The basic unit of size that the &struct cow_manager works with.
@@ -656,7 +657,7 @@ error:
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
+int cow_init(struct snap_device *dev, const char *path, uint64_t elements, unsigned long sect_size,
              unsigned long cache_size, uint64_t file_max, const uint8_t *uuid,
              uint64_t seqid, struct cow_manager **cm_out)
 {
@@ -691,6 +692,7 @@ int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
                 __cow_calculate_allowed_sects(cache_size, cm->total_sects);
         cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * 8));
         cm->curr_pos = cm->data_offset / COW_BLOCK_SIZE;
+        cm->dev = dev;
 
         if (uuid)
                 memcpy(cm->uuid, uuid, COW_UUID_SIZE);

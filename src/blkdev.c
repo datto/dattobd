@@ -166,7 +166,7 @@ void dattobd_drop_super(struct super_block *sb)
 /**
  * dattobd_blkdev_put() - Releases a reference to a block device.
  * This function performs the appropriate action based on the available
- * kernel functions to release or drop the superblock.
+ * kernel functions to release block device.
  *
  * @bd: block device structure pointer to be released.
  *
