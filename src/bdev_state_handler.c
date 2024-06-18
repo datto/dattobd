@@ -28,7 +28,7 @@ void auto_transition_active(unsigned int minor, const char *dir_name)
 {
         struct snap_device *dev = snap_devices[minor];
 
-LOG_DEBUG("ENTER %s minor: %d", __func__, minor);
+        LOG_DEBUG("ENTER %s minor: %d", __func__, minor);
         mutex_lock(&ioctl_mutex);
 
         if (test_bit(UNVERIFIED, &dev->sd_state)) {
@@ -107,8 +107,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
         struct snap_device *dev;
         struct block_device *cur_bdev;
 
-        LOG_DEBUG("ENTER __handle_bdev_mount_writable");
-
+        LOG_DEBUG("ENTER %s", __func__);
         tracer_for_each(dev, i)
         {
                 if (!dev || test_bit(ACTIVE, &dev->sd_state) ||
@@ -159,7 +158,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
         ret = -ENODEV;
 
 out:
-        LOG_DEBUG("EXIT __handle_bdev_mount_writable");
+        LOG_DEBUG("EXIT %s", __func__);
         *idx_out = i;
         return ret;
 }
@@ -194,6 +193,10 @@ int handle_bdev_mount_event(const char *dir_name, int follow_flags,
 #else
         ret = user_path_at(AT_FDCWD, dir_name, lookup_flags, &path);
 #endif //LINUX_VERSION_CODE
+        if (ret) {
+                LOG_DEBUG("error finding path");
+                goto out;
+        }
 
         LOG_DEBUG("path->dentry: %s, path->mnt->mnt_root: %s", path.dentry->d_name.name, path.mnt->mnt_root->d_name.name);
 
@@ -245,10 +248,10 @@ void post_umount_check(int dormant_ret, int umount_ret, unsigned int idx,
         struct snap_device *dev;
         struct super_block *sb;
 
-        //LOG_DEBUG("ENTER %s", __func__);
+        LOG_DEBUG("ENTER %s", __func__);
         // if we didn't do anything or failed, just return
-        if (dormant_ret){
-                //LOG_DEBUG("dormant_ret");
+        if (dormant_ret) {
+                LOG_DEBUG("EXIT %s, dormant_ret", __func__);
                 return;
         }
         dev = snap_devices[idx];

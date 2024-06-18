@@ -473,7 +473,7 @@ fi
 if [ ! -d %{_systemd_services}/reboot.target.wants/ ]; then
    mkdir -p %{_systemd_services}/reboot.target.wants
 fi   
-ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+ln -fs %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
 
 %postun -n %{libname}
 /sbin/ldconfig
@@ -517,7 +517,7 @@ rm -rf %{buildroot}
 
 
 %post 
-ln -s %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
+ln -fs %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.target.wants/umount-rootfs.service 
 
 %doc README.md doc/STRUCTURE.md
 %if "%{_vendor}" == "redhat"
