@@ -81,7 +81,7 @@ int cow_reload(const char *path, uint64_t elements, unsigned long sect_size,
                unsigned long cache_size, int index_only,
                struct cow_manager **cm_out);
 
-int cow_init(const char *path, uint64_t elements, unsigned long sect_size,
+int cow_init(struct snap_device *dev, const char *path, uint64_t elements, unsigned long sect_size,
              unsigned long cache_size, uint64_t file_max, const uint8_t *uuid,
              uint64_t seqid, struct cow_manager **cm_out);
 
