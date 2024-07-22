@@ -64,6 +64,16 @@ static int snap_release(struct gendisk *gd, fmode_t mode)
 {
         return __tracer_close(gd->private_data);
 }
+#elif defined HAVE_SNAP_RELEASE_WITH_GENDISK_ONLY
+static int snap_open(struct gendisk *gd, blk_mode_t mode)
+{
+        return __tracer_open(gd->private_data);
+}
+
+static void snap_release(struct gendisk *gd)
+{
+        __tracer_close(gd->private_data);
+}
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode)
 {

@@ -124,7 +124,7 @@ void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 }
 #endif
 
-#ifndef HAVE_BIO_BI_OPF 
+#if !defined(HAVE_BIO_BI_OPF) && defined(HAVE_ENUM_REQ_OP)
 void dattobd_set_bio_ops(struct bio *bio, req_op_t op, unsigned op_flags)
 {
        bio->bi_rw = 0;
