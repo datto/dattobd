@@ -82,6 +82,7 @@ static ssize_t dattobd_kernel_read(struct file *filp, struct snap_device* dev, v
  * dattobd_kernel_write() - This is a wrapper around kernel_write enhanced for
  * systems that don't support it.
  * @filp: A &struct file object.
+ * @dev: a snap device
  * @buf: A buffer with at least @count entries.
  * @count: The number of bytes to write to @filp.
  * @pos: Set to the offset into @filp identifying the first sequential access.
@@ -125,6 +126,7 @@ static ssize_t dattobd_kernel_write(struct file *filp,struct snap_device* dev, c
  * file_io() - Reads or writes to the supplied file.
  *
  * @cm: A pointer to the cow manager
+ * @dev: a snap device
  * @is_write: An integer encoded bool indicating a write or read operation.
  * @buf: Input/output buffer for write/read, respectively.
  * @offset: Byte offset of the first sequential access within @filp.
@@ -160,36 +162,6 @@ int file_io(struct file *filp, struct snap_device* dev, int is_write, void *buf,
 
         return 0;
 }
-
-/**
- * file_write() - Writes @len bytes of data to offset @offset within @filp from
- * @buf.
- *
- * @cm: A pointer to the cow manager object.
- * @buf: Input buffer for write.
- * @offset: Byte offset of the first sequential access within @filp.
- * @len: The number of bytes in the transfer.
- *
- * Return:
- * * 0 - success
- * * !0 - errno indicating the error
- */
-//#define file_write(filp, dev, buf, offset, len) file_io(filp, dev, 1, buf, offset, len)
-
-/**
- * file_read() - Store @len bytes of data from offset @offset within @filp into
- * @buf.
- *
- * @cm: A pointer to the cow manager object.
- * @buf: Output buffer for read.
- * @offset: Byte offset of the first sequential access within @filp.
- * @len: The number of bytes in the transfer.
- *
- * Return:
- * * 0 - success
- * * !0 - errno indicating the error
- */
-//#define file_read(filp, dev, buf, offset, len) file_io(filp, dev, 0, buf, offset, len)
 
 /**
  * file_close() - Closes the file object.
@@ -795,6 +767,7 @@ static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
  * @real_fallocate with a fallback of writing zeroes if that fails.
  *
  * @cm: A &struct cow_manager object.
+ * @dev: A snap device
  * @offset: The offset into @f indicating the start of the allocation.
  * @length: The number of byte to allocate starting at @offset.
  *
@@ -842,7 +815,6 @@ int file_allocate(struct file *filp, struct snap_device* dev,  uint64_t offset, 
         }
         file_lock(filp);
 
-out:
         if (page_buf)
                 free_page((unsigned long)page_buf);
         if (abs_path)
@@ -1005,6 +977,10 @@ void dattobd_inode_unlock(struct inode *inode)
 struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
+/**
+ * dattobd_vm_area_allocate- alocates virtual memory
+ * @mm: memory address space data
+*/
 struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 {
         struct vm_area_struct *vma;
@@ -1026,11 +1002,19 @@ struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 	return vma;
 }
 
+/**
+ * dattobd_vm_area_free- frees vm cache
+ * @mm: memory address space data
+*/
 void dattobd_vm_area_free(struct vm_area_struct *vma)
 {
         kmem_cache_free(*vm_area_cache, vma);
 }
 
+/**
+ * dattobd_mm_lock- frees vm cache
+ * @mm: memory address space data
+*/
 void dattobd_mm_lock(struct mm_struct* mm)
 {
 #ifdef HAVE_MMAP_WRITE_LOCK
@@ -1071,6 +1055,14 @@ void file_switch_lock(struct file* filp, bool lock, bool mark_dirty)
         iput(inode);
 }
 
+/**
+ * file_write_block- writes block to the memory
+ * 
+ * @dev: snap device
+ * @block: block we want to save
+ * @offset: current file offset
+ * @len: block length
+*/
 int file_write_block(struct snap_device* dev, const void* block, size_t offset, size_t len)
 {
         int ret;
@@ -1111,7 +1103,6 @@ write_bio:
 
         dattobd_bio_set_dev(new_bio, bdev);
         dattobd_set_bio_ops(new_bio, REQ_OP_READ, 0);
-        //from bio_helper.h
         bio_sector(new_bio) = start_sect;
 	bio_idx(new_bio) = 0;
 
@@ -1172,6 +1163,14 @@ out:
 	return ret;
 }
 
+/**
+ * file_read_block
+ * 
+ * @dev: snap device
+ * @block: block we want to save
+ * @offset: current file offset
+ * @len: length
+*/
 int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t len)
 {
         int ret;
@@ -1290,6 +1289,12 @@ out:
 	return ret;
 }
 
+/**
+ * sector_by_offset- get the specified sector
+ * 
+ * @dev: snap device
+ * @offset:
+*/
 sector_t sector_by_offset(struct snap_device*dev, size_t offset)
 {
         unsigned int i;
