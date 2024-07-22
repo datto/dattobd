@@ -164,6 +164,32 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
 }
 
 /**
+ * bio_is_first_write() - 
+ *
+ * @dev: The &struct snap_device that keeps device state.
+ * @bio: The &struct bio which describes the I/O.
+ *
+ * Return:
+ * * 0 - is not first write
+ * * 1 - is first write
+ */
+static bool bio_is_first_write(struct snap_device *dev, struct bio *bio)
+{
+        sector_t sector_start = bio_sector(bio) - dev->sd_sect_off;
+        sector_t sector_end = sector_start + (bio_size(bio) / SECTOR_SIZE);
+        sector_t block_start = SECTOR_TO_BLOCK(sector_start);
+        sector_t block_end = SECTOR_TO_BLOCK(sector_end);
+
+        for(; block_start <= block_end; block_start++){
+                //if any block in the bio has no data, then it is a first write
+                if (!cow_block_has_data(dev->sd_cow, block_start)) return true;
+        }
+        return false; 
+
+}
+
+
+/**
  * snap_trace_bio() - Traces a bio when snapshotting.  For bio reads there is
  * nothing to do and the request is passed to the original driver.  For writes
  * the original data must be read and in the event that the original bio
@@ -195,6 +221,20 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                 return 0;
 #endif
         }
+
+        if(dev->sd_cow && dev->sd_cow->sects){
+                // if bio is not first write just call original mrf, we dont need to do make read clone
+                if (!bio_is_first_write(dev, bio)){
+#ifdef HAVE_NONVOID_SUBMIT_BIO_1
+                        return SUBMIT_BIO_REAL(dev, bio);
+#else
+                        SUBMIT_BIO_REAL(dev, bio);
+                        return 0;
+#endif
+                }
+               
+        }
+
 
         // the cow manager works in 4096 byte blocks, so read clones must also
         // be 4096 byte aligned

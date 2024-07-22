@@ -261,7 +261,7 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 
                 // find the start and end block
                 start_block = end_block;
-                end_block = start_block + bvec->bv_len / COW_BLOCK_SIZE;
+                end_block = start_block + DIV_ROUND_UP(bvec->bv_len, COW_BLOCK_SIZE);
 
                 // map the page into kernel space
                 data = kmap(bvec->bv_page);
