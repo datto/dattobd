@@ -646,7 +646,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
                         // create and open the cow manager
                         LOG_DEBUG("creating cow manager");
-                        ret = cow_init(cow_path, SECTOR_TO_BLOCK(size),
+                        ret = cow_init(dev, cow_path, SECTOR_TO_BLOCK(size),
                                        COW_SECTION_SIZE, dev->sd_cache_size,
                                        max_file_size, uuid, seqid,
                                        &dev->sd_cow);
@@ -730,7 +730,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev,
 
         // open the base block device
         LOG_DEBUG("ENTER __tracer_setup_base_dev");
-        dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+        dev->sd_base_dev = dattodb_blkdev_by_path(bdev_path, FMODE_READ, NULL);
         if (IS_ERR(dev->sd_base_dev)) {
                 ret = PTR_ERR(dev->sd_base_dev);
                 dev->sd_base_dev = NULL;
@@ -858,10 +858,11 @@ static void __tracer_copy_cow(const struct snap_device *src,
 {
         dest->sd_cow = src->sd_cow;
         // copy cow file extents and update the device
-	dest->sd_cow_extents = src->sd_cow_extents;
-	dest->sd_cow_ext_cnt = src->sd_cow_ext_cnt;
-
+        dest->sd_cow_extents = src->sd_cow_extents;
+        dest->sd_cow_ext_cnt = src->sd_cow_ext_cnt;
         dest->sd_cow_inode = src->sd_cow_inode;
+        dest->sd_cow->dev = dest;
+
         dest->sd_cache_size = src->sd_cache_size;
         dest->sd_falloc_size = src->sd_falloc_size;
 }
@@ -976,7 +977,9 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
+#ifndef HAVE_BD_HAS_SUBMIT_BIO
                 blk_put_queue(dev->sd_queue);
+#endif
 #endif
                 dev->sd_queue = NULL;
         }
@@ -1317,6 +1320,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=true;
+#endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
         } else {
@@ -1332,6 +1338,9 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+#endif
 #endif
                 *dev_ptr = dev;
                 smp_wmb();
@@ -1523,7 +1532,7 @@ int find_orig_bdops(struct block_device *bdev, struct block_device_operations **
 }
 
 int tracer_alloc_ops(struct snap_device* dev){
-        LOG_DEBUG("tracer_alloc_ops");
+        LOG_DEBUG("%s", __func__);
         struct tracing_ops* trops;
         trops = kmalloc(sizeof(struct tracing_ops), GFP_KERNEL);
 	if(!trops) {
@@ -1539,6 +1548,9 @@ int tracer_alloc_ops(struct snap_device* dev){
         }
         memcpy(trops->bd_ops, dattobd_get_bd_ops(dev->sd_base_dev),sizeof(struct block_device_operations));
         trops->bd_ops->submit_bio = tracing_fn;
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+        trops->has_submit_bio=dev->sd_base_dev->bd_has_submit_bio;
+#endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
 	return 0;       
