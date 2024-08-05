@@ -1345,7 +1345,7 @@ static int __tracer_transition_tracing(
         bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
 #endif
 #endif
-                *dev_ptr = dev;
+                *dev_ptr = NULL;
                 smp_wmb();
         }
         if(origsb){
