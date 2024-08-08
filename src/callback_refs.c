@@ -9,7 +9,7 @@
 #ifndef USE_BDOPS_SUBMIT_BIO
 
 struct mrf_tracking_data {
-        const struct block_device *mtd_disk;
+        const struct gendisk *mtd_disk;
         BIO_REQUEST_CALLBACK_FN *mtd_orig;
         atomic_t mtd_count;
         struct hlist_node node;
@@ -22,7 +22,7 @@ void mrf_tracking_init(void) {
         hash_init(mrf_tracking_map);
 }
 
-static struct mrf_tracking_data* get_a_node(const struct block_device *disk)
+static struct mrf_tracking_data* get_a_node(const struct gendisk *disk)
 {
         unsigned int bkt = 0;
         struct mrf_tracking_data *cur = NULL;
@@ -34,7 +34,7 @@ static struct mrf_tracking_data* get_a_node(const struct block_device *disk)
         return NULL;
 }
 
-int mrf_get(const struct block_device *disk, BIO_REQUEST_CALLBACK_FN *fn) 
+int mrf_get(const struct gendisk *disk, BIO_REQUEST_CALLBACK_FN *fn) 
 {
         struct mrf_tracking_data* mtd = get_a_node(disk);
         if (!mtd) {
@@ -53,7 +53,7 @@ int mrf_get(const struct block_device *disk, BIO_REQUEST_CALLBACK_FN *fn)
         return 0;
 }
 
-const BIO_REQUEST_CALLBACK_FN* mrf_put(struct block_device *disk)
+const BIO_REQUEST_CALLBACK_FN* mrf_put(struct gendisk *disk)
 {
         BIO_REQUEST_CALLBACK_FN *fn = NULL;
         struct mrf_tracking_data *mtd = get_a_node(disk);
@@ -69,7 +69,7 @@ const BIO_REQUEST_CALLBACK_FN* mrf_put(struct block_device *disk)
         }
         
         // return the current mrf to make swap logic easier
-        return (const BIO_REQUEST_CALLBACK_FN*) GET_BIO_REQUEST_TRACKING_PTR(disk);
+        return (const BIO_REQUEST_CALLBACK_FN*) GET_BIO_REQUEST_TRACKING_PTR_GD(disk);
 }
 
 #endif

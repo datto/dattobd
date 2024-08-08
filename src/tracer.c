@@ -1332,7 +1332,7 @@ static int __tracer_transition_tracing(
                 LOG_DEBUG("ending tracing");
                 atomic_dec(&(*dev_ptr)->sd_active);
 #ifndef USE_BDOPS_SUBMIT_BIO
-                new_bio_tracking_ptr = mrf_put(bdev);
+                new_bio_tracking_ptr = mrf_put(bdev->bd_disk);
                 if (new_bio_tracking_ptr){
                         bdev->bd_disk->queue->make_request_fn =
                                 new_bio_tracking_ptr;
@@ -1879,7 +1879,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 
 #ifndef USE_BDOPS_SUBMIT_BIO
         // retain an association between the original mrf and the block device
-        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        ret = mrf_get(dev->sd_base_dev->bd_disk, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
         if (ret)
                 goto error;
 #endif
@@ -2242,7 +2242,7 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
 
 #ifndef USE_BDOPS_SUBMIT_BIO
         // retain an association between the original mrf and the block device
-        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        ret = mrf_get(dev->sd_base_dev->bd_disk, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
         if (ret)
                 goto error;
 #endif
@@ -2338,7 +2338,7 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
 
 #ifndef USE_BDOPS_SUBMIT_BIO
         // retain an association between the original mrf and the block device
-        ret = mrf_get(dev->sd_base_dev, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
+        ret = mrf_get(dev->sd_base_dev->bd_disk, GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev));
         if (ret)
                 goto error;
 #endif
