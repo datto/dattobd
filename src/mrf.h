@@ -52,13 +52,13 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio);
 #ifdef USE_BDOPS_SUBMIT_BIO
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio);
 MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio);
-make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev);
+make_request_fn* dattobd_get_gd_mrf(struct gendisk *gd);
 struct block_device_operations* dattobd_get_bd_ops(struct block_device *bdev);
 void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf);
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio);
 int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q, struct bio *bio);
 #else
-make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev);
+make_request_fn* dattobd_get_gd_mrf(struct gendisk *gd);
 
 
 /**
@@ -77,4 +77,7 @@ make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev);
  */
 int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio);
 #endif
+
+make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev);
+
 #endif /* MRF_H_ */
