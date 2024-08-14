@@ -1420,10 +1420,6 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
                                 goto out;
                         }
                 } 
-#ifndef USE_BDOPS_SUBMIT_BIO
-        ret = SUBMIT_BIO_REAL(dev, bio);
-        goto out;
-#endif
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
@@ -1440,6 +1436,13 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         else{
                 submit_bio_noacct( bio);
         }
+#else
+        tracer_for_each(dev, i){
+		if(!tracer_is_bio_for_dev_only_queue(dev, bio)) continue;
+                ret = SUBMIT_BIO_REAL(dev, bio);
+                goto out;
+        }
+	LOG_WARN("caught bio without original mrf to pass!");
 #endif
 
 out:

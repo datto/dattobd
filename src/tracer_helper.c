@@ -9,6 +9,7 @@
 #include "bio_helper.h"
 #include "includes.h"
 #include "snap_device.h"
+#include "logging.h"
 
 
 int tracer_read_fail_state(const struct snap_device *dev)
@@ -26,6 +27,52 @@ void tracer_set_fail_state(struct snap_device *dev, int error)
 }
 
 bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
+{
+        int active = 0;
+        sector_t bio_sector_start = 0;
+        struct hd_struct* hd = NULL;
+        if (!dev) {
+                return false;
+        }
+        
+        bio_sector_start = bio_sector(bio);
+
+        smp_mb();
+        active = atomic_read(&dev->sd_active);
+
+        if(unlikely(test_bit(UNVERIFIED, &dev->sd_state)) || unlikely(!active))
+                return false;
+
+        if(unlikely(!tracer_queue_matches_bio(dev, bio)))
+                return false;
+
+#if defined HAVE_BIO_BI_BDEV
+        if(unlikely(bi->bdev) == NULL)
+                return false;
+        bio_sector_start += get_start_sect(bio->bi_bdev);
+#elif defined HAVE_BIO_BI_PARTNO
+        if(unlikely(bio->bi_disk == NULL))
+                return false;
+        hd = disk_get_part(bio->bi_disk, bio->bi_partno);
+        if(unlikely(hd == NULL))
+                return false;
+        bio_sector_start += hd->start_sect;
+        disk_put_part(hd);
+#else
+        #error struct bio has neither bi_bdev nor bi_partno.
+#endif
+
+        if(likely(bio_sector_start >= dev->sd_sect_off && bio_sector_start + bio_sectors(bio) <= dev->sd_sect_off + dev->sd_size))
+                return true;
+        
+        if(likely(bio_sector_start >= dev->sd_sect_off + dev->sd_size || bio_sector_start + bio_sectors(bio) <= dev->sd_sect_off))
+                return false;
+        
+        LOG_WARN("bio and snap_device have intersecting sector range! this may cause the corruption! bio: start=%llu size=%u; snap_device: start=%llu size=%llu", bio_sector_start, bio_sectors(bio), dev->sd_sect_off, dev->sd_size);
+        return false;
+}
+
+bool tracer_is_bio_for_dev_only_queue(struct snap_device *dev, struct bio *bio)
 {
         int active = 0;
         if (!dev) {

@@ -48,6 +48,19 @@
 bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio);
 
 /**
+ * tracer_is_bio_for_dev_only_queue() - Check if bio is intended for given snap_device.
+ *
+ * returns true if bio's queue matches the devices' queue
+ *
+ * @dev: The snap_device to check the bio against.
+ * @bio: The bio to check the snap device against.
+ *
+ * Return: True if bio is for devs queue originally. 
+ *         False otherwise.
+ */
+bool tracer_is_bio_for_dev_only_queue(struct snap_device *dev, struct bio *bio);
+
+/**
  * tracer_should_trace_bio() - Check if given bio should be traced.
  *
  * Return: Returns true if dev is not null
