@@ -5,6 +5,7 @@
  */
 
 #include "blkdev.h"
+#include "logging.h"
 
 #if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_4
 
@@ -187,7 +188,7 @@ void dattobd_blkdev_put(struct block_device *bd)
 }
 
 /**
- * dattobd_get_start_sect_by_gendisk() - Get starting sector of partition according to gendisk and partition number. 
+ * dattobd_get_start_sect_by_gendisk_for_bio() - Get starting sector of partition according to gendisk and partition number. 
  * 
  * @gd: gendisk
  * @partno: partition number
@@ -196,7 +197,7 @@ void dattobd_blkdev_put(struct block_device *bd)
  * Result:
  * 0 on success, error otherwise
  */
-int dattobd_get_start_sect_by_gendisk(struct gendisk* gd, u8 partno, sector_t* result){
+int dattobd_get_start_sect_by_gendisk_for_bio(struct gendisk* gd, u8 partno, sector_t* result){
 #if defined HAVE_BDGET_DISK
         struct block_device* bd = bdget_disk(gd, partno);
         if(!bd)
@@ -213,6 +214,10 @@ int dattobd_get_start_sect_by_gendisk(struct gendisk* gd, u8 partno, sector_t* r
 #elif defined HAVE_GENDISK_PART
         *result = gd->part[partno]->start_sect;
         return 0;
+#elif defined HAVE_BIO_BI_BDEV
+        // Unreachable
+        LOG_ERROR(-1, "Unreachable code.");
+        return -1;
 #else
         #error Could not determine starting sector of partition by gendisk and partition number
 #endif

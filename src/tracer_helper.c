@@ -54,7 +54,7 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
         if(unlikely(bio->bi_disk == NULL))
                 return false;
         sector_t offset;
-        if(dattobd_get_start_sect_by_gendisk(bio->bi_disk, bio->bi_partno, &offset)){
+        if(dattobd_get_start_sect_by_gendisk_for_bio(bio->bi_disk, bio->bi_partno, &offset)){
                 return false;
         }
         bio_sector_start += offset;
