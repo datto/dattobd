@@ -31,7 +31,6 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 {
         int active = 0;
         sector_t bio_sector_start = 0;
-        struct hd_struct* hd = NULL;
         if (!dev) {
                 return false;
         }
