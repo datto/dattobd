@@ -197,18 +197,18 @@ void dattobd_blkdev_put(struct block_device *bd)
  * 0 on success, error otherwise
  */
 int dattobd_get_start_sect_by_gendisk(struct gendisk* gd, u8 partno, sector_t* result){
-#if defined HAVE_DISK_GET_PART
+#if defined HAVE_BDGET_DISK
+        struct block_device* bd = bdget_disk(gd, partno);
+        if(!bd)
+                return -1;
+        *result = get_start_sect(bd);
+        return 0;
+#elif defined HAVE_DISK_GET_PART
         struct hd_struct* hd = disk_get_part(gd, partno);
         if(!hd)
                 return -1;
         *result = hd->start_sect;
         disk_put_part(hd);
-        return 0;
-#elif defined HAVE_BDGET_DISK
-        struct block_device* bd = bdget_disk(gd, partno);
-        if(!bd)
-                return -1;
-        *result = get_start_sect(bd);
         return 0;
 #elif defined HAVE_GENDISK_PART
         *result = gd->part[partno]->start_sect;
