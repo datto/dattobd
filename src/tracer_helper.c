@@ -47,7 +47,7 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
                 return false;
 
 #if defined HAVE_BIO_BI_BDEV
-        if(unlikely(bi->bdev) == NULL)
+        if(unlikely(bi->bdev == NULL))
                 return false;
         bio_sector_start += get_start_sect(bio->bi_bdev);
 #elif defined HAVE_BIO_BI_PARTNO
