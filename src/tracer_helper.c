@@ -53,11 +53,11 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 #elif defined HAVE_BIO_BI_PARTNO
         if(unlikely(bio->bi_disk == NULL))
                 return false;
-        hd = disk_get_part(bio->bi_disk, bio->bi_partno);
-        if(unlikely(hd == NULL))
+        sector_t offset;
+        if(dattobd_get_start_sect_by_gendisk(bio->bi_disk, bio->bi_partno, &offset)){
                 return false;
-        bio_sector_start += hd->start_sect;
-        disk_put_part(hd);
+        }
+        bio_sector_start += offset;
 #else
         #error struct bio has neither bi_bdev nor bi_partno.
 #endif

@@ -36,4 +36,5 @@ void dattobd_drop_super(struct super_block *sb);
 
 void dattobd_blkdev_put(struct block_device *bd);
 
+int dattobd_get_start_sect_by_gendisk(struct gendisk* gd, u8 partno, sector_t* result);
 #endif /* BLKDEV_H_ */
