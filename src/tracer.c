@@ -1396,7 +1396,7 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         int i, ret = 0;
         struct snap_device *dev = NULL;
         MAYBE_UNUSED(ret);
-        make_request_fn* orig_fn;
+        make_request_fn* orig_fn = NULL;
 
         smp_rmb();
         tracer_for_each(dev, i)
@@ -1423,6 +1423,14 @@ static MRF_RETURN_TYPE tracing_fn(struct request_queue *q, struct bio *bio)
         } // tracer_for_each(dev, i)
 
 #ifdef USE_BDOPS_SUBMIT_BIO
+        if(unlikely(orig_fn == NULL)){
+                tracer_for_each(dev, i){
+                        if(!tracer_is_bio_for_dev_only_queue(dev, bio)) continue;
+                        orig_fn=dev->sd_orig_request_fn;
+                        if(orig_fn != NULL)
+                                break;
+                }
+        }
         if(orig_fn){
                 orig_fn(bio);
         }
