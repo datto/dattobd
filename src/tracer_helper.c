@@ -62,13 +62,9 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
         #error struct bio has neither bi_bdev nor bi_partno.
 #endif
 
-        if(likely(bio_sector_start >= dev->sd_sect_off && bio_sector_start + bio_sectors(bio) <= dev->sd_sect_off + dev->sd_size))
+        if(likely(bio_sector_start >= dev->sd_sect_off && bio_sector_start < dev->sd_sect_off + dev->sd_size))
                 return true;
         
-        if(likely(bio_sector_start >= dev->sd_sect_off + dev->sd_size || bio_sector_start + bio_sectors(bio) <= dev->sd_sect_off))
-                return false;
-        
-        LOG_WARN("bio and snap_device have intersecting sector range! this may cause the corruption! bio: start=%llu size=%u; snap_device: start=%llu size=%llu", bio_sector_start, bio_sectors(bio), dev->sd_sect_off, dev->sd_size);
         return false;
 }
 
