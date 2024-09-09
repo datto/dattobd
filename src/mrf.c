@@ -109,8 +109,8 @@ int dattobd_call_mrf(make_request_fn *fn, struct request_queue *q,
         return 0;
 }
 
-make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev){
-	return bdev->bd_disk->fops->submit_bio;
+make_request_fn* dattobd_get_gd_mrf(struct gendisk *gd){
+	return gd->fops->submit_bio;
 }
 
 struct block_device_operations* dattobd_get_bd_ops(struct block_device *bdev){
@@ -126,8 +126,12 @@ int dattobd_call_mrf_real(struct snap_device *dev, struct bio *bio)
         bio);
 }
 
-make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev)
+make_request_fn* dattobd_get_gd_mrf(struct gendisk *gd)
 {
-    return bdev->bd_disk->queue->make_request_fn;
+    return gd->queue->make_request_fn;
 }
 #endif
+
+make_request_fn* dattobd_get_bd_mrf(struct block_device *bdev){
+    return dattobd_get_gd_mrf(bdev->bd_disk);
+}

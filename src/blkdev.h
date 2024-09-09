@@ -11,13 +11,6 @@
 
 struct block_device;
 
-#ifdef HAVE_BLKDEV_PUT_1
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-#define dattobd_blkdev_put(bdev) blkdev_put(bdev);
-#else
-#define dattobd_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
-#endif
-
 #ifndef bdev_whole
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
 #define bdev_whole(bdev) ((bdev)->bd_contains)
@@ -33,18 +26,15 @@ struct block_device;
 #define dattobd_bdev_size(bdev) part_nr_sects_read((bdev)->bd_part)
 #endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-struct block_device *blkdev_get_by_path(const char *path, fmode_t mode,
+
+struct block_device *dattodb_blkdev_by_path(const char *path, fmode_t mode,
                                         void *holder);
-#endif
 
-#ifdef HAVE_BD_SUPER
-#define dattobd_get_super(bdev) (bdev)->bd_super
-#define dattobd_drop_super(sb)
-#else
-#define dattobd_get_super(bdev) get_super(bdev)
-#define dattobd_drop_super(sb) drop_super(sb)
-#endif
+struct super_block *dattobd_get_super(struct block_device * bd);
 
+void dattobd_drop_super(struct super_block *sb);
+
+void dattobd_blkdev_put(struct block_device *bd);
+
+int dattobd_get_start_sect_by_gendisk_for_bio(struct gendisk* gd, u8 partno, sector_t* result);
 #endif /* BLKDEV_H_ */

@@ -24,5 +24,6 @@
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
 #include <linux/fiemap.h>
+#include <linux/types.h>
 
 #endif

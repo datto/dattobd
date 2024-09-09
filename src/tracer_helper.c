@@ -9,6 +9,8 @@
 #include "bio_helper.h"
 #include "includes.h"
 #include "snap_device.h"
+#include "logging.h"
+#include "blkdev.h"
 
 
 int tracer_read_fail_state(const struct snap_device *dev)
@@ -26,6 +28,45 @@ void tracer_set_fail_state(struct snap_device *dev, int error)
 }
 
 bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
+{
+        int active = 0;
+        sector_t bio_sector_start = 0;
+        if (!dev) {
+                return false;
+        }
+        
+        bio_sector_start = bio_sector(bio);
+
+        smp_mb();
+        active = atomic_read(&dev->sd_active);
+
+        if(unlikely(test_bit(UNVERIFIED, &dev->sd_state)) || unlikely(!active))
+                return false;
+
+        if(unlikely(!tracer_queue_matches_bio(dev, bio)))
+                return false;
+
+#if defined HAVE_BIO_BI_BDEV
+        // assuming that bio was already partitioned by kernel.
+#elif defined HAVE_BIO_BI_PARTNO
+        if(unlikely(bio->bi_disk == NULL))
+                return false;
+        sector_t offset;
+        if(dattobd_get_start_sect_by_gendisk_for_bio(bio->bi_disk, bio->bi_partno, &offset)){
+                return false;
+        }
+        bio_sector_start += offset;
+#else
+        #error struct bio has neither bi_bdev nor bi_partno.
+#endif
+
+        if(likely(bio_sector_start >= dev->sd_sect_off && bio_sector_start < dev->sd_sect_off + dev->sd_size))
+                return true;
+        
+        return false;
+}
+
+bool tracer_is_bio_for_dev_only_queue(struct snap_device *dev, struct bio *bio)
 {
         int active = 0;
         if (!dev) {

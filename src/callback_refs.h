@@ -28,7 +28,7 @@ void mrf_tracking_init(void);
  *
  * Return: 0 on success. Non-zero otherwise.
  */
-int mrf_get(const struct block_device* disk, BIO_REQUEST_CALLBACK_FN* fn);
+int mrf_get(const struct gendisk* disk, BIO_REQUEST_CALLBACK_FN* fn);
 
 /**
  * mrf_put() - Decrements the reference count and returns mrf
@@ -37,7 +37,7 @@ int mrf_get(const struct block_device* disk, BIO_REQUEST_CALLBACK_FN* fn);
  * 
  * Return: Returns the mrf for the block device or NULL on error.
  */
-const BIO_REQUEST_CALLBACK_FN* mrf_put(struct block_device* disk);
+const BIO_REQUEST_CALLBACK_FN* mrf_put(struct gendisk* disk);
 
 #endif // USE_BDOPS_SUBMIT_BIO
 #endif // CALLBACK_REFS_H_
