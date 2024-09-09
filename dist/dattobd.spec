@@ -611,6 +611,13 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+* Mon Sep 09 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.8
+- Fixed compile errors on newer kernels (RPMs Kernels 5.14.0-427.16+)
+- Fixed kernel panic on module unload on systems based on kernels of version 5.0+
+- Fixed kernel panic on module unload on RHEL8-based systems
+- Fixed kernel oops on module unload on Ubuntu 20.04 LTS
+- Fixed problems related to tracking BIOs on systems with multiple block devices on the same general disk 
+
 * Fri Feb 09 2024 Natalia Zelazna <natalia.zelazna@datto.com> - 0.11.7
 - Implement tracking bios in dormant state
 
