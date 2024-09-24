@@ -611,6 +611,9 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+* Tue Sep 24 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.8.1
+- Fixed panic on mount of snapshot device on RHEL 8.10 and systems with the same kernel
+
 * Mon Sep 09 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.8
 - Fixed compile errors on newer kernels (RPMs Kernels 5.14.0-427.16+)
 - Fixed kernel panic on module unload on systems based on kernels of version 5.0+
