@@ -252,7 +252,7 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
         // to be block aligned)
         const unsigned long long number_of_blocks=bio_size(bio);
         unsigned long long saved_blocks=0;
-
+        
 #ifdef HAVE_BVEC_ITER_ALL
 		bio_for_each_segment_all(bvec, bio, iter) {
 #else
