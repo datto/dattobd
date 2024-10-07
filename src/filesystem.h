@@ -22,6 +22,11 @@
 #define file_unlock(filp) file_switch_lock(filp, false, false)
 #define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, true)
 
+// INODE Attribute Locking is based on the S_IMMUTABLE flag
+#define inode_attr_is_locked(inode) ( (inode->i_flags) & S_IMMUTABLE )
+#define inode_attr_lock(inode) do{ inode->i_flags |= S_IMMUTABLE; } while(0)
+#define inode_attr_unlock(inode) do{ inode->i_flags &= ~S_IMMUTABLE; } while(0)
+
 #ifndef HAVE_STRUCT_PATH
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 #define dattobd_get_dentry(f) (f)->f_dentry

@@ -656,6 +656,7 @@ static int dattobd_do_truncate(struct dentry *dentry, loff_t length,
                 newattrs.ia_valid |= ret | ATTR_FORCE;
 
         dattobd_inode_lock(dentry->d_inode);
+        inode_attr_unlock(dentry->d_inode);
 #ifdef HAVE_NOTIFY_CHANGE_2
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
         ret = notify_change(dentry, &newattrs);
@@ -667,6 +668,7 @@ static int dattobd_do_truncate(struct dentry *dentry, loff_t length,
 #else
         ret = notify_change(dentry, &newattrs, NULL);
 #endif
+        inode_attr_lock(dentry->d_inode);
         dattobd_inode_unlock(dentry->d_inode);
 
         return ret;
@@ -885,6 +887,10 @@ int __file_unlink(struct file *filp, int close, int force)
         struct dentry *file_dentry = dattobd_get_dentry(filp);
         struct vfsmount *mnt = dattobd_get_mnt(filp);
 
+        if(file_dentry->d_inode && inode_attr_is_locked(file_dentry->d_inode)){
+                inode_attr_unlock(file_dentry->d_inode);
+        }
+
         if (d_unlinked(file_dentry)) {
                 if (close)
                         file_close(filp);
@@ -1063,9 +1069,9 @@ void file_switch_lock(struct file* filp, bool lock, bool mark_dirty)
         igrab(inode);
 
         if(lock){
-                inode->i_flags |= S_IMMUTABLE;
+                inode_attr_lock(inode);
         }else{
-                inode->i_flags &= ~S_IMMUTABLE;
+                inode_attr_unlock(inode);
         }
 
         if(mark_dirty){
