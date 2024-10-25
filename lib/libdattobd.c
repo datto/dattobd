@@ -169,3 +169,19 @@ int dattobd_expand_cow_file(unsigned int minor, unsigned long size){
 	close(fd);
 	return ret;
 }
+
+int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, long steps){
+	int fd, ret;
+	struct reconfigure_auto_expand_params params;
+	params.minor=minor;
+	params.step_size=step_size;
+	params.steps=steps;
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_RECONFIGURE_AUTO_EXPAND, &params);
+
+	close(fd);
+	return ret;
+}

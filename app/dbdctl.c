@@ -24,6 +24,7 @@ static void print_help(int status){
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
 	printf("\tdbdctl expand-cow-file <minor> <size>\n");
+	printf("\tdbdctl reconfigure-auto-expand [-n <steps limit>] <step size> <minor>\n");
 	printf("\tdbdctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
@@ -59,6 +60,37 @@ error:
 	return -1;
 }
 
+static int parse_l(const char *str, long *out){
+	long long tmp;
+	int first;
+	const char *c = str;
+
+	//check that string is an integer number and has a length
+	first = 1;
+	do{
+		if(!isdigit(*c) && (!first || *c != '-')) goto error;
+		first = 0;
+		c++;
+	}while(*c);
+
+	//convert to long long
+	tmp = strtoll(str, NULL, 0);
+	if(errno) goto error;
+
+	//check boundaries
+	if(tmp < (long long)LONG_MIN || tmp > (long long)LONG_MAX){
+		errno = ERANGE;
+		goto error;
+	}
+
+	*out = (long)tmp;
+	return 0;
+
+error:
+	*out = 0;
+	return -1;
+}
+
 static int parse_ui(const char *str, unsigned int *out){
 	long tmp;
 	const char *c = str;
@@ -80,6 +112,33 @@ static int parse_ui(const char *str, unsigned int *out){
 	}
 
 	*out = (unsigned int)tmp;
+	return 0;
+
+error:
+	*out = 0;
+	return -1;
+}
+
+static int parse_ui64(const char *str, uint64_t *out){
+	if(sizeof(unsigned long long) < sizeof(uint64_t)){
+		errno = EINVAL;
+		goto error;
+	}
+	
+	unsigned long long tmp;
+	const char *c = str;
+
+	//check that string is an integer number and has a length
+	do{
+		if(!isdigit(*c)) goto error;
+		c++;
+	}while(*c);
+
+	//convert to unsigned long long
+	tmp = strtoull(str, NULL, 0);
+	if(errno) goto error;
+
+	*out = (uint64_t)tmp;
 	return 0;
 
 error:
@@ -340,6 +399,42 @@ error:
 	return 0;
 }
 
+static int handle_reconfigure_auto_expand(int argc, char **argv){
+	int ret, c;
+	unsigned int minor;
+	uint64_t step_size;
+	long steps = -1;
+
+	//get cache size and fallocated space params, if given
+	while((c = getopt(argc, argv, "n:")) != -1){
+		switch(c){
+		case 'n':
+			ret = parse_l(optarg, &steps);
+			if(ret) goto error;
+			break;
+		default:
+			errno = EINVAL;
+			goto error;
+		}
+	}
+
+	if(argc - optind != 2){
+		errno = EINVAL;
+		goto error;
+	}
+
+	ret = parse_ui64(argv[optind], &step_size);
+	ret = parse_ui(argv[optind+1], &minor);
+	if(ret) goto error;
+
+	return dattobd_reconfigure_auto_expand(minor, step_size, steps);
+
+error:
+	perror("error interpreting reconfigure auto expand parameters");
+	print_help(-1);
+	return 0;
+}
+
 int main(int argc, char **argv){
 	int ret = 0;
 
@@ -361,6 +456,7 @@ int main(int argc, char **argv){
 	else if(!strcmp(argv[1], "transition-to-snapshot")) ret = handle_transition_snap(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "reconfigure")) ret = handle_reconfigure(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "expand-cow-file")) ret = handle_expand_cow_file(argc - 1, argv + 1);
+	else if(!strcmp(argv[1], "reconfigure-auto-expand")) ret = handle_reconfigure_auto_expand(argc - 1, argv + 1);
 	else if(!strcmp(argv[1], "help")) print_help(0);
 	else print_help(-1);
 

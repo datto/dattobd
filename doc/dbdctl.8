@@ -80,6 +80,12 @@ Allows you to reconfigure various parameters of a snapshot while it is online\. 
 .P
 Expands cow file in snapshot mode by size (given in bytes)\.
 .
+.SS "reconfigure-auto-expand"
+\fBdbdctl reconfigure-auto-expand [-n <steps limit>] <step size> <minor>\fR
+.
+.P
+Enable auto-expand of cow file in snapshot mode by <step size> (given in bytes), limited with <steps limit> steps (or -1 if unlimited)\.
+.
 .SS "EXAMPLES"
 \fB# dbdctl setup\-snapshot /dev/sda1 /var/backup/datto 4\fR
 .

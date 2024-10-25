@@ -444,6 +444,68 @@ error:
 }
 
 /**
+ * ioctl_reconfigure_auto_expand() - Allows cow file to expand by the specified size during snapshot, specified number of times.
+ * @step_size: The step size in bytes to expand the cow file by.
+ * @steps: The number of allowed steps (or -1 for unlimited).
+ * @minor: An allocated device minor number.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
+int ioctl_reconfigure_auto_expand(uint64_t step_size, long steps, unsigned int minor)
+{
+        int ret;
+        struct snap_device *dev;
+
+        LOG_DEBUG("received reconfigure auto expand ioctl - %u : %llu, %ld", minor, step_size, steps);
+
+        // verify that the minor number is valid
+        ret = verify_minor_in_use(minor);
+        if (ret)
+                goto error;
+
+        dev = snap_devices[minor];
+
+        // check that the device is not in the fail state
+        if (tracer_read_fail_state(dev)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret, "device specified is in the fail state");
+                goto error;
+        }
+
+        // check that tracer is in active snapshot state
+        if (!test_bit(SNAPSHOT, &dev->sd_state) ||
+            !test_bit(ACTIVE, &dev->sd_state) ||
+            test_bit(UNVERIFIED, &dev->sd_state)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret,
+                          "device specified is not in active snapshot mode");
+                goto error;
+        }
+
+        if(dev->sd_cow->auto_expand == NULL){
+                dev->sd_cow->auto_expand = cow_auto_expand_manager_init();
+                if(IS_ERR(dev->sd_cow->auto_expand)){
+                        ret = PTR_ERR(dev->sd_cow->auto_expand);
+                        LOG_ERROR(ret, "error initializing auto expand manager");
+                        goto error;
+                }
+        }
+
+        ret = cow_auto_expand_manager_reconfigure(dev->sd_cow->auto_expand, step_size, steps);
+
+        if(ret)
+                goto error;
+
+        return 0;
+
+error:
+        LOG_ERROR(ret, "error during reconfigure auto expand ioctl handler");
+        return ret;
+}
+
+/**
  * ioctl_dattobd_info() - Stores relevant, current &struct snap_device state
  *                        in @info.
  *
@@ -517,6 +579,7 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         unsigned int minor = 0;
         unsigned long fallocated_space = 0, cache_size = 0;
         struct expand_cow_file_params *expand_params = NULL;
+        struct reconfigure_auto_expand_params *reconfigure_auto_expand_params = NULL;
 
         LOG_DEBUG("ioctl command received: %i", cmd);
         mutex_lock(&ioctl_mutex);
@@ -677,6 +740,22 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                 }
 
                 ret = ioctl_expand_cow_file(expand_params->minor, expand_params->size);
+                if (ret){
+                        break;
+                }
+
+                break;
+        case IOCTL_RECONFIGURE_AUTO_EXPAND:
+                // get params from user space
+                reconfigure_auto_expand_params = kmalloc(sizeof(struct reconfigure_auto_expand_params), GFP_KERNEL);
+                ret = copy_from_user(reconfigure_auto_expand_params, (struct reconfigure_auto_expand_params __user *)arg, sizeof(struct reconfigure_auto_expand_params));
+                if (ret){
+                        ret = -EFAULT;
+                        LOG_ERROR(ret, "error copying reconfigure_auto_expand_params from user space");
+                        break;
+                }
+
+                ret = ioctl_reconfigure_auto_expand(reconfigure_auto_expand_params->step_size, reconfigure_auto_expand_params->steps, reconfigure_auto_expand_params->minor);
                 if (ret){
                         break;
                 }

@@ -7,6 +7,7 @@
 #include "cow_manager.h"
 #include "filesystem.h"
 #include "logging.h"
+#include "tracer.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
@@ -622,6 +623,7 @@ int cow_reload(const char *path, uint64_t elements, unsigned long sect_size,
         cm->allowed_sects =
                 __cow_calculate_allowed_sects(cache_size, cm->total_sects);
         cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * sizeof(uint64_t)));
+        cm->auto_expand = NULL;
 
         ret = __cow_open_header(cm, index_only, 1);
         if (ret)
@@ -730,6 +732,7 @@ int cow_init(struct snap_device *dev, const char *path, uint64_t elements, unsig
         cm->data_offset = COW_HEADER_SIZE + (cm->total_sects * (sect_size * 8)); // data offset in bytes, equals 4096 + [total_sects*4096*8](index size)
         cm->curr_pos = cm->data_offset / COW_BLOCK_SIZE;
         cm->dev = dev;
+        cm->auto_expand = NULL;
 
         if (uuid)
                 memcpy(cm->uuid, uuid, COW_UUID_SIZE);
@@ -943,8 +946,23 @@ static int __cow_write_data(struct cow_manager *cm, void *buf)
         char *abs_path = NULL;
         int abs_path_len;
         uint64_t curr_size = cm->curr_pos * COW_BLOCK_SIZE;
+        uint64_t expand_allowance = 0;
 
+retry:
         if (curr_size >= cm->file_size) {
+                // try expansion of cow_file
+                if(cm->auto_expand){
+                        expand_allowance = cow_auto_expand_manager_test_and_dec(cm->auto_expand);
+                        if(expand_allowance){
+                                ret = tracer_expand_cow_file(cm->dev, expand_allowance);
+                                expand_allowance = 0;
+                                if(ret)
+                                        goto error;
+                                goto retry;
+                        }
+                }
+
+
                 ret = -EFBIG;
 
                 file_get_absolute_pathname(cm->dfilp, &abs_path, &abs_path_len);
@@ -1189,6 +1207,8 @@ int __cow_expand_datastore(struct cow_manager* cm, uint64_t append_size){
         int ret;
         uint64_t actual = 0;
 
+        LOG_DEBUG("trying to expand cow file with %llu bytes", append_size);
+
         ret = file_allocate(cm->dfilp, cm->dev, cm->file_size, append_size, &actual);
 
         if(actual != append_size){
@@ -1203,4 +1223,55 @@ int __cow_expand_datastore(struct cow_manager* cm, uint64_t append_size){
         }
 
         return 0;
+}
+
+struct cow_auto_expand_manager* cow_auto_expand_manager_init(void){
+        struct cow_auto_expand_manager* aem = kzalloc(sizeof(struct cow_auto_expand_manager), GFP_KERNEL);
+        if(!aem){
+                LOG_ERROR(-ENOMEM, "error allocating cow auto expand manager");
+                return ERR_PTR(-ENOMEM);
+        }
+
+        mutex_init(&aem->lock);
+
+        return aem;
+}
+
+int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size, long steps){
+        mutex_lock(&aem->lock);
+        aem->step_size = step_size;
+        aem->steps = steps;
+        mutex_unlock(&aem->lock);
+        return 0;
+}
+
+/*
+* cow_auto_expand_manager_test_and_dec() - Tests if the auto expand manager has steps remaining and decrements the steps if so.
+*
+* @aem: The &struct cow_auto_expand_manager to test and decrement.
+*
+* Return:
+* 0 - no steps remaining
+* !0 - size to expand the cow file by
+*/
+uint64_t cow_auto_expand_manager_test_and_dec(struct cow_auto_expand_manager* aem){
+        uint64_t ret;
+
+        ret = 0;
+        mutex_lock(&aem->lock);
+        if(aem->steps > 0){
+                aem->steps--;
+                ret = aem->step_size;
+        }else if(aem->steps == -1){
+                // infinite steps
+                ret = aem->step_size;
+        }
+        mutex_unlock(&aem->lock);
+
+        return ret;
+}
+
+void cow_auto_expand_manager_free(struct cow_auto_expand_manager* aem){
+        mutex_destroy(&aem->lock);
+        kfree(aem);
 }

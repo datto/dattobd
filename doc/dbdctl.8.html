@@ -146,6 +146,12 @@
 
 <p>Expands cow file in snapshot mode by size (given in bytes).</p>
 
+<h3 id="reconfigure-auto-expand">reconfigure-auto-expand</h3>
+
+<p><code>dbdctl reconfigure-auto-expand [-n &lt;steps limit&gt;] &lt;step size&gt; &lt;minor&gt;</code></p>
+
+<p>Enable auto-expand of cow file in snapshot mode by &lt;step size&gt; (given in bytes), limited with &lt;steps limit&gt; steps (or -1 if unlimited).</p>
+
 <h3 id="EXAMPLES">EXAMPLES</h3>
 
 <p><code># dbdctl setup-snapshot /dev/sda1 /var/backup/datto 4</code></p>

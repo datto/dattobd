@@ -207,6 +207,15 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
                                                 "%llu,\n",
                                                 dev->sd_cow->nr_changed_blocks);
                                 }
+
+                                if(dev->sd_cow->auto_expand){
+                                        seq_printf(m, "\t\t\t\"auto_expand\": {\n");
+                                        seq_printf(m, "\t\t\t\t\"step_size\": %llu,\n",
+                                                   (unsigned long long)dev->sd_cow->auto_expand->step_size);
+                                        seq_printf(m, "\t\t\t\t\"steps\": %ld\n",
+                                                   dev->sd_cow->auto_expand->steps);
+                                        seq_printf(m, "\t\t\t},\n");
+                                }
                         }
                 }
 

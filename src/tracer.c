@@ -1973,6 +1973,10 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         // thread to prevent concurrent access.
         __tracer_destroy_cow_thread(old_dev);
 
+        // disable auto-expand
+        cow_auto_expand_manager_free(old_dev->sd_cow->auto_expand);
+        old_dev->sd_cow->auto_expand = NULL;
+
         // sanity check to ensure no errors have occurred while cleaning up the
         // old cow thread
         ret = tracer_read_fail_state(old_dev);
