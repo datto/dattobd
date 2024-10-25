@@ -713,15 +713,12 @@ error:
         return ret;
 }
 
-#ifdef HAVE_VFS_FALLOCATE
-//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
-
 /**
- * real_fallocate() - Allows the caller to allocate disk space for a file
+ * try_real_fallocate() - Allows the caller to allocate disk space for a file
  * within the range specified by @offset and @length.  Any subregion within
- * This domain that didn't have data before the call will contain zeroes.
+ * this domain that didn't have data before the call will contain zeroes. (TODO: is that true?)
  *
- * @f: A &struct file object.
+ * @dfilp: A dattobd mutable file object.
  * @offset: The offset into @f indicating the start of the allocation.
  * @length: The number of byte to allocate starting at @offset.
  *
@@ -729,68 +726,49 @@ error:
  * * 0 - success
  * * !0 - errno indicating the error.
  */
-#define real_fallocate(f, offset, length) vfs_fallocate(f, 0, offset, length)
-
-#else
-
-/**
- * real_fallocate() - Allows the caller to allocate disk space for a file
- * within the range specified by @offset and @length.  Any subregion within
- * this domain that didn't have data before the call will contain zeroes.
- *
- * @f: A &struct file object.
- * @offset: The offset into @f indicating the start of the allocation.
- * @length: The number of byte to allocate starting at @offset.
- *
- * Return:
- * * 0 - success
- * * !0 - errno indicating the error.
- */
-static int real_fallocate(struct file *f, uint64_t offset, uint64_t length)
+static int try_real_fallocate(struct dattobd_mutable_file *dfilp, uint64_t offset, uint64_t length)
 {
         int ret;
         loff_t off = offset;
         loff_t len = length;
-#ifndef HAVE_FILE_INODE
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
-        struct inode *inode = dattobd_get_dentry(f)->d_inode;
-#else
-        struct inode *inode = file_inode(f);
-#endif
+        struct inode *inode = dfilp->inode;
 
         if (off + len > inode->i_sb->s_maxbytes || off + len < 0)
                 return -EFBIG;
 
-#if !defined(HAVE_IOPS_FALLOCATE) && !defined(HAVE_FOPS_FALLOCATE)
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
-        return -EOPNOTSUPP;
-#elif defined(HAVE_IOPS_FALLOCATE)
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-        if (!inode->i_op->fallocate)
-                return -EOPNOTSUPP;
-        ret = inode->i_op->fallocate(inode, 0, offset, len);
-#else
-        if (!f->f_op->fallocate)
-                return -EOPNOTSUPP;
+        dattobd_mutable_file_unlock(dfilp);
 #ifdef HAVE_SB_START_WRITE
-        //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
         sb_start_write(inode->i_sb);
 #endif
-        ret = f->f_op->fallocate(f, 0, off, len);
+
+#if defined(HAVE_VFS_FALLOCATE)
+        ret = vfs_fallocate(dfilp->filp, 0, off, len);
+#elif defined(HAVE_IOPS_FALLOCATE)
+        if (!inode->i_op->fallocate)
+                ret = -EOPNOTSUPP;
+        else
+                ret = inode->i_op->fallocate(inode, 0, offset, len);
+#elif defined(HAVE_FOPS_FALLOCATE)
+        if (!dfilp->filp->f_op->fallocate)
+                ret = -EOPNOTSUPP;
+        else
+                ret = dfilp->filp->f_op->fallocate(dfilp->filp, 0, off, len);
+#else
+        ret = -EOPNOTSUPP;
+#endif
+
 #ifdef HAVE_SB_START_WRITE
-        //#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
         sb_end_write(inode->i_sb);
 #endif
-#endif
+        dattobd_mutable_file_lock(dfilp);
 
         return ret;
 }
-#endif
 
 /**
  * file_allocate() - Allows the caller to allocate disk space for a file
  * within the range specified by @offset and @length.  Attempts to use
- * @real_fallocate with a fallback of writing zeroes if that fails.
+ * @try_real_fallocate with a fallback of writing zeroes if that fails.
  *
  * @dfilp: A dattobd mutable file object.
  * @dev: The snap device object, where file is located.
@@ -812,6 +790,27 @@ int file_allocate(struct dattobd_mutable_file *dfilp, struct snap_device* dev,  
         unsigned long cur_done;
 
         file_get_absolute_pathname(dfilp, &abs_path, &abs_path_len);
+
+        ret = try_real_fallocate(dfilp, offset, length);
+
+        if (ret && ret != -EOPNOTSUPP)
+                goto error;
+        else if (!ret){
+                if(done)
+                        *done = length;
+                goto out;
+        }
+
+        // fallocate isn't supported, fall back on writing zeros
+        if (!abs_path) {
+                LOG_WARN("fallocate is not supported for this file system, "
+                         "falling back on "
+                         "writing zeros");
+        } else {
+                LOG_WARN("fallocate is not supported for '%s', falling back on "
+                         "writing zeros",
+                         abs_path);
+        }
 
         // allocate page of zeros
         page_buf = (char *)get_zeroed_page(GFP_KERNEL);
