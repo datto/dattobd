@@ -140,6 +140,12 @@
 
 <p>Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.</p>
 
+<h3 id="expand-cow-file">expand-cow-file</h3>
+
+<p><code>dbdctl expand-cow-file &lt;minor&gt; &lt;size&gt;</code></p>
+
+<p>Expands cow file in snapshot mode by size (given in bytes).</p>
+
 <h3 id="EXAMPLES">EXAMPLES</h3>
 
 <p><code># dbdctl setup-snapshot /dev/sda1 /var/backup/datto 4</code></p>

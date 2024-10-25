@@ -90,6 +90,7 @@ The current status of the dattobd driver can be read from the file `/proc/datto-
 * `block_device`: The block device being tracked by this device.
 * `max_cache`: The maximum amount of memory that may be used to cache metadata for this device (in bytes).
 * `fallocate`: The preallocated size of the cow file (in bytes). This will not be printed if the device is in the unverified state.
+* `cow_size_current`: The current size of the cow file (in bytes). This will not be printed if the device is in the unverified state.
 * `seq_id`: The sequence id of the snapshot. This number starts at 1 for new snapshots and is incremented on each transition to snapshot.
 * `uuid`: Uniquely identifies a series of snapshots. It is not changed on state transition.
 * `error`: This field will only be present if the device has failed. It shows the linux standard error code indicating what went wrong. More specific info is printed to dmesg.

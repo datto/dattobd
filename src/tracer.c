@@ -406,26 +406,26 @@ static int bdev_is_already_traced(const struct block_device *bdev)
 }
 
 /**
- * file_is_on_bdev() - Checks to see if the &struct file object is contained
+ * file_is_on_bdev() - Checks to see if the &struct dattobd mutable file object is contained
  * within the &struct block_device device.
  *
- * @file: the file to check
- * @bdev: the &struct block_device that might hold the @file.
+ * @dfilp: A dattobd mutable file object.
+ * @bdev: the &struct block_device that might hold the @dfilp.
  *
  * Return:
- * * 0 - the @file is not on the @bdev.
- * * !0 - the @file is on the @bdev.
+ * * 0 - the @dfilp is not on the @bdev.
+ * * !0 - the @dfilp is on the @bdev.
  */
-static int file_is_on_bdev(const struct file *file, struct block_device *bdev)
+static int file_is_on_bdev(const struct dattobd_mutable_file *dfilp, struct block_device *bdev)
 {
         struct super_block *sb = dattobd_get_super(bdev);
-        struct super_block *sb_file = (dattobd_get_mnt(file))->mnt_sb;
+        struct super_block *sb_file = dfilp->mnt->mnt_sb;
         int ret = 0;
 
         if (sb) {
                 LOG_DEBUG("file_is_on_bdev() if(sb)");
                 LOG_DEBUG("sb name:%s, file->sb name:%s", sb->s_root->d_name.name, sb_file->s_root->d_name.name);
-                ret = ((dattobd_get_mnt(file))->mnt_sb == sb);
+                ret = (dfilp->mnt->mnt_sb == sb);
                 dattobd_drop_super(sb);
         }
         return ret;
@@ -661,13 +661,13 @@ static int __tracer_setup_cow(struct snap_device *dev,
                         if (ret)
                                 goto error;
 
-                        dev->sd_falloc_size = dev->sd_cow->file_max;
+                        dev->sd_falloc_size = dev->sd_cow->file_size;
                         do_div(dev->sd_falloc_size, (1024 * 1024));
                 }
         }
 
         // verify that file is on block device
-        if (!file_is_on_bdev(dev->sd_cow->filp, bdev)) {
+        if (!file_is_on_bdev(dev->sd_cow->dfilp, bdev)) {
                 ret = -EINVAL;
 #ifdef HAVE_BDEVNAME
                 LOG_ERROR(ret, "'%s' is not on '%s'", cow_path, bdev_name);
@@ -679,7 +679,7 @@ static int __tracer_setup_cow(struct snap_device *dev,
 
         // find the cow file's inode number
         LOG_DEBUG("finding cow file inode");
-        dev->sd_cow_inode = dattobd_get_dentry(dev->sd_cow->filp)->d_inode;
+        dev->sd_cow_inode = dev->sd_cow->dfilp->inode;
 
         return 0;
 
@@ -885,20 +885,20 @@ static void __tracer_destroy_cow_path(struct snap_device *dev)
  * __tracer_setup_cow_path() - Sets up the COW file path given a &struct file.
  *
  * @dev: The &struct snap_device object pointer.
- * @cow_file: The &struct file object pointer.
+ * @cow_dfile: A &struct dattobd_mutable_file object pointer.
  *
  * Return:
  * * 0 - success
  * * !0 - errno indicating the error
  */
 static int __tracer_setup_cow_path(struct snap_device *dev,
-                                   const struct file *cow_file)
+                                   const struct dattobd_mutable_file *cow_dfile)
 {
         int ret;
 
         // get the pathname of the cow file (relative to the mountpoint)
         LOG_DEBUG("getting relative pathname of cow file");
-        ret = dentry_get_relative_pathname(dattobd_get_dentry(cow_file),
+        ret = dentry_get_relative_pathname(cow_dfile->dentry,
                                            &dev->sd_cow_path, NULL);
         if (ret)
                 goto error;
@@ -1884,7 +1884,7 @@ int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
                 goto error;
 
         // setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->dfilp);
         if (ret)
                 goto error;
 
@@ -2002,7 +2002,7 @@ int tracer_active_snap_to_inc(struct snap_device *old_dev)
         ret = cow_truncate_to_index(dev->sd_cow);
         if (ret) {
                 // not a critical error, we can just print a warning
-                file_get_absolute_pathname(dev->sd_cow->filp, &abs_path,
+                file_get_absolute_pathname(dev->sd_cow->dfilp, &abs_path,
                                            &abs_path_len);
                 if (!abs_path) {
                         LOG_WARN("warning: cow file truncation failed, "
@@ -2075,7 +2075,7 @@ int tracer_active_inc_to_snap(struct snap_device *old_dev, const char *cow_path,
                 goto error;
 
         // setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->dfilp);
         if (ret)
                 goto error;
 
@@ -2153,7 +2153,7 @@ void tracer_dattobd_info(const struct snap_device *dev,
         strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
         if (!test_bit(UNVERIFIED, &dev->sd_state)) {
-                info->falloc_size = dev->sd_cow->file_max;
+                info->falloc_size = dev->sd_cow->file_size;
                 info->seqid = dev->sd_cow->seqid;
                 memcpy(info->uuid, dev->sd_cow->uuid, COW_UUID_SIZE);
                 info->version = dev->sd_cow->version;
@@ -2247,7 +2247,7 @@ void __tracer_unverified_snap_to_active(struct snap_device *dev,
                 goto error;
 
         // setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->dfilp);
         if (ret)
                 goto error;
 
@@ -2343,7 +2343,7 @@ void __tracer_unverified_inc_to_active(struct snap_device *dev,
                 goto error;
 
         // setup the cow path
-        ret = __tracer_setup_cow_path(dev, dev->sd_cow->filp);
+        ret = __tracer_setup_cow_path(dev, dev->sd_cow->dfilp);
         if (ret)
                 goto error;
 
@@ -2440,4 +2440,24 @@ error:
         if (cow_path)
                 kfree(cow_path);
         tracer_set_fail_state(dev, ret);
+}
+
+int tracer_expand_cow_file(struct snap_device *dev, uint64_t size){
+        int ret;
+        LOG_DEBUG("ENTER tracer_expand_cow_file");
+        if(tracer_read_fail_state(dev)){
+                LOG_ERROR(-EBUSY, "cannot expand cow file for device in error state");
+                return -EBUSY;
+        }
+
+        ret = __cow_expand_datastore(dev->sd_cow, size);
+
+        if(ret){
+                LOG_ERROR(ret, "error expanding cow file");
+                tracer_set_fail_state(dev, ret);
+                // __tracer_destroy_cow_thread(dev); -- we can't ask for thread destroy, as this function may be called from cow thread
+                // cow_thread must fail in a few moments
+        }
+
+        return ret;
 }

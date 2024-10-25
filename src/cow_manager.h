@@ -41,11 +41,11 @@ struct cow_section {
 };
 
 struct cow_manager {
-        struct file *filp; // the file the cow manager is writing to
+        struct dattobd_mutable_file *dfilp; // the file the cow manager is writing to
         uint32_t flags; // flags representing current state of cow manager
         uint64_t curr_pos; // current write head position
         uint64_t data_offset; // starting offset of data
-        uint64_t file_max; // max size of the file before an error is thrown
+        uint64_t file_size; // current size of the file, max size before an error is thrown
         uint64_t seqid; // sequence id, increments on each transition to
                         // snapshot mode
         uint64_t version; // version of cow file format
@@ -99,5 +99,7 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
 int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t val);
 
 int cow_get_file_extents(struct snap_device* dev, struct file* filp);
+
+int __cow_expand_datastore(struct cow_manager *cm, uint64_t append_size);
 
 #endif /* COW_MANAGER_H_ */

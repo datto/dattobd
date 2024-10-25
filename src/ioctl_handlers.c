@@ -16,6 +16,7 @@
 #include "tracer.h"
 #include "tracer_helper.h"
 #include "userspace_copy_helpers.h"
+#include "cow_manager.h"
 
 #ifdef HAVE_UAPI_MOUNT_H
 #include <uapi/linux/mount.h>
@@ -391,6 +392,58 @@ error:
 }
 
 /**
+ * ioctl_expand_cow_file() - Expands cow file by the specified size.
+ * @minor: An allocated device minor number.
+ * @size: The size in bytes to expand the cow file by.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
+int ioctl_expand_cow_file(unsigned int minor, unsigned long size)
+{
+        int ret;
+        struct snap_device *dev;
+
+        LOG_DEBUG("received expand cow file ioctl - %u : %lu", minor, size);
+
+        // verify that the minor number is valid
+        ret = verify_minor_in_use(minor);
+        if (ret)
+                goto error;
+
+        dev = snap_devices[minor];
+
+        // check that the device is not in the fail state
+        if (tracer_read_fail_state(dev)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret, "device specified is in the fail state");
+                goto error;
+        }
+
+        // check that tracer is in active snapshot state
+        if (!test_bit(SNAPSHOT, &dev->sd_state) ||
+            !test_bit(ACTIVE, &dev->sd_state) ||
+            test_bit(UNVERIFIED, &dev->sd_state)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret,
+                          "device specified is not in active snapshot mode");
+                goto error;
+        }
+
+        ret = tracer_expand_cow_file(dev, size);
+
+        if(ret)
+                goto error;
+
+        return 0;
+
+error:
+        LOG_ERROR(ret, "error during expand cow file ioctl handler");
+        return ret;
+}
+
+/**
  * ioctl_dattobd_info() - Stores relevant, current &struct snap_device state
  *                        in @info.
  *
@@ -463,6 +516,7 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         struct dattobd_info *info = NULL;
         unsigned int minor = 0;
         unsigned long fallocated_space = 0, cache_size = 0;
+        struct expand_cow_file_params *expand_params = NULL;
 
         LOG_DEBUG("ioctl command received: %i", cmd);
         mutex_lock(&ioctl_mutex);
@@ -608,6 +662,22 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                 if (ret) {
                         ret = -EFAULT;
                         LOG_ERROR(ret, "error copying minor to user space");
+                        break;
+                }
+
+                break;
+        case IOCTL_EXPAND_COW_FILE:
+                // get params from user space
+                expand_params = kmalloc(sizeof(struct expand_cow_file_params), GFP_KERNEL);
+                ret = copy_from_user(expand_params, (struct expand_cow_file_params __user *)arg, sizeof(struct expand_cow_file_params));
+                if (ret){
+                        ret = -EFAULT;
+                        LOG_ERROR(ret, "error copying expand_cow_file_params from user space");
+                        break;
+                }
+
+                ret = ioctl_expand_cow_file(expand_params->minor, expand_params->size);
+                if (ret){
                         break;
                 }
 

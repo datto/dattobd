@@ -46,6 +46,11 @@ struct reconfigure_params {
         unsigned int minor; // requested minor number of the device
 };
 
+struct expand_cow_file_params {
+        unsigned int minor; // minor to extend
+        unsigned long size; // size in bytes
+};
+
 #define COW_UUID_SIZE 16
 #define COW_BLOCK_LOG_SIZE 12
 #define COW_BLOCK_SIZE (1 << COW_BLOCK_LOG_SIZE)
@@ -105,5 +110,7 @@ struct dattobd_info {
 #define IOCTL_DATTOBD_INFO                                                     \
         _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) // in: see above
 #define IOCTL_GET_FREE _IOR(DATTO_IOCTL_MAGIC, 9, int)
+#define IOCTL_EXPAND_COW_FILE                                                  \
+        _IOW(DATTO_IOCTL_MAGIC, 10, struct expand_cow_file_params) // in: see above
 
 #endif /* DATTOBD_H_ */

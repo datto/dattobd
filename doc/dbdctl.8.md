@@ -63,6 +63,12 @@ Cleanly and completely removes the snapshot or incremental, unlinking the associ
 
 Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.
 
+### expand-cow-file
+
+`dbdctl expand-cow-file <minor> <size>`
+
+Expands cow file in snapshot mode by size (given in bytes).
+
 ### EXAMPLES
 
 `# dbdctl setup-snapshot /dev/sda1 /var/backup/datto 4`
