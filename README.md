@@ -94,8 +94,8 @@ The current status of the dattobd driver can be read from the file `/proc/datto-
 * `seq_id`: The sequence id of the snapshot. This number starts at 1 for new snapshots and is incremented on each transition to snapshot.
 * `uuid`: Uniquely identifies a series of snapshots. It is not changed on state transition.
 * `auto_expand`: Parameters of auto-expansion of COW-file.
-    * `step_size`: Expansion step size (in bytes)
-    * `steps`: Steps the DattoBD allowed to do (-1 if unlimited).
+    * `step_size_mib`: Expansion step size (in megabytes).
+    * `reserved_space_mib`: Space that has to be left available for users during auto-expand process (in megabytes).
 * `error`: This field will only be present if the device has failed. It shows the linux standard error code indicating what went wrong. More specific info is printed to dmesg.
 * `state`: An integer representing the current working state of the device. There are 6 possible states; for more info on these refer to [STRUCTURE.md](doc/STRUCTURE.md).
 	* 0 = dormant incremental

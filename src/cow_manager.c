@@ -8,6 +8,7 @@
 #include "filesystem.h"
 #include "logging.h"
 #include "tracer.h"
+#include "blkdev.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
@@ -947,14 +948,27 @@ static int __cow_write_data(struct cow_manager *cm, void *buf)
         int abs_path_len;
         uint64_t curr_size = cm->curr_pos * COW_BLOCK_SIZE;
         uint64_t expand_allowance = 0;
+        int kstatfs_ret;
+        struct kstatfs kstatfs;
 
 retry:
         if (curr_size >= cm->file_size) {
                 // try expansion of cow_file
                 if(cm->auto_expand){
-                        expand_allowance = cow_auto_expand_manager_test_and_dec(cm->auto_expand);
+                        kstatfs_ret = 0;
+                        if(cm->dev && cm->dev->sd_base_dev){
+                                kstatfs_ret = dattobd_get_kstatfs(cm->dev->sd_base_dev, &kstatfs);
+                        }
+
+                        if(!kstatfs_ret){
+                                expand_allowance = cow_auto_expand_manager_get_allowance(cm->auto_expand, kstatfs.f_bavail, (uint64_t) kstatfs.f_bsize);
+                        }else{
+                                LOG_WARN("failed to get kstatfs with error code %d, expansion allowance is given only if reserved space is 0.", kstatfs_ret);
+                                expand_allowance = cow_auto_expand_manager_get_allowance_free_unknown(cm->auto_expand);
+                        }
+
                         if(expand_allowance){
-                                ret = tracer_expand_cow_file(cm->dev, expand_allowance);
+                                ret = tracer_expand_cow_file_no_check(cm->dev, expand_allowance);
                                 expand_allowance = 0;
                                 if(ret)
                                         goto error;
@@ -1203,16 +1217,16 @@ out:
 }
 
 
-int __cow_expand_datastore(struct cow_manager* cm, uint64_t append_size){
+int __cow_expand_datastore(struct cow_manager* cm, uint64_t append_size_bytes){
         int ret;
         uint64_t actual = 0;
 
-        LOG_DEBUG("trying to expand cow file with %llu bytes", append_size);
+        LOG_DEBUG("trying to expand cow file with %llu bytes", append_size_bytes);
 
-        ret = file_allocate(cm->dfilp, cm->dev, cm->file_size, append_size, &actual);
+        ret = file_allocate(cm->dfilp, cm->dev, cm->file_size, append_size_bytes, &actual);
 
-        if(actual != append_size){
-                LOG_WARN("cow file was not expanded to requested size (req: %llu, act: %llu)", append_size, actual);
+        if(actual != append_size_bytes){
+                LOG_WARN("cow file was not expanded to requested size (req: %llu, act: %llu)", append_size_bytes, actual);
         }
 
         cm->file_size = cm->file_size + actual;
@@ -1237,39 +1251,72 @@ struct cow_auto_expand_manager* cow_auto_expand_manager_init(void){
         return aem;
 }
 
-int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size, long steps){
+int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size_mib, uint64_t reserved_space_mib){
         mutex_lock(&aem->lock);
-        aem->step_size = step_size;
-        aem->steps = steps;
+        aem->step_size_mib = step_size_mib;
+        aem->reserved_space_mib = reserved_space_mib;
         mutex_unlock(&aem->lock);
         return 0;
 }
 
 /*
-* cow_auto_expand_manager_test_and_dec() - Tests if the auto expand manager has steps remaining and decrements the steps if so.
+* cow_auto_expand_manager_get_allowance() - Tests if the auto expand manager has steps remaining regarding to the available blocks and block size.
 *
-* @aem: The &struct cow_auto_expand_manager to test and decrement.
+* @aem: The &struct cow_auto_expand_manager.
+* @available_blocks: The number of available blocks on the block device. (from kstatfs, f_bavail)
+* @block_size: The size of a block on the block device. (from kstatfs, f_bsize)
 *
 * Return:
 * 0 - no steps remaining
 * !0 - size to expand the cow file by
 */
-uint64_t cow_auto_expand_manager_test_and_dec(struct cow_auto_expand_manager* aem){
+uint64_t cow_auto_expand_manager_get_allowance(struct cow_auto_expand_manager* aem, uint64_t available_blocks, uint64_t block_size_bytes){
+        #define ceil(a, b) (((a)+(b)-1)/(b))
+        #define mib_to_bytes(a) ((a)*1024*1024)
+        
         uint64_t ret;
 
         ret = 0;
         mutex_lock(&aem->lock);
-        if(aem->steps > 0){
-                aem->steps--;
-                ret = aem->step_size;
-        }else if(aem->steps == -1){
-                // infinite steps
-                ret = aem->step_size;
+        if(aem->step_size_mib && ceil(mib_to_bytes(aem->step_size_mib + aem->reserved_space_mib), block_size_bytes) <= available_blocks){
+                ret = mib_to_bytes(aem->step_size_mib);
+        }else{
+                if(aem->step_size_mib){
+                        LOG_WARN("rejected auto-expand: %llu MiB step size, %llu MiB reserved space, %llu blocks available, %llu B block size",
+                                aem->step_size_mib, aem->reserved_space_mib, available_blocks, block_size_bytes);
+                }
         }
         mutex_unlock(&aem->lock);
 
         return ret;
 }
+
+/*
+* cow_auto_expand_manager_get_allowance_free_unknown() - Tests if the auto expand manager has steps remaining if the free space is not available.
+* Allows to make an auto-expand if the reserved space is 0.
+*
+* @aem: The &struct cow_auto_expand_manager.
+*
+* Return:
+* 0 - no steps remaining
+* !0 - size to expand the cow file by
+*/
+uint64_t cow_auto_expand_manager_get_allowance_free_unknown(struct cow_auto_expand_manager* aem){
+        #define mib_to_bytes(a) ((a)*1024*1024)
+        
+        uint64_t ret;
+
+        ret = 0;
+        mutex_lock(&aem->lock);
+        // We allow COW-File Auto-Expansion when free space is unknown only for cases where reserved space is 0
+        if(aem->step_size_mib && aem->reserved_space_mib == 0){
+                ret = mib_to_bytes(aem->step_size_mib);
+        }
+        mutex_unlock(&aem->lock);
+
+        return ret;
+}
+
 
 void cow_auto_expand_manager_free(struct cow_auto_expand_manager* aem){
         mutex_destroy(&aem->lock);

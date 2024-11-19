@@ -29,9 +29,9 @@ int dattobd_reconfigure(unsigned int minor, unsigned long cache_size);
 
 int dattobd_info(unsigned int minor, struct dattobd_info *info);
 
-int dattobd_expand_cow_file(unsigned int minor, unsigned long size);
+int dattobd_expand_cow_file(unsigned int minor, uint64_t size);
 
-int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, long steps);
+int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, uint64_t reserved_space);
 
 /**
  * Get the first available minor.

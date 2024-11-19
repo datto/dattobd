@@ -2446,15 +2446,15 @@ error:
         tracer_set_fail_state(dev, ret);
 }
 
-int tracer_expand_cow_file(struct snap_device *dev, uint64_t size){
+int tracer_expand_cow_file_no_check(struct snap_device *dev, uint64_t by_size_bytes){
         int ret;
-        LOG_DEBUG("ENTER tracer_expand_cow_file");
+        LOG_DEBUG("ENTER tracer_expand_cow_file_no_check");
         if(tracer_read_fail_state(dev)){
                 LOG_ERROR(-EBUSY, "cannot expand cow file for device in error state");
                 return -EBUSY;
         }
 
-        ret = __cow_expand_datastore(dev->sd_cow, size);
+        ret = __cow_expand_datastore(dev->sd_cow, by_size_bytes);
 
         if(ret){
                 LOG_ERROR(ret, "error expanding cow file");

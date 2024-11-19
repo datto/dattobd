@@ -393,19 +393,19 @@ error:
 
 /**
  * ioctl_expand_cow_file() - Expands cow file by the specified size.
+ * @size: The size in MiB to expand the cow file by.
  * @minor: An allocated device minor number.
- * @size: The size in bytes to expand the cow file by.
  *
  * Return:
  * * 0 - successful.
  * * !0 - errno indicating the error.
  */
-int ioctl_expand_cow_file(unsigned int minor, unsigned long size)
+int ioctl_expand_cow_file(uint64_t size, unsigned int minor)
 {
         int ret;
         struct snap_device *dev;
 
-        LOG_DEBUG("received expand cow file ioctl - %u : %lu", minor, size);
+        LOG_DEBUG("received expand cow file ioctl - %u : %llu", minor, size);
 
         // verify that the minor number is valid
         ret = verify_minor_in_use(minor);
@@ -431,7 +431,7 @@ int ioctl_expand_cow_file(unsigned int minor, unsigned long size)
                 goto error;
         }
 
-        ret = tracer_expand_cow_file(dev, size);
+        ret = tracer_expand_cow_file_no_check(dev, size * 1024 * 1024);
 
         if(ret)
                 goto error;
@@ -445,20 +445,20 @@ error:
 
 /**
  * ioctl_reconfigure_auto_expand() - Allows cow file to expand by the specified size during snapshot, specified number of times.
- * @step_size: The step size in bytes to expand the cow file by.
- * @steps: The number of allowed steps (or -1 for unlimited).
+ * @step_size: The step size in MiB to expand the cow file by.
+ * @reserved_space: The reserved space in MiB to keep free on the block device.
  * @minor: An allocated device minor number.
  *
  * Return:
  * * 0 - successful.
  * * !0 - errno indicating the error.
  */
-int ioctl_reconfigure_auto_expand(uint64_t step_size, long steps, unsigned int minor)
+int ioctl_reconfigure_auto_expand(uint64_t step_size, uint64_t reserved_space, unsigned int minor)
 {
         int ret;
         struct snap_device *dev;
 
-        LOG_DEBUG("received reconfigure auto expand ioctl - %u : %llu, %ld", minor, step_size, steps);
+        LOG_DEBUG("received reconfigure auto expand ioctl - %u : %llu, %llu", minor, step_size, reserved_space);
 
         // verify that the minor number is valid
         ret = verify_minor_in_use(minor);
@@ -493,7 +493,7 @@ int ioctl_reconfigure_auto_expand(uint64_t step_size, long steps, unsigned int m
                 }
         }
 
-        ret = cow_auto_expand_manager_reconfigure(dev->sd_cow->auto_expand, step_size, steps);
+        ret = cow_auto_expand_manager_reconfigure(dev->sd_cow->auto_expand, step_size, reserved_space);
 
         if(ret)
                 goto error;
@@ -739,7 +739,7 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                         break;
                 }
 
-                ret = ioctl_expand_cow_file(expand_params->minor, expand_params->size);
+                ret = ioctl_expand_cow_file(expand_params->size, expand_params->minor);
                 if (ret){
                         break;
                 }
@@ -755,7 +755,7 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                         break;
                 }
 
-                ret = ioctl_reconfigure_auto_expand(reconfigure_auto_expand_params->step_size, reconfigure_auto_expand_params->steps, reconfigure_auto_expand_params->minor);
+                ret = ioctl_reconfigure_auto_expand(reconfigure_auto_expand_params->step_size, reconfigure_auto_expand_params->reserved_space, reconfigure_auto_expand_params->minor);
                 if (ret){
                         break;
                 }

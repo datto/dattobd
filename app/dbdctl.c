@@ -23,11 +23,12 @@ static void print_help(int status){
 	printf("\tdbdctl transition-to-incremental <minor>\n");
 	printf("\tdbdctl transition-to-snapshot [-f fallocate] <cow file> <minor>\n");
 	printf("\tdbdctl reconfigure [-c <cache size>] <minor>\n");
-	printf("\tdbdctl expand-cow-file <minor> <size>\n");
-	printf("\tdbdctl reconfigure-auto-expand [-n <steps limit>] <step size> <minor>\n");
+	printf("\tdbdctl expand-cow-file <size> <minor>\n");
+	printf("\tdbdctl reconfigure-auto-expand [-r <reserved space>] <step size> <minor>\n");
 	printf("\tdbdctl help\n\n");
 	printf("<cow file> should be specified as an absolute path.\n");
 	printf("cache size should be provided in bytes, and fallocate should be provided in megabytes.\n");
+	printf("in expand-cow-file and reconfigure-auto-expand size should be provided in megabytes.\n");
 	printf("note: if the -c or -f options are not specified for any given call, module defaults are used.\n");
 	exit(status);
 }
@@ -378,17 +379,17 @@ error:
 static int handle_expand_cow_file(int argc, char **argv){
 	int ret;
 	unsigned int minor;
-	unsigned long size;
+	uint64_t size;
 
 	if(argc != 3){
 		errno = EINVAL;
 		goto error;
 	}
 
-	ret = parse_ui(argv[1], &minor);
+	ret = parse_ui64(argv[1], &size);
 	if(ret) goto error;
 
-	ret = parse_ul(argv[2], &size);
+	ret = parse_ui(argv[2], &minor);
 	if(ret) goto error;
 
 	return dattobd_expand_cow_file(minor, size);
@@ -403,13 +404,13 @@ static int handle_reconfigure_auto_expand(int argc, char **argv){
 	int ret, c;
 	unsigned int minor;
 	uint64_t step_size;
-	long steps = -1;
+	uint64_t reserved_space = 0;
 
 	//get cache size and fallocated space params, if given
-	while((c = getopt(argc, argv, "n:")) != -1){
+	while((c = getopt(argc, argv, "r:")) != -1){
 		switch(c){
-		case 'n':
-			ret = parse_l(optarg, &steps);
+		case 'r':
+			ret = parse_ui64(optarg, &reserved_space);
 			if(ret) goto error;
 			break;
 		default:
@@ -427,7 +428,7 @@ static int handle_reconfigure_auto_expand(int argc, char **argv){
 	ret = parse_ui(argv[optind+1], &minor);
 	if(ret) goto error;
 
-	return dattobd_reconfigure_auto_expand(minor, step_size, steps);
+	return dattobd_reconfigure_auto_expand(minor, step_size, reserved_space);
 
 error:
 	perror("error interpreting reconfigure auto expand parameters");

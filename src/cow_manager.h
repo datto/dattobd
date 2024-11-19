@@ -44,8 +44,8 @@ struct cow_section {
 struct cow_auto_expand_manager {
         struct mutex lock;
 
-        uint64_t step_size;
-        long steps;
+        uint64_t step_size_mib;
+        uint64_t reserved_space_mib;
 };
 
 struct cow_manager {
@@ -110,13 +110,15 @@ int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t val);
 
 int cow_get_file_extents(struct snap_device* dev, struct file* filp);
 
-int __cow_expand_datastore(struct cow_manager *cm, uint64_t append_size);
+int __cow_expand_datastore(struct cow_manager *cm, uint64_t append_size_bytes);
 
 struct cow_auto_expand_manager* cow_auto_expand_manager_init(void);
 
-int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size, long steps);
+int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size_mib, uint64_t reserved_space_mib);
 
-uint64_t cow_auto_expand_manager_test_and_dec(struct cow_auto_expand_manager* aem);
+uint64_t cow_auto_expand_manager_get_allowance(struct cow_auto_expand_manager* aem, uint64_t available_blocks, uint64_t block_size_bytes);
+
+uint64_t cow_auto_expand_manager_get_allowance_free_unknown(struct cow_auto_expand_manager* aem);
 
 void cow_auto_expand_manager_free(struct cow_auto_expand_manager* aem);
 

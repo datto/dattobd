@@ -65,15 +65,15 @@ Allows you to reconfigure various parameters of a snapshot while it is online. C
 
 ### expand-cow-file
 
-`dbdctl expand-cow-file <minor> <size>`
+`dbdctl expand-cow-file <size> <minor>`
 
-Expands cow file in snapshot mode by size (given in bytes).
+Expands cow file in snapshot mode by size (given in megabytes).
 
 ### reconfigure-auto-expand
 
 `dbdctl reconfigure-auto-expand [-n <steps limit>] <step size> <minor>`
 
-Enable auto-expand of cow file in snapshot mode by <step size> (given in bytes), limited with <steps limit> steps (or -1 if unlimited).
+Enable auto-expand of cow file in snapshot mode by <step size> (given in megabytes). Auto-expand works in that way that at least <reserved space> (given in megabytes) is left available after each step for regular users of filesystem.
 
 ### EXAMPLES
 

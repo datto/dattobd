@@ -222,3 +222,44 @@ int dattobd_get_start_sect_by_gendisk_for_bio(struct gendisk* gd, u8 partno, sec
         #error Could not determine starting sector of partition by gendisk and partition number
 #endif
 }
+
+
+/**
+ * dattobd_get_kstatfs() - Get the file system statistics of the block device.
+ *
+ * @bd: block device structure pointer.
+ * @statfs: file system statistics structure pointer.
+ *
+ * Return:
+ * 0 on success, error otherwise.
+ */
+int dattobd_get_kstatfs(struct block_device* bd, struct kstatfs* statfs){
+        struct super_block* sb;
+        int ret;
+
+        ret = 0;
+        sb = dattobd_get_super(bd);
+
+        if(sb){
+                if(sb->s_op && sb->s_op->statfs && sb->s_root){
+                        ret = sb->s_op->statfs(sb->s_root, statfs);
+
+                        if(ret){
+                                LOG_ERROR(ret, "dattobd_get_kstatfs: error getting statfs from super block");
+                                goto done;
+                        }
+
+                        LOG_DEBUG("dattobd_get_kstatfs: free blocks: %llu, block size: %ld, total: %llu\n", statfs->f_bavail, statfs->f_bsize, statfs->f_bavail*statfs->f_bsize);
+                        goto done;
+                }else{
+                        ret = -EINVAL;
+                        
+                        LOG_ERROR(ret, "dattobd_get_kstatfs: super block does not have statfs operations or root dentry");
+                        goto done;
+                }
+        }
+
+done:
+        dattobd_drop_super(sb);
+        return ret;
+}

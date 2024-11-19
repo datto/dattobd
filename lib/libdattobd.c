@@ -155,11 +155,12 @@ int dattobd_get_free_minor(void){
 	return ret;
 }
 
-int dattobd_expand_cow_file(unsigned int minor, unsigned long size){
+int dattobd_expand_cow_file(unsigned int minor, uint64_t size){
 	int fd, ret;
-	struct expand_cow_file_params params;
-	params.minor=minor;
-	params.size=size;
+	struct expand_cow_file_params params = {
+		.size = size,
+		.minor = minor
+	};
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
 	if(fd < 0) return -1;
@@ -170,12 +171,13 @@ int dattobd_expand_cow_file(unsigned int minor, unsigned long size){
 	return ret;
 }
 
-int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, long steps){
+int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, uint64_t reserved_space){
 	int fd, ret;
-	struct reconfigure_auto_expand_params params;
-	params.minor=minor;
-	params.step_size=step_size;
-	params.steps=steps;
+	struct reconfigure_auto_expand_params params = {
+		.step_size = step_size,
+		.reserved_space = reserved_space,
+		.minor = minor
+	};
 
 	fd = open("/dev/datto-ctl", O_RDONLY);
 	if(fd < 0) return -1;

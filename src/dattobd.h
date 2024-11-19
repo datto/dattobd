@@ -47,13 +47,14 @@ struct reconfigure_params {
 };
 
 struct expand_cow_file_params {
+        uint64_t size; // size in mib
+
         unsigned int minor; // minor to extend
-        unsigned long size; // size in bytes
 };
 
 struct reconfigure_auto_expand_params {
-        uint64_t step_size; // step size (in bytes)
-        long steps; // allowed steps (or -1 for unlimited)
+        uint64_t step_size; // step size in mib
+        uint64_t reserved_space; // reserved space in mib
 
         unsigned int minor; // minor to configure
 };
