@@ -1046,40 +1046,45 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
 #else
         dev->sd_gd = alloc_disk(1);
 #endif
+
         if (!dev->sd_gd) {
                 ret = -ENOMEM;
                 LOG_ERROR(ret, "error allocating gendisk");
                 goto error;
         }
 
-        // allocate request queue
         LOG_DEBUG("allocating queue");
-#if defined HAVE_MAKE_REQUEST_FN_IN_QUEUE && !defined HAVE_BLK_ALLOC_QUEUE_RH_2
-        dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
-#elif defined HAVE_BLK_ALLOC_QUEUE_RH_2 // el8
-        dev->sd_queue = blk_alloc_queue_rh(snap_mrf, NUMA_NO_NODE);
-#elif defined HAVE_BLK_ALLOC_QUEUE_1
-        // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,7,0)
-        dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
-#elif defined HAVE_BLK_ALLOC_QUEUE_2
-        dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
-#elif !defined HAVE_BLK_ALLOC_DISK
-        // #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
-        dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
-#else
-        dev->sd_queue = dev->sd_gd->queue;
-#endif
+#if defined HAVE_BDOPS_SUBMIT_BIO
 
-        if (!dev->sd_queue) {
+#if defined HAVE_BLK_ALLOC_DISK
+        dev->sd_queue = dev->sd_gd->queue;
+#else // works until 6.9
+        dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
+#endif /*HAVE_BLK_ALLOC_DISK*/
+
+#else
+
+#if defined HAVE_BLK_ALLOC_QUEUE_2
+        dev->sd_queue = blk_alloc_queue(snap_mrf, NUMA_NO_NODE);
+#elif defined HAVE_BLK_ALLOC_QUEUE_RH_2
+        dev->sd_queue = blk_alloc_queue_rh(snap_mrf, NUMA_NO_NODE);
+#else
+        dev->sd_queue = blk_alloc_queue(GFP_KERNEL);
+
+        if(dev->sd_queue != NULL){
+                LOG_DEBUG("setting up make request function");
+                blk_queue_make_request(dev->sd_queue, snap_mrf);
+        }
+#endif /*HAVE_BLK_ALLOC_QUEUE_2*/
+
+#endif /*HAVE_BDOPS_SUBMIT_BIO*/
+
+        if(!dev->sd_queue) {
                 ret = -ENOMEM;
                 LOG_ERROR(ret, "error allocating request queue");
                 goto error;
         }
 
-#if !defined HAVE_BLK_ALLOC_QUEUE && !defined USE_BDOPS_SUBMIT_BIO
-        LOG_DEBUG("setting up make request function");
-        blk_queue_make_request(dev->sd_queue, snap_mrf);
-#endif
 #if defined HAVE_GD_OWNS_QUEUE
         set_bit(GD_OWNS_QUEUE, &dev->sd_gd->state);
 #endif
