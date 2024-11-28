@@ -63,6 +63,18 @@ Cleanly and completely removes the snapshot or incremental, unlinking the associ
 
 Allows you to reconfigure various parameters of a snapshot while it is online. Currently only the index cache size (given in MB) can be changed dynamically.
 
+### expand-cow-file
+
+`dbdctl expand-cow-file <size> <minor>`
+
+Expands cow file in snapshot mode by size (given in megabytes).
+
+### reconfigure-auto-expand
+
+`dbdctl reconfigure-auto-expand [-n <steps limit>] <step size> <minor>`
+
+Enable auto-expand of cow file in snapshot mode by <step size> (given in megabytes). Auto-expand works in that way that at least <reserved space> (given in megabytes) is left available after each step for regular users of filesystem.
+
 ### EXAMPLES
 
 `# dbdctl setup-snapshot /dev/sda1 /var/backup/datto 4`

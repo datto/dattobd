@@ -37,4 +37,6 @@ void dattobd_drop_super(struct super_block *sb);
 void dattobd_blkdev_put(struct block_device *bd);
 
 int dattobd_get_start_sect_by_gendisk_for_bio(struct gendisk* gd, u8 partno, sector_t* result);
+
+int dattobd_get_kstatfs(struct block_device* bd, struct kstatfs* statfs);
 #endif /* BLKDEV_H_ */

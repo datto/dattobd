@@ -40,12 +40,20 @@ struct cow_section {
         uint64_t *mappings;
 };
 
+// for now, auto expand settings are not preserved during reloads
+struct cow_auto_expand_manager {
+        struct mutex lock;
+
+        uint64_t step_size_mib;
+        uint64_t reserved_space_mib;
+};
+
 struct cow_manager {
-        struct file *filp; // the file the cow manager is writing to
+        struct dattobd_mutable_file *dfilp; // the file the cow manager is writing to
         uint32_t flags; // flags representing current state of cow manager
         uint64_t curr_pos; // current write head position
         uint64_t data_offset; // starting offset of data
-        uint64_t file_max; // max size of the file before an error is thrown
+        uint64_t file_size; // current size of the file, max size before an error is thrown or file is expanded
         uint64_t seqid; // sequence id, increments on each transition to
                         // snapshot mode
         uint64_t version; // version of cow file format
@@ -63,6 +71,8 @@ struct cow_manager {
         struct cow_section *sects; // pointer to the array of sections of
                                    // mappings
         struct snap_device* dev;  //pointer to snapshot device
+
+        struct cow_auto_expand_manager* auto_expand; // auto expand settings
 };
 
 /***************************COW MANAGER FUNCTIONS**************************/
@@ -99,5 +109,17 @@ int cow_read_data(struct cow_manager *cm, void *buf, uint64_t block_pos,
 int __cow_write_mapping(struct cow_manager *cm, uint64_t pos, uint64_t val);
 
 int cow_get_file_extents(struct snap_device* dev, struct file* filp);
+
+int __cow_expand_datastore(struct cow_manager *cm, uint64_t append_size_bytes);
+
+struct cow_auto_expand_manager* cow_auto_expand_manager_init(void);
+
+int cow_auto_expand_manager_reconfigure(struct cow_auto_expand_manager* aem, uint64_t step_size_mib, uint64_t reserved_space_mib);
+
+uint64_t cow_auto_expand_manager_get_allowance(struct cow_auto_expand_manager* aem, uint64_t available_blocks, uint64_t block_size_bytes);
+
+uint64_t cow_auto_expand_manager_get_allowance_free_unknown(struct cow_auto_expand_manager* aem);
+
+void cow_auto_expand_manager_free(struct cow_auto_expand_manager* aem);
 
 #endif /* COW_MANAGER_H_ */

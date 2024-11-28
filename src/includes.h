@@ -25,5 +25,6 @@
 #include <linux/vmalloc.h>
 #include <linux/fiemap.h>
 #include <linux/types.h>
+#include <linux/statfs.h>
 
 #endif

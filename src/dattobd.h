@@ -15,7 +15,7 @@
 #include <linux/limits.h>
 #include <linux/types.h>
 
-#define DATTOBD_VERSION "0.11.8.1"
+#define DATTOBD_VERSION "0.11.9"
 #define DATTO_IOCTL_MAGIC 0x91
 
 struct setup_params {
@@ -44,6 +44,19 @@ struct transition_snap_params {
 struct reconfigure_params {
         unsigned long cache_size; // maximum cache size (in bytes)
         unsigned int minor; // requested minor number of the device
+};
+
+struct expand_cow_file_params {
+        uint64_t size; // size in mib
+
+        unsigned int minor; // minor to extend
+};
+
+struct reconfigure_auto_expand_params {
+        uint64_t step_size; // step size in mib
+        uint64_t reserved_space; // reserved space in mib
+
+        unsigned int minor; // minor to configure
 };
 
 #define COW_UUID_SIZE 16
@@ -105,5 +118,10 @@ struct dattobd_info {
 #define IOCTL_DATTOBD_INFO                                                     \
         _IOR(DATTO_IOCTL_MAGIC, 8, struct dattobd_info) // in: see above
 #define IOCTL_GET_FREE _IOR(DATTO_IOCTL_MAGIC, 9, int)
+#define IOCTL_EXPAND_COW_FILE                                                  \
+        _IOW(DATTO_IOCTL_MAGIC, 10, struct expand_cow_file_params) // in: see above
+#define IOCTL_RECONFIGURE_AUTO_EXPAND                                          \
+        _IOW(DATTO_IOCTL_MAGIC, 11, struct reconfigure_auto_expand_params) 
+                                                              // in: see above
 
 #endif /* DATTOBD_H_ */

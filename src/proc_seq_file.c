@@ -183,6 +183,9 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 
                         if (dev->sd_cow) {
                                 int i;
+                                seq_printf(m, "\t\t\t\"cow_size_current\": %llu,\n",
+                                   (unsigned long long)dev->sd_cow->file_size);
+
                                 seq_printf(
                                         m, "\t\t\t\"seq_id\": %llu,\n",
                                         (unsigned long long)dev->sd_cow->seqid);
@@ -203,6 +206,15 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
                                                 "\t\t\t\"nr_changed_blocks\": "
                                                 "%llu,\n",
                                                 dev->sd_cow->nr_changed_blocks);
+                                }
+
+                                if(dev->sd_cow->auto_expand){
+                                        seq_printf(m, "\t\t\t\"auto_expand\": {\n");
+                                        seq_printf(m, "\t\t\t\t\"step_size_mib\": %llu,\n",
+                                                   (unsigned long long)dev->sd_cow->auto_expand->step_size_mib);
+                                        seq_printf(m, "\t\t\t\t\"reserved_space_mib\": %llu\n",
+                                                   dev->sd_cow->auto_expand->reserved_space_mib);
+                                        seq_printf(m, "\t\t\t},\n");
                                 }
                         }
                 }

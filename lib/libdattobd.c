@@ -154,3 +154,36 @@ int dattobd_get_free_minor(void){
 	if(!ret) return minor;
 	return ret;
 }
+
+int dattobd_expand_cow_file(unsigned int minor, uint64_t size){
+	int fd, ret;
+	struct expand_cow_file_params params = {
+		.size = size,
+		.minor = minor
+	};
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_EXPAND_COW_FILE, &params);
+
+	close(fd);
+	return ret;
+}
+
+int dattobd_reconfigure_auto_expand(unsigned int minor, uint64_t step_size, uint64_t reserved_space){
+	int fd, ret;
+	struct reconfigure_auto_expand_params params = {
+		.step_size = step_size,
+		.reserved_space = reserved_space,
+		.minor = minor
+	};
+
+	fd = open("/dev/datto-ctl", O_RDONLY);
+	if(fd < 0) return -1;
+
+	ret = ioctl(fd, IOCTL_RECONFIGURE_AUTO_EXPAND, &params);
+
+	close(fd);
+	return ret;
+}

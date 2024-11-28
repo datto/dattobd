@@ -16,6 +16,7 @@
 #include "tracer.h"
 #include "tracer_helper.h"
 #include "userspace_copy_helpers.h"
+#include "cow_manager.h"
 
 #ifdef HAVE_UAPI_MOUNT_H
 #include <uapi/linux/mount.h>
@@ -391,6 +392,120 @@ error:
 }
 
 /**
+ * ioctl_expand_cow_file() - Expands cow file by the specified size.
+ * @size: The size in MiB to expand the cow file by.
+ * @minor: An allocated device minor number.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
+int ioctl_expand_cow_file(uint64_t size, unsigned int minor)
+{
+        int ret;
+        struct snap_device *dev;
+
+        LOG_DEBUG("received expand cow file ioctl - %u : %llu", minor, size);
+
+        // verify that the minor number is valid
+        ret = verify_minor_in_use(minor);
+        if (ret)
+                goto error;
+
+        dev = snap_devices[minor];
+
+        // check that the device is not in the fail state
+        if (tracer_read_fail_state(dev)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret, "device specified is in the fail state");
+                goto error;
+        }
+
+        // check that tracer is in active snapshot state
+        if (!test_bit(SNAPSHOT, &dev->sd_state) ||
+            !test_bit(ACTIVE, &dev->sd_state) ||
+            test_bit(UNVERIFIED, &dev->sd_state)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret,
+                          "device specified is not in active snapshot mode");
+                goto error;
+        }
+
+        ret = tracer_expand_cow_file_no_check(dev, size * 1024 * 1024);
+
+        if(ret)
+                goto error;
+
+        return 0;
+
+error:
+        LOG_ERROR(ret, "error during expand cow file ioctl handler");
+        return ret;
+}
+
+/**
+ * ioctl_reconfigure_auto_expand() - Allows cow file to expand by the specified size during snapshot, specified number of times.
+ * @step_size: The step size in MiB to expand the cow file by.
+ * @reserved_space: The reserved space in MiB to keep free on the block device.
+ * @minor: An allocated device minor number.
+ *
+ * Return:
+ * * 0 - successful.
+ * * !0 - errno indicating the error.
+ */
+int ioctl_reconfigure_auto_expand(uint64_t step_size, uint64_t reserved_space, unsigned int minor)
+{
+        int ret;
+        struct snap_device *dev;
+
+        LOG_DEBUG("received reconfigure auto expand ioctl - %u : %llu, %llu", minor, step_size, reserved_space);
+
+        // verify that the minor number is valid
+        ret = verify_minor_in_use(minor);
+        if (ret)
+                goto error;
+
+        dev = snap_devices[minor];
+
+        // check that the device is not in the fail state
+        if (tracer_read_fail_state(dev)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret, "device specified is in the fail state");
+                goto error;
+        }
+
+        // check that tracer is in active snapshot state
+        if (!test_bit(SNAPSHOT, &dev->sd_state) ||
+            !test_bit(ACTIVE, &dev->sd_state) ||
+            test_bit(UNVERIFIED, &dev->sd_state)) {
+                ret = -EINVAL;
+                LOG_ERROR(ret,
+                          "device specified is not in active snapshot mode");
+                goto error;
+        }
+
+        if(dev->sd_cow->auto_expand == NULL){
+                dev->sd_cow->auto_expand = cow_auto_expand_manager_init();
+                if(IS_ERR(dev->sd_cow->auto_expand)){
+                        ret = PTR_ERR(dev->sd_cow->auto_expand);
+                        LOG_ERROR(ret, "error initializing auto expand manager");
+                        goto error;
+                }
+        }
+
+        ret = cow_auto_expand_manager_reconfigure(dev->sd_cow->auto_expand, step_size, reserved_space);
+
+        if(ret)
+                goto error;
+
+        return 0;
+
+error:
+        LOG_ERROR(ret, "error during reconfigure auto expand ioctl handler");
+        return ret;
+}
+
+/**
  * ioctl_dattobd_info() - Stores relevant, current &struct snap_device state
  *                        in @info.
  *
@@ -463,6 +578,8 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         struct dattobd_info *info = NULL;
         unsigned int minor = 0;
         unsigned long fallocated_space = 0, cache_size = 0;
+        struct expand_cow_file_params *expand_params = NULL;
+        struct reconfigure_auto_expand_params *reconfigure_auto_expand_params = NULL;
 
         LOG_DEBUG("ioctl command received: %i", cmd);
         mutex_lock(&ioctl_mutex);
@@ -608,6 +725,38 @@ long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                 if (ret) {
                         ret = -EFAULT;
                         LOG_ERROR(ret, "error copying minor to user space");
+                        break;
+                }
+
+                break;
+        case IOCTL_EXPAND_COW_FILE:
+                // get params from user space
+                expand_params = kmalloc(sizeof(struct expand_cow_file_params), GFP_KERNEL);
+                ret = copy_from_user(expand_params, (struct expand_cow_file_params __user *)arg, sizeof(struct expand_cow_file_params));
+                if (ret){
+                        ret = -EFAULT;
+                        LOG_ERROR(ret, "error copying expand_cow_file_params from user space");
+                        break;
+                }
+
+                ret = ioctl_expand_cow_file(expand_params->size, expand_params->minor);
+                if (ret){
+                        break;
+                }
+
+                break;
+        case IOCTL_RECONFIGURE_AUTO_EXPAND:
+                // get params from user space
+                reconfigure_auto_expand_params = kmalloc(sizeof(struct reconfigure_auto_expand_params), GFP_KERNEL);
+                ret = copy_from_user(reconfigure_auto_expand_params, (struct reconfigure_auto_expand_params __user *)arg, sizeof(struct reconfigure_auto_expand_params));
+                if (ret){
+                        ret = -EFAULT;
+                        LOG_ERROR(ret, "error copying reconfigure_auto_expand_params from user space");
+                        break;
+                }
+
+                ret = ioctl_reconfigure_auto_expand(reconfigure_auto_expand_params->step_size, reconfigure_auto_expand_params->reserved_space, reconfigure_auto_expand_params->minor);
+                if (ret){
                         break;
                 }
 

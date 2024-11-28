@@ -68,7 +68,7 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
                     dev->sd_base_dev != mnt->mnt_sb->s_bdev)
                         continue;
 
-                if (mnt == dattobd_get_mnt(dev->sd_cow->filp)) {
+                if (mnt == dev->sd_cow->dfilp->mnt) {
                         LOG_DEBUG("block device umount detected for device %d",
                                   i);
                         auto_transition_dormant(i);
