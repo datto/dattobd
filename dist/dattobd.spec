@@ -432,6 +432,9 @@ if [ "$1" -ge "1" ]; then
     if [ -f /usr/lib/dkms/common.postinst ]; then
         /usr/lib/dkms/common.postinst %{name} %{version}
         exit $?
+    else
+        dkms add -m %{name} -v %{version} && dkms autoinstall
+        exit $?
     fi
 fi
 
