@@ -433,7 +433,8 @@ if [ "$1" -ge "1" ]; then
         /usr/lib/dkms/common.postinst %{name} %{version}
         exit $?
     else
-        dkms add -m %{name} -v %{version} && dkms autoinstall
+        dkms add -m %{name} -v %{version} %{?rpm_dkms_opt:--rpm_safe_upgrade}
+        dkms install -m %{name} -v %{version} --force
         exit $?
     fi
 fi
