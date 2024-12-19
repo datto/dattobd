@@ -117,7 +117,7 @@
 
 
 Name:            dattobd
-Version:         0.11.9
+Version:         0.11.10
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -320,6 +320,13 @@ sed -e "s:@prefix@:%{_prefix}:g" \
 # Generate symbols for library package (Debian/Ubuntu only)
 %if "%{_vendor}" == "debbuild"
 mkdir -p %{buildroot}/%{libname}/DEBIAN
+
+# Ubuntu 24.04 LTS have broken dpkg-gensymbols usage without debian/control file. So, let us emulate it.
+%if 0%{?ubuntu} && 0%{?ubuntu} >= 2404
+mkdir debian
+touch debian/control
+%endif
+
 dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover}.* -O%{buildroot}/%{libname}/DEBIAN/symbols
 %endif
 
@@ -424,6 +431,10 @@ if [ "$1" -ge "1" ]; then
 %endif
     if [ -f /usr/lib/dkms/common.postinst ]; then
         /usr/lib/dkms/common.postinst %{name} %{version}
+        exit $?
+    else
+        dkms add -m %{name} -v %{version} %{?rpm_dkms_opt:--rpm_safe_upgrade}
+        dkms install -m %{name} -v %{version} --force
         exit $?
     fi
 fi

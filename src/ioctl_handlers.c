@@ -97,24 +97,24 @@ static int __verify_minor(unsigned int minor, int mode)
 int __verify_bdev_writable(const char *bdev_path, int *out)
 {
         int writable = 0;
-        struct block_device *bdev;
+        struct bdev_wrapper *bdev_w;
         struct super_block *sb;
 
         // open the base block device
-        bdev = dattodb_blkdev_by_path(bdev_path, FMODE_READ, NULL);
+        bdev_w = dattobd_blkdev_by_path(bdev_path, FMODE_READ, NULL);
 
-        if (IS_ERR(bdev)) {
+        if (IS_ERR(bdev_w)) {
                 *out = 0;
-                return PTR_ERR(bdev);
+                return PTR_ERR(bdev_w);
         }
 
-        sb = dattobd_get_super(bdev);
+        sb = dattobd_get_super(bdev_w->bdev);
         if (sb) {
                 writable = !(sb->s_flags & MS_RDONLY);
                 dattobd_drop_super(sb);
         }
 
-        dattobd_blkdev_put(bdev);
+        dattobd_blkdev_put(bdev_w);
         *out = writable;
         return 0;
 }

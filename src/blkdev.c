@@ -6,8 +6,9 @@
 
 #include "blkdev.h"
 #include "logging.h"
+#include <linux/version.h>
 
-#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_4
+#if !defined HAVE_BLKDEV_GET_BY_PATH && !defined HAVE_BLKDEV_GET_BY_PATH_4 && !defined HAVE_BDEV_OPEN_BY_PATH && !defined HAVE_BDEV_FILE_OPEN_BY_PATH
 
 /**
  * dattobd_lookup_bdev() - Looks up the inode associated with the path, verifies
@@ -91,30 +92,44 @@ static struct block_device *_blkdev_get_by_path(const char *pathname, fmode_t mo
 #endif
 
 /**
- * dattodb_blkdev_by_path() - Fetches the @block_device struct associated with the
+ * dattobd_blkdev_by_path() - Fetches the @block_device struct associated with the
  * @path. This function uses different methods based on available kernel functions
- * to retrieve the block device.
+ * to retrieve the block device. Returns @bdev_handle struct which contains
+ * information about @block_device and @holder. Made to be in compliance with kernel
+ * version 6.8+ standard.
  *
  * @path: the path name of a block special file.
  * @mode: The mode used to open the block special file, likely just FMODE_READ.
  * @holder: unused.
  *
  * Return:
- * On success the @block_device structure otherwise an error created via
+ * On success the @bdev_handle structure otherwise an error created via
  * ERR_PTR().
  */
-struct block_device *dattodb_blkdev_by_path(const char *path, fmode_t mode,
+struct bdev_wrapper *dattobd_blkdev_by_path(const char *path, fmode_t mode,
                                         void *holder)
 {
-#if defined HAVE_BLKDEV_GET_BY_PATH_4
-        return blkdev_get_by_path(path, mode, holder, NULL);
+        struct bdev_wrapper *bw = kmalloc(sizeof(struct bdev_wrapper), GFP_KERNEL);
 
+        if(IS_ERR_OR_NULL(bw)){
+                return ERR_PTR(-ENOMEM);
+        } 
+
+#if defined HAVE_BDEV_OPEN_BY_PATH
+        bw->_internal.handle = bdev_open_by_path(path, mode, holder, NULL);
+        bw->bdev = bw->_internal.handle->bdev;
+#elif defined HAVE_BLKDEV_GET_BY_PATH_4
+        bw->bdev = blkdev_get_by_path(path, mode, holder, NULL);
 #elif defined HAVE_BLKDEV_GET_BY_PATH
-        return blkdev_get_by_path(path, mode, holder);
-
+        bw->bdev = blkdev_get_by_path(path, mode, holder);
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+        bw->_internal.file = bdev_file_open_by_path(path, mode, holder, NULL);
+        bw->bdev = file_bdev(bw->_internal.file);
 #else
-        return _blkdev_get_by_path(path, mode, holder);
+        bw->bdev = _blkdev_get_by_path(path, mode, holder);
 #endif
+
+        return bw;
 }
 
 /**
@@ -131,13 +146,15 @@ struct super_block *dattobd_get_super(struct block_device * bd)
 {
 #if defined HAVE_BD_SUPER
         return (bd != NULL) ? bd->bd_super : NULL;
-
 #elif defined HAVE_GET_SUPER
         return get_super(bdev);
-
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0)
+        return (struct super_block*)(bd -> bd_holder);
+#elif GET_ACTIVE_SUPER_ADDR != 0
         struct super_block* (*get_active_superblock)(struct block_device*)= (GET_ACTIVE_SUPER_ADDR != 0) ? (struct super_block* (*)(struct block_device*))(GET_ACTIVE_SUPER_ADDR +(long long)(((void*)kfree)-(void*)KFREE_ADDR)):NULL;
         return get_active_superblock(bd);
+#else
+        #error "Could not determine super block of block device"
 #endif
 }
 
@@ -155,12 +172,14 @@ void dattobd_drop_super(struct super_block *sb)
 {
 #if defined HAVE_BD_SUPER
         return;
-
 #elif defined HAVE_GET_SUPER
         return drop_super(sb);
-
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0)
         return;
+#elif GET_ACTIVE_SUPER_ADDR != 0
+        return;
+#else
+        #error "Could not determine super block of block device"
 #endif
 }
 
@@ -169,22 +188,30 @@ void dattobd_drop_super(struct super_block *sb)
  * This function performs the appropriate action based on the available
  * kernel functions to release block device.
  *
- * @bd: block device structure pointer to be released.
+ * @bh: bdev_handle structure pointer to be released.
  *
  * Return:
  * void.
  */
-void dattobd_blkdev_put(struct block_device *bd) 
+void dattobd_blkdev_put(struct bdev_wrapper *bw) 
 {
-#if defined HAVE_BLKDEV_PUT_1
-        return blkdev_put(bd);
+        if(unlikely(IS_ERR_OR_NULL(bw)))
+                return;
 
+#ifdef USE_BDEV_AS_FILE
+        if(bw->_internal.file)
+                bdev_fput(bw->_internal.file);
+#elif defined HAVE_BDEV_RELEASE
+        if(bw->_internal.handle)
+                bdev_release(bw->_internal.handle);
+#elif defined HAVE_BLKDEV_PUT_1
+        blkdev_put(bw->bdev);
 #elif defined HAVE_BLKDEV_PUT_2
-        return blkdev_put(bd,NULL);
-
+        blkdev_put(bw->bdev, NULL);
 #else
-        return blkdev_put(bd, FMODE_READ);
+        blkdev_put(bw->bdev, FMODE_READ);
 #endif
+        kfree(bw);
 }
 
 /**
@@ -219,7 +246,7 @@ int dattobd_get_start_sect_by_gendisk_for_bio(struct gendisk* gd, u8 partno, sec
         LOG_ERROR(-1, "Unreachable code.");
         return -1;
 #else
-        #error Could not determine starting sector of partition by gendisk and partition number
+        #error "Could not determine starting sector of partition by gendisk and partition number"
 #endif
 }
 
