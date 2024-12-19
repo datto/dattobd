@@ -320,6 +320,13 @@ sed -e "s:@prefix@:%{_prefix}:g" \
 # Generate symbols for library package (Debian/Ubuntu only)
 %if "%{_vendor}" == "debbuild"
 mkdir -p %{buildroot}/%{libname}/DEBIAN
+
+# Ubuntu 24.04 LTS have broken dpkg-gensymbols usage without debian/control file. So, let us emulate it.
+%if 0%{?ubuntu} && 0%{?ubuntu} >= 2404
+mkdir debian
+touch debian/control
+%endif
+
 dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover}.* -O%{buildroot}/%{libname}/DEBIAN/symbols
 %endif
 

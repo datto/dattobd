@@ -125,7 +125,7 @@ int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio)
         bio_orig_size = bio_size(bio);
         bio_orig_sect = bio_sector(bio);
 
-        dattobd_bio_set_dev(bio, dev->sd_base_dev);
+        dattobd_bio_set_dev(bio, dev->sd_base_dev->bdev);
         dattobd_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
 
         // detect fastpath for bios completely contained within either the cow

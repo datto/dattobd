@@ -65,7 +65,7 @@ int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
         {
                 if (!dev || !test_bit(ACTIVE, &dev->sd_state) ||
                     tracer_read_fail_state(dev) ||
-                    dev->sd_base_dev != mnt->mnt_sb->s_bdev)
+                    dev->sd_base_dev->bdev != mnt->mnt_sb->s_bdev)
                         continue;
 
                 if (mnt == dev->sd_cow->dfilp->mnt) {
@@ -105,7 +105,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
         int ret;
         unsigned int i;
         struct snap_device *dev;
-        struct block_device *cur_bdev;
+        struct bdev_wrapper *cur_bdev;
 
         LOG_DEBUG("ENTER %s", __func__);
         tracer_for_each(dev, i)
@@ -121,7 +121,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
                 if (test_bit(UNVERIFIED, &dev->sd_state)) {
                         // get the block device for the unverified tracer we are
                         // looking into
-                        cur_bdev = dattodb_blkdev_by_path(dev->sd_bdev_path,
+                        cur_bdev = dattobd_blkdev_by_path(dev->sd_bdev_path,
                                                       FMODE_READ, NULL);
                         if (IS_ERR(cur_bdev)) {
                                 cur_bdev = NULL;
@@ -130,7 +130,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
 
                         // if the tracer's block device exists and matches the
                         // one being mounted perform transition
-                        if (cur_bdev == bdev) {
+                        if (cur_bdev->bdev == bdev) {
                                 LOG_DEBUG("block device mount detected for "
                                           "unverified device %d",
                                           i);
@@ -144,7 +144,7 @@ int __handle_bdev_mount_writable(const char *dir_name,
                         // put the block device
                         dattobd_blkdev_put(cur_bdev);
 
-                } else if (dev->sd_base_dev == bdev) {
+                } else if (dev->sd_base_dev->bdev == bdev) {
                         LOG_DEBUG(
                                 "block device mount detected for dormant device %d",
                                 i);
@@ -259,15 +259,15 @@ void post_umount_check(int dormant_ret, int umount_ret, unsigned int idx,
         // if we successfully went dormant, but the umount call failed,
         // reactivate
         if (umount_ret) {
-                struct block_device *bdev;
-                bdev = dattodb_blkdev_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
-                if (!bdev || IS_ERR(bdev)) {
+                struct bdev_wrapper *bdev_w;
+                bdev_w = dattobd_blkdev_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+                if (IS_ERR_OR_NULL(bdev_w)) {
                         LOG_DEBUG("device gone, moving to error state");
                         tracer_set_fail_state(dev, -ENODEV);
                         return;
                 }
 
-                dattobd_blkdev_put(bdev);
+                dattobd_blkdev_put(bdev_w);
 
                 LOG_DEBUG("umount call failed, reactivating tracer %u", idx);
                 auto_transition_active(idx, dir_name);
@@ -279,7 +279,7 @@ void post_umount_check(int dormant_ret, int umount_ret, unsigned int idx,
 
         // if we went dormant, but the block device is still mounted somewhere,
         // goto fail state
-        sb = dattobd_get_super(dev->sd_base_dev);
+        sb = dattobd_get_super(dev->sd_base_dev->bdev);
         if (sb) {
                 if (!(sb->s_flags & MS_RDONLY)) {
                         LOG_ERROR(

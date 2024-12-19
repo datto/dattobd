@@ -957,7 +957,7 @@ retry:
                 if(cm->auto_expand){
                         kstatfs_ret = 0;
                         if(cm->dev && cm->dev->sd_base_dev){
-                                kstatfs_ret = dattobd_get_kstatfs(cm->dev->sd_base_dev, &kstatfs);
+                                kstatfs_ret = dattobd_get_kstatfs(cm->dev->sd_base_dev->bdev, &kstatfs);
                         }
 
                         if(!kstatfs_ret){
@@ -1138,7 +1138,6 @@ int cow_get_file_extents(struct snap_device* dev, struct file* filp)
 
         ret = insert_vm_struct(task->mm, vma);
         if (ret < 0) {
-		ret = -EINVAL;
 		LOG_ERROR(ret, "insert_vm_struct() failed");
 		dattobd_vm_area_free(vma);
 		dattobd_mm_unlock(task->mm);
@@ -1147,7 +1146,6 @@ int cow_get_file_extents(struct snap_device* dev, struct file* filp)
 
         pg = alloc_pages(GFP_USER, get_order(cow_ext_buf_size));
 	if (!pg) {
-		ret = -ENOMEM;
 		LOG_ERROR(ret, "alloc_page() failed");
 		dattobd_vm_area_free(vma);
 		dattobd_mm_unlock(task->mm);

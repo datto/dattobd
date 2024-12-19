@@ -9,3 +9,4 @@ vm_area_free
 insert_vm_struct
 vm_area_cachep
 get_active_super
+vma_lock_cachep

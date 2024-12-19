@@ -9,6 +9,7 @@
 #include "logging.h"
 #include "userspace_copy_helpers.h"
 #include "snap_device.h"
+#include "blkdev.h"
 
 // if this isn't defined, we don't need it anyway
 #ifndef FMODE_NONOTIFY
@@ -920,7 +921,7 @@ int __file_unlink(struct dattobd_mutable_file *dfilp, int close, int force)
         //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
         ret = vfs_unlink(&init_user_ns, dir_inode, file_dentry, NULL);
 #elif defined HAVE_USER_NAMESPACE_ARGS_2
-        ret = vfs_unlink(file_mnt_idmap(filp), dir_inode, file_dentry, NULL);
+        ret = vfs_unlink(file_mnt_idmap(dfilp->filp), dir_inode, file_dentry, NULL);
 #else
         ret = vfs_unlink(dir_inode, file_dentry, NULL);
 #endif
@@ -1022,6 +1023,9 @@ void dattobd_inode_unlock(struct inode *inode)
 struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
+struct kmem_cache **vma_lock_cache = (VMA_LOCK_CACHEP_ADDR != 0) ?
+	(struct kmem_cache **) (VMA_LOCK_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
 struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 {
         struct vm_area_struct *vma;
@@ -1036,6 +1040,17 @@ struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 		LOG_ERROR(-ENOMEM, "kmem_cache_zalloc() failed");
 		return NULL;
 	}
+
+#ifdef HAVE_VM_AREA_STRUCT_VM_LOCK
+        vma->vm_lock = kmem_cache_zalloc(*vma_lock_cache, GFP_KERNEL);
+        if (!vma->vm_lock) {
+                LOG_ERROR(-ENOMEM, "kmem_cache_zalloc() failed");
+                kmem_cache_free(*vm_area_cache, vma);
+                return NULL;
+        }
+        init_rwsem(&vma->vm_lock->lock);
+        vma->vm_lock_seq = -1;
+#endif
 
 	vma->vm_mm = mm;
 	vma->vm_ops = &dummy_vm_ops;
@@ -1105,7 +1120,7 @@ int file_write_block(struct snap_device* dev, const void* block, size_t offset, 
 
         ret = 0;
 	bs = dev_bioset(dev);
-	bdev = dev->sd_base_dev;
+	bdev = dev->sd_base_dev->bdev;
 	sectors_processed = 0;
 
 write_bio: 
@@ -1212,7 +1227,7 @@ int file_read_block(struct snap_device* dev, void* block, size_t offset, size_t 
 
 	ret = 0;
 	bs = dev_bioset(dev);
-	bdev = dev->sd_base_dev;
+	bdev = dev->sd_base_dev->bdev;
 	sectors_processed = 0;
 WARN_ON(len > SECTORS_PER_BLOCK);
 
