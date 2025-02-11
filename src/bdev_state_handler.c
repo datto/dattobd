@@ -67,12 +67,15 @@ static int __handle_bdev_mount_nowrite(const struct vfsmount *mnt,
         struct snap_device *dev;
         tracer_for_each(dev, i)
         {
-                if (!dev || !test_bit(ACTIVE, &dev->sd_state) ||
+                if(!dev) continue;
+
+                if (!test_bit(ACTIVE, &dev->sd_state) ||
                     tracer_read_fail_state(dev) ||
+                    !dev->sd_base_dev ||
                     dev->sd_base_dev->bdev != mnt->mnt_sb->s_bdev)
                         continue;
 
-                if (mnt == dev->sd_cow->dfilp->mnt) {
+                if (dev->sd_cow && dev->sd_cow->dfilp && mnt == dev->sd_cow->dfilp->mnt) {
                         LOG_DEBUG("block device umount detected for device %d",
                                   i);
                         auto_transition_dormant(i, snap_devices);
@@ -115,7 +118,9 @@ static int __handle_bdev_mount_writable(const char *dir_name,
         LOG_DEBUG("ENTER %s", __func__);
         tracer_for_each(dev, i)
         {
-                if (!dev || test_bit(ACTIVE, &dev->sd_state) ||
+                if(!dev) continue;
+
+                if (test_bit(ACTIVE, &dev->sd_state) ||
                     tracer_read_fail_state(dev)) {
                         if(test_bit(ACTIVE, &dev->sd_state))
                         {
@@ -123,6 +128,7 @@ static int __handle_bdev_mount_writable(const char *dir_name,
                         }
                         continue;
                 }
+
                 if (test_bit(UNVERIFIED, &dev->sd_state)) {
                         // get the block device for the unverified tracer we are
                         // looking into
@@ -149,7 +155,7 @@ static int __handle_bdev_mount_writable(const char *dir_name,
                         // put the block device
                         dattobd_blkdev_put(cur_bdev);
 
-                } else if (dev->sd_base_dev->bdev == bdev) {
+                } else if (dev->sd_base_dev && dev->sd_base_dev->bdev == bdev) {
                         LOG_DEBUG(
                                 "block device mount detected for dormant device %d",
                                 i);

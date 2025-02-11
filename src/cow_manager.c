@@ -419,7 +419,7 @@ void cow_free_members(struct cow_manager *cm)
         }
 
         if (cm->dfilp) {
-                file_unlink_and_close_force(cm->dfilp);
+                file_unlink(cm->dfilp);
                 __close_and_destroy_dattobd_mutable_file(cm->dfilp);
                 cm->dfilp = NULL;
         }
@@ -775,7 +775,7 @@ int cow_init(struct snap_device *dev, const char *path, uint64_t elements, unsig
 error:
         LOG_ERROR(ret, "error during cow manager initialization");
         if (cm->dfilp){
-                file_unlink_and_close(cm->dfilp);
+                file_unlink(cm->dfilp);
                 __close_and_destroy_dattobd_mutable_file(cm->dfilp);
                 cm->dfilp = NULL;
         }

@@ -876,16 +876,14 @@ error:
 }
 
 /**
- * __file_unlink() - delete a name and possibly the file it refers to.
+ * file_unlink() - delete a name and possibly the file it refers to.
  * @dfilp: A dataobd mutable file object.
- * @close: Close the @filp on success.
- * @force: Always close the @filp regardless of a successful unlink.
  *
  * Return:
  * * 0 - success
  * * !0 - errno indicating the error.
  */
-int __file_unlink(struct dattobd_mutable_file *dfilp, int close, int force)
+int file_unlink(struct dattobd_mutable_file *dfilp)
 {
         int ret = 0;
         struct inode *dir_inode = dfilp->dentry->d_parent->d_inode;
@@ -898,8 +896,6 @@ int __file_unlink(struct dattobd_mutable_file *dfilp, int close, int force)
         // }
 
         if (d_unlinked(file_dentry)) {
-                if (close)
-                        file_close(dfilp);
                 return 0;
         }
 
@@ -932,9 +928,7 @@ int __file_unlink(struct dattobd_mutable_file *dfilp, int close, int force)
 
 error:
         mnt_drop_write(mnt);
-
-        if (close && (!ret || force))
-                file_close(dfilp);
+        dattobd_mutable_file_lock(dfilp);
 
 mnt_error:
         iput(dir_inode);
