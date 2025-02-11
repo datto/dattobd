@@ -7,6 +7,7 @@
 #include "dattobd.h"
 #include "includes.h"
 #include "logging.h"
+#include "userspace_copy_helpers.h"
 
 /**
  * copy_string_from_user() - Copies string data from a user space address to

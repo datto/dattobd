@@ -39,8 +39,6 @@
 #define SUBMIT_BIO_REAL dattobd_call_mrf_real
 #define GET_BIO_REQUEST_TRACKING_PTR dattobd_get_bd_mrf
 #define GET_BIO_REQUEST_TRACKING_PTR_GD dattobd_get_gd_mrf
-// deprecated, as we have not found usage
-// #define SET_BIO_REQUEST_TRACKING_PTR dattobd_set_bd_mrf
 #endif
 
 #endif

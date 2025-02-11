@@ -61,37 +61,6 @@ error:
 	return -1;
 }
 
-static int parse_l(const char *str, long *out){
-	long long tmp;
-	int first;
-	const char *c = str;
-
-	//check that string is an integer number and has a length
-	first = 1;
-	do{
-		if(!isdigit(*c) && (!first || *c != '-')) goto error;
-		first = 0;
-		c++;
-	}while(*c);
-
-	//convert to long long
-	tmp = strtoll(str, NULL, 0);
-	if(errno) goto error;
-
-	//check boundaries
-	if(tmp < (long long)LONG_MIN || tmp > (long long)LONG_MAX){
-		errno = ERANGE;
-		goto error;
-	}
-
-	*out = (long)tmp;
-	return 0;
-
-error:
-	*out = 0;
-	return -1;
-}
-
 static int parse_ui(const char *str, unsigned int *out){
 	long tmp;
 	const char *c = str;

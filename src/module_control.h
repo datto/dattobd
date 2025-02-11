@@ -26,6 +26,4 @@ extern unsigned int highest_minor;
 extern unsigned int lowest_minor;
 extern int major;
 
-extern struct snap_device **snap_devices;
-
 #endif /* MODULE_CONTROL_H_ */

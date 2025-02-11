@@ -86,4 +86,17 @@ struct snap_device {
 #endif
 };
 
+int init_snap_device_array(void);
+void cleanup_snap_device_array(void);
+
+typedef struct snap_device * const * snap_device_array;
+typedef struct snap_device ** snap_device_array_mut;
+
+snap_device_array get_snap_device_array(void);
+snap_device_array_mut get_snap_device_array_mut(void);
+snap_device_array get_snap_device_array_nolock(void);
+void put_snap_device_array(snap_device_array);
+void put_snap_device_array_mut(snap_device_array_mut);
+void put_snap_device_array_nolock(snap_device_array);
+
 #endif /* SNAP_DEVICE_H_ */

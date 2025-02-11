@@ -28,6 +28,8 @@
 #define get_zeroed_pages(flags, order)                                         \
         __get_free_pages(((flags) | __GFP_ZERO), order)
 
+const unsigned long dattobd_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
+
 inline void __close_and_destroy_dattobd_mutable_file(struct dattobd_mutable_file *dfilp){
         file_close(dfilp);
         dattobd_mutable_file_unwrap(dfilp);
@@ -63,7 +65,7 @@ inline int __open_dattobd_mutable_file(const char *path, int flags, struct datto
  * @cm: The &struct cow_manager tracking the block device.
  * @sect_idx: An offset into the array of sections used to track COW data.
  */
-void __cow_free_section(struct cow_manager *cm, unsigned long sect_idx)
+static void __cow_free_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         free_pages((unsigned long)cm->sects[sect_idx].mappings,
                    cm->log_sect_pages);
@@ -84,7 +86,7 @@ void __cow_free_section(struct cow_manager *cm, unsigned long sect_idx)
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
+static int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
                         int zero)
 {
         if (zero)
@@ -116,7 +118,7 @@ int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
+static int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         int ret, i;
         int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
@@ -126,8 +128,8 @@ int __cow_load_section(struct cow_manager *cm, unsigned long sect_idx)
                 goto error;
 
         for (i = 0; i < sect_size_bytes / COW_BLOCK_SIZE; i++) {
-		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
-		int cow_file_offset = COW_BLOCK_SIZE * i;
+		// int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
+		// int cow_file_offset = COW_BLOCK_SIZE * i;
 
                 ret = file_read(cm->dfilp, cm->dev, cm->sects[sect_idx].mappings,
                                 cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
@@ -154,14 +156,14 @@ error:
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
+static int __cow_write_section(struct cow_manager *cm, unsigned long sect_idx)
 {
         int i, ret;
         int sect_size_bytes = COW_SECTION_SIZE * sizeof(uint64_t);
 
         for (i = 0; i < sect_size_bytes / COW_BLOCK_SIZE; i++) {
-		int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
-		int cow_file_offset = COW_BLOCK_SIZE * i;
+		// int mapping_offset = (COW_BLOCK_SIZE / sizeof(cm->sects[sect_idx].mappings[0])) * i;
+		// int cow_file_offset = COW_BLOCK_SIZE * i;
 
         ret = file_write(cm->dfilp, cm->dev, cm->sects[sect_idx].mappings,
                          cm->sect_size * sect_idx * 8 + COW_HEADER_SIZE,
@@ -284,7 +286,7 @@ static int __cow_cleanup_mappings(struct cow_manager *cm)
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int __cow_write_header(struct cow_manager *cm, int is_clean)
+static int __cow_write_header(struct cow_manager *cm, int is_clean)
 {
         int ret;
         struct cow_header ch;
@@ -334,7 +336,7 @@ int __cow_write_header(struct cow_manager *cm, int is_clean)
  * * 0 - success
  * * !0 - errno indicating the error
  */
-int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc)
+static int __cow_open_header(struct cow_manager *cm, int index_only, int reset_vmalloc)
 {
         int ret;
         struct cow_header ch;

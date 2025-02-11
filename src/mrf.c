@@ -45,13 +45,6 @@ MRF_RETURN_TYPE dattobd_null_mrf(struct request_queue *q, struct bio *bio)
 }
 #endif
 
-#ifndef HAVE_BDOPS_SUBMIT_BIO
-void dattobd_set_bd_mrf(struct block_device *bdev, make_request_fn *mrf)
-{
-    bdev->bd_disk->queue->make_request_fn = mrf;
-}
-#endif
-
 #ifdef USE_BDOPS_SUBMIT_BIO
 
 MRF_RETURN_TYPE (*dattobd_blk_mq_submit_bio)(struct bio*)= (BLK_MQ_SUBMIT_BIO_ADDR != 0) ? 

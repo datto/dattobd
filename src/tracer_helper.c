@@ -31,6 +31,8 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 {
         int active = 0;
         sector_t bio_sector_start = 0;
+        sector_t offset;
+        MAYBE_UNUSED(offset);
         if (!dev) {
                 return false;
         }
@@ -51,7 +53,6 @@ bool tracer_is_bio_for_dev(struct snap_device *dev, struct bio *bio)
 #elif defined HAVE_BIO_BI_PARTNO
         if(unlikely(bio->bi_disk == NULL))
                 return false;
-        sector_t offset;
         if(dattobd_get_start_sect_by_gendisk_for_bio(bio->bi_disk, bio->bi_partno, &offset)){
                 return false;
         }

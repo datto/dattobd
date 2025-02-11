@@ -20,9 +20,9 @@ struct sset_list {
         struct sector_set *tail;
 };
 
-inline void sset_list_init(struct sset_list *sl);
+void sset_list_init(struct sset_list *sl);
 
-inline int sset_list_empty(const struct sset_list *sl);
+int sset_list_empty(const struct sset_list *sl);
 
 void sset_list_add(struct sset_list *sl, struct sector_set *sset);
 
