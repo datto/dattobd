@@ -33,8 +33,6 @@ unsigned int highest_minor;
 unsigned int lowest_minor;
 int major;
 
-struct snap_device **snap_devices;
-
 /*
  * Global module parameters
  */
@@ -135,30 +133,6 @@ static void unregister_sequential_file_in_proc(void)
 }
 
 /**
- * deallocate_snap_devices_array() - Deallocates the global @snap_devices array
- * and any allocated
- * @snap_device entries.
- */
-static void deallocate_snap_devices_array(void)
-{
-        LOG_DEBUG("destroying snap devices");
-        if (snap_devices) {
-                int i;
-                struct snap_device *dev;
-
-                tracer_for_each(dev, i)
-                {
-                        if (dev) {
-                                LOG_DEBUG("destroying minor - %d", i);
-                                tracer_destroy(dev);
-                        }
-                }
-                kfree(snap_devices);
-                snap_devices = NULL;
-        }
-}
-
-/**
  * unregister_blkdev_from_kernel() - The dattobd device driver will be
  * unregistered with the kernel
  */
@@ -183,7 +157,7 @@ static void agent_exit(void)
 
         unregister_sequential_file_in_proc();
 
-        deallocate_snap_devices_array();
+        cleanup_snap_device_array();
 
         unregister_blkdev_from_kernel();
 }
@@ -228,27 +202,6 @@ static int register_blkdev_and_get_major_number(void)
         major = register_blkdev(0, DRIVER_NAME);
         if (major <= 0) {
                 return -EBUSY;
-        }
-
-        return 0;
-}
-
-/**
- * allocate_snap_devices_array() - Allocates enough memory to store the maximum
- * number of supported snap devices.
- *
- * Return:
- * * 0 - success
- * * !0 - Not successful, the value gives some indication of what went wrong.
- */
-static int allocate_snap_devices_array(void)
-{
-        LOG_DEBUG("allocate global device array");
-        snap_devices =
-                kzalloc(dattobd_max_snap_devices * sizeof(struct snap_device *),
-                        GFP_KERNEL);
-        if (!snap_devices) {
-                return -ENOMEM;
         }
 
         return 0;
@@ -321,9 +274,9 @@ static int __init agent_init(void)
                 goto error;
         }
 
-        ret = allocate_snap_devices_array();
+        ret = init_snap_device_array();
         if (ret) {
-                LOG_ERROR(ret, "error allocating global device array");
+                LOG_ERROR(ret, "error initializing global device array");
                 goto error;
         }
 

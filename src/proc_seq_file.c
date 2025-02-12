@@ -5,6 +5,7 @@
 #include "module_control.h"
 #include "snap_device.h"
 #include "tracer_helper.h"
+#include "proc_seq_file.h"
 
 static void *dattobd_proc_start(struct seq_file *m, loff_t *pos);
 static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos);
@@ -66,6 +67,8 @@ const struct proc_ops* get_proc_fops(void)
 
 #endif // HAVE_PROC_OPS
 
+static snap_device_array current_snap_devices = NULL;
+
 /**
  * dattobd_proc_get_idx() - Turns offset into pointer into @snap_devices array.
  * @pos: An offset into the array of @snap_devices.
@@ -78,7 +81,7 @@ static void *dattobd_proc_get_idx(loff_t pos)
 {
         if (pos > highest_minor)
                 return NULL;
-        return &snap_devices[pos];
+        return (void*)&current_snap_devices[pos];
 }
 
 /**
@@ -100,6 +103,7 @@ static void *dattobd_proc_start(struct seq_file *m, loff_t *pos)
          * zero @pos with the expectation that we continue from where we
          * left off.
          */ 
+        current_snap_devices = get_snap_device_array();
         if (*pos == 0)
                 return SEQ_START_TOKEN;
         return dattobd_proc_get_idx(*pos - 1);
@@ -135,7 +139,8 @@ static void *dattobd_proc_next(struct seq_file *m, void *v, loff_t *pos)
  */
 static void dattobd_proc_stop(struct seq_file *m, void *v)
 {
-        /* Nothing to do since we're iterating through a global array. */
+        put_snap_device_array(current_snap_devices);
+        current_snap_devices = NULL;
 }
 
 /** dattobd_proc_show() - Outputs information about a @snap_device.  Optionally

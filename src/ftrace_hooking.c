@@ -10,10 +10,10 @@ static inline bool dattobd_within_module(unsigned long addr, const struct module
         #endif
 }
 
-int (*orig_path_mount)(const char *dev_name, struct path *path,
+static int (*orig_path_mount)(const char *dev_name, struct path *path,
 		const char *type_page, unsigned long flags, void *data_page);
 
-int ftrace_path_mount(const char *dev_name, struct path *path,
+static int ftrace_path_mount(const char *dev_name, struct path *path,
 		const char *type_page, unsigned long flags, void *data_page)
 
 {
@@ -63,10 +63,10 @@ int ftrace_path_mount(const char *dev_name, struct path *path,
         return sys_ret;
 }
 
-long (*orig_do_mount)(const char *dev_name, const char __user *dir_name,
+static long (*orig_do_mount)(const char *dev_name, const char __user *dir_name,
 		const char *type_page, unsigned long flags, void *data_page);
 
-long ftrace_do_mount(const char *dev_name, const char __user *dir_name,
+static long ftrace_do_mount(const char *dev_name, const char __user *dir_name,
 		const char *type_page, unsigned long flags, void *data_page)
 {
 	long ret = 0;
@@ -102,10 +102,10 @@ long ftrace_do_mount(const char *dev_name, const char __user *dir_name,
         return sys_ret;
 }
 
-int (*orig_ksys_mount)(char __user *dev_name, char __user *dir_name, char __user *type,
+static int (*orig_ksys_mount)(char __user *dev_name, char __user *dir_name, char __user *type,
 	       unsigned long flags, void __user *data);
 
-int ftrace_ksys_mount(char __user *dev_name, char __user *dir_name, char __user *type,
+static int ftrace_ksys_mount(char __user *dev_name, char __user *dir_name, char __user *type,
 	       unsigned long flags, void __user *data)
 {
 	long ret = 0;
@@ -139,11 +139,11 @@ int ftrace_ksys_mount(char __user *dev_name, char __user *dir_name, char __user 
         return sys_ret;
 }
 
-asmlinkage long (*orig_sys_mount)(char __user *dev_name, char __user *dir_name,
+static asmlinkage long (*orig_sys_mount)(char __user *dev_name, char __user *dir_name,
 				char __user *type, unsigned long flags,
 				void __user *data);
 
-asmlinkage long ftrace_sys_mount(char __user *dev_name, char __user *dir_name,
+static asmlinkage long ftrace_sys_mount(char __user *dev_name, char __user *dir_name,
 				char __user *type, unsigned long flags,
 				void __user *data)
 {
@@ -178,9 +178,9 @@ asmlinkage long ftrace_sys_mount(char __user *dev_name, char __user *dir_name,
         return sys_ret;
 }
 
-int (*orig_path_umount)(struct path *path, int flags);
+static int (*orig_path_umount)(struct path *path, int flags);
 
-int ftrace_path_umount(struct path *path, int flags)
+static int ftrace_path_umount(struct path *path, int flags)
 {
       	int ret = 0;
         int sys_ret = 0;
@@ -228,9 +228,9 @@ static int ftrace_ksys_umount(char __user *name, int flags)
         return sys_ret;
 }
 
-asmlinkage long (*orig_sys_umount)(char __user *name, int flags);
+static asmlinkage long (*orig_sys_umount)(char __user *name, int flags);
 
-asmlinkage long ftrace_sys_umount(char __user *name, int flags)
+static asmlinkage long ftrace_sys_umount(char __user *name, int flags)
 {
         int ret = 0;
         long sys_ret = 0;
@@ -351,7 +351,7 @@ static void notrace ftrace_callback_handler(unsigned long ip, unsigned long pare
  * 0 - success
  * !0 - an errno indicating the error
  */
-int register_hook(struct ftrace_hook *hook)
+static int register_hook(struct ftrace_hook *hook)
 {
 	int ret = 0;
 
@@ -391,7 +391,7 @@ int register_hook(struct ftrace_hook *hook)
  * 0 - success
  * !0 - an errno indicating the error
  */
-int unregister_hook(struct ftrace_hook *hook)
+static int unregister_hook(struct ftrace_hook *hook)
 {
 	int ret = 0;
 

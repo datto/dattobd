@@ -111,12 +111,17 @@ struct bdev_wrapper *dattobd_blkdev_by_path(const char *path, fmode_t mode,
 {
         struct bdev_wrapper *bw = kmalloc(sizeof(struct bdev_wrapper), GFP_KERNEL);
 
-        if(IS_ERR_OR_NULL(bw)){
+        if(!bw){
                 return ERR_PTR(-ENOMEM);
         } 
 
 #if defined HAVE_BDEV_OPEN_BY_PATH
         bw->_internal.handle = bdev_open_by_path(path, mode, holder, NULL);
+        if(IS_ERR(bw->_internal.handle)){
+                void* error = bw->_internal.handle;
+                kfree(bw);
+                return error;
+        }
         bw->bdev = bw->_internal.handle->bdev;
 #elif defined HAVE_BLKDEV_GET_BY_PATH_4
         bw->bdev = blkdev_get_by_path(path, mode, holder, NULL);
@@ -124,10 +129,21 @@ struct bdev_wrapper *dattobd_blkdev_by_path(const char *path, fmode_t mode,
         bw->bdev = blkdev_get_by_path(path, mode, holder);
 #elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
         bw->_internal.file = bdev_file_open_by_path(path, mode, holder, NULL);
+        if(IS_ERR(bw->_internal.file)){
+                void* error = bw->_internal.file;
+                kfree(bw);
+                return error;
+        }
         bw->bdev = file_bdev(bw->_internal.file);
 #else
         bw->bdev = _blkdev_get_by_path(path, mode, holder);
 #endif
+
+        if(IS_ERR_OR_NULL(bw->bdev)){
+                void* error = bw->bdev ? bw->bdev : ERR_PTR(-ENOENT);
+                kfree(bw);
+                return error;
+        }
 
         return bw;
 }

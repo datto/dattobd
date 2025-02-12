@@ -178,7 +178,7 @@ int snap_mrf_thread(void *data)
         int ret = 0;
         struct snap_device *dev = data;
         struct bio_queue *bq = &dev->sd_orig_bios;
-        struct bio *bio = 0;
+        struct bio *bio = NULL;
 
         MAYBE_UNUSED(ret);
 

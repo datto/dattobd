@@ -19,10 +19,6 @@
 #define _get_macro(_1,_2,_3,_4,_5,_6,NAME,...) NAME
 #define file_write(...) _get_macro(__VA_ARGS__, file_write6, file_write5)(__VA_ARGS__)
 
-#define file_unlink(filp) __file_unlink(filp, 0, 0)
-#define file_unlink_and_close(filp) __file_unlink(filp, 1, 0)
-#define file_unlink_and_close_force(filp) __file_unlink(filp, 1, 1)
-
 // #define file_lock(filp) file_switch_lock(filp, true, false)
 // #define file_unlock(filp) file_switch_lock(filp, false, false)
 // #define file_unlock_mark_dirty(filp) file_switch_lock(filp, false, true)
@@ -100,7 +96,7 @@ int file_truncate(struct dattobd_mutable_file *dfilp, loff_t len);
 
 int file_allocate(struct dattobd_mutable_file *dfilp, struct snap_device* dev, uint64_t offset, uint64_t length, uint64_t *done);
 
-int __file_unlink(struct dattobd_mutable_file* dfilp, int close, int force);
+int file_unlink(struct dattobd_mutable_file* dfilp);
 
 void file_close(struct dattobd_mutable_file *filp);
 
