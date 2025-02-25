@@ -9,12 +9,24 @@
 # Location for systemd shutdown script
 # "%{_vendor}" == "redhat" covers rhel, centos and fedora 
 # Ubuntu18 doesn't have /usr/lib/systemd/, but Ubuntu20 has both locations with the same content
-%if "%{_vendor}" == "redhat"
+%if "%{_vendor}" == "redhat" || "%{_vendor}" == "suse"
 %global _systemd_services          /usr/lib/systemd/system
 %global _systemd_shutdown          /usr/lib/systemd/system-shutdown
 %else
 %global _systemd_services          /lib/systemd/system
 %global _systemd_shutdown          /lib/systemd/system-shutdown
+%endif
+
+%if "%{_vendor}" == "suse"
+%global _bashcompletionpath      %{_datadir}/bash-completion/completions
+%else
+%global _bashcompletionpath      %{_sysconfdir}/bash_completion.d
+%endif
+
+%if "%{_vendor}" == "suse"
+%global _modules_load_root %{_prefix}/lib/modules-load.d
+%else
+%global _modules_load_root %{_sysconfdir}/modules-load.d
 %endif
 
 # All sane distributions use dracut now, so here are dracut paths for it
@@ -180,7 +192,7 @@ The library for communicating with the %{name} kernel module.
 
 
 %package -n %{devname}
-Summary:         Files for developing applications to use %{name}.
+Summary:         Files for developing applications to use %{name}
 %if "%{_vendor}" == "debbuild"
 Group:           libdevel
 License:         LGPL-2.1+
@@ -333,8 +345,8 @@ dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroo
 # Install utilities and man pages
 mkdir -p %{buildroot}%{_bindir}
 install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
-mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
-install -p -m 0644 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+mkdir -p %{buildroot}%{_bashcompletionpath}
+install -p -m 0644 app/bash_completion.d/dbdctl %{buildroot}%{_bashcompletionpath}/
 mkdir -p %{buildroot}%{_mandir}/man8
 install -p -m 0644 doc/dbdctl.8 %{buildroot}%{_mandir}/man8/dbdctl.8
 install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
@@ -349,8 +361,8 @@ install -m 0644 dist/dattobd-dkms-conf %{buildroot}%{_kmod_src_root}/dkms.conf
 sed -i "s/@MODULE_VERSION@/%{version}/g" %{buildroot}%{_kmod_src_root}/dkms.conf
 
 # Install modern modprobe stuff
-mkdir -p %{buildroot}%{_sysconfdir}/modules-load.d
-install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_sysconfdir}/modules-load.d/%{name}.conf
+mkdir -p %{buildroot}%{_modules_load_root}
+install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_modules_load_root}/%{name}.conf
 
 # Legacy automatic module loader for RHEL 5/6
 %if 0%{?rhel} && 0%{?rhel} < 7
@@ -499,7 +511,7 @@ rm -rf %{buildroot}
 %endif
 %{_bindir}/dbdctl
 %{_bindir}/update-img
-%{_sysconfdir}/bash_completion.d/dbdctl
+%{_sysconfdir}%{_bashcompletionpath}/dbdctl
 %{_mandir}/man8/dbdctl.8*
 %{_mandir}/man8/update-img.8*
 # Initramfs scripts for all but RHEL 5
@@ -582,9 +594,9 @@ ln -fs %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.
 %endif
 %if 0%{?rhel} == 5 && 0%{?rhel} == 6 && 0%{?suse_version} == 1110
 # RHEL/CentOS 5/6 and SLE 11 don't support this at all
-%exclude %{_sysconfdir}/modules-load.d/dattobd.conf
+%exclude %{_modules_load_root}/dattobd.conf
 %else
-%config %{_sysconfdir}/modules-load.d/dattobd.conf
+%config %{_modules_load_root}/dattobd.conf
 %endif
 %if 0%{?rhel} && 0%{?rhel} < 7
 %config %{_sysconfdir}/sysconfig/modules/dattobd.modules
