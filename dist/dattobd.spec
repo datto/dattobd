@@ -7,7 +7,7 @@
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
 # Location for systemd shutdown script
-# "%{_vendor}" == "redhat" covers rhel, centos and fedora 
+# "%%{_vendor}" == "redhat" covers rhel, centos and fedora 
 # Ubuntu18 doesn't have /usr/lib/systemd/, but Ubuntu20 has both locations with the same content
 %if "%{_vendor}" == "redhat" || "%{_vendor}" == "suse"
 %global _systemd_services          /usr/lib/systemd/system
@@ -511,7 +511,7 @@ rm -rf %{buildroot}
 %endif
 %{_bindir}/dbdctl
 %{_bindir}/update-img
-%{_sysconfdir}%{_bashcompletionpath}/dbdctl
+%{_bashcompletionpath}/dbdctl
 %{_mandir}/man8/dbdctl.8*
 %{_mandir}/man8/update-img.8*
 # Initramfs scripts for all but RHEL 5
