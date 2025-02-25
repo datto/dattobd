@@ -334,7 +334,7 @@ dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroo
 mkdir -p %{buildroot}%{_bindir}
 install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
-install -p -m 0755 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+install -p -m 0644 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
 mkdir -p %{buildroot}%{_mandir}/man8
 install -p -m 0644 doc/dbdctl.8 %{buildroot}%{_mandir}/man8/dbdctl.8
 install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
