@@ -29,6 +29,13 @@
 %global _modules_load_root %{_sysconfdir}/modules-load.d
 %endif
 
+%if "%{_vendor}" == "suse"
+%if 0%{?suse_version} > 0 && 0%{?suse_version} >= 1500
+# Since SLES 15 SP 2, dattobd.ko is considered as requirement, we have to disable this behavior
+%global __requires_exclude ^.*dattobd\.ko.*$
+%endif
+%endif
+
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
