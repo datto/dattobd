@@ -1017,8 +1017,10 @@ void dattobd_inode_unlock(struct inode *inode)
 static struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
+#ifdef HAVE_VM_AREA_STRUCT_VM_LOCK
 static struct kmem_cache **vma_lock_cache = (VMA_LOCK_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VMA_LOCK_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+#endif
 
 struct vm_area_struct* dattobd_vm_area_allocate(struct mm_struct* mm)
 {
