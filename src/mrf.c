@@ -7,6 +7,7 @@
 #include "mrf.h"
 #include "includes.h"
 #include "snap_device.h"
+#include "hints.h"
 
 #ifdef HAVE_BLK_ALLOC_QUEUE
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
@@ -51,14 +52,18 @@ MRF_RETURN_TYPE (*dattobd_blk_mq_submit_bio)(struct bio*)= (BLK_MQ_SUBMIT_BIO_AD
     (MRF_RETURN_TYPE (*)(struct bio*)) (BLK_MQ_SUBMIT_BIO_ADDR + (long long)(((void*)kfree)-(void*)KFREE_ADDR)): NULL;
 
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
+#ifdef HAVE_NONVOID_SUBMIT_BIO_1
+    MRF_RETURN_TYPE exists_to_align_api_only = 0;
+#endif
+
     percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
     dattobd_blk_mq_submit_bio(bio);
-    #ifdef HAVE_NONVOID_SUBMIT_BIO_1
-        MRF_RETURN_TYPE exists_to_align_api_only;
-        return exists_to_align_api_only;
-    #else
-        return;
-    #endif
+
+#ifdef HAVE_NONVOID_SUBMIT_BIO_1
+    return exists_to_align_api_only;
+#else
+    return;
+#endif
 }
 
 MRF_RETURN_TYPE dattobd_null_mrf(struct bio *bio)
