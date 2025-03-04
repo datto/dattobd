@@ -1519,7 +1519,7 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
         return -EFAULT;
 }
 #else
-int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct tracing_ops** trops, snap_device_array snap_devices){
+static int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct tracing_ops** trops, snap_device_array snap_devices){
         int i;
 	struct snap_device *dev;
 	struct block_device_operations *orig_ops = dattobd_get_bd_ops(bdev);
@@ -1601,31 +1601,33 @@ int tracer_alloc_ops(struct snap_device* dev){
  */
 static int __tracer_should_reset_mrf(const struct snap_device* dev, snap_device_array snap_devices)
 {
-    int i;
-    struct snap_device *cur_dev;
-    struct request_queue *q = bdev_get_queue(dev->sd_base_dev->bdev);
-    MAYBE_UNUSED(q);
+        int i;
+        struct snap_device *cur_dev;
+        struct request_queue *q = bdev_get_queue(dev->sd_base_dev->bdev);
+#ifdef USE_BDOPS_SUBMIT_BIO
+        struct block_device_operations *ops;
+#endif
+        MAYBE_UNUSED(q);
 
 #ifndef USE_BDOPS_SUBMIT_BIO
-    if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev->bdev) != tracing_fn) return 0;
+        if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev->bdev) != tracing_fn) 
+                return 0;
 #else
-        struct block_device_operations* ops=dattobd_get_bd_ops(dev->sd_base_dev->bdev);
+        ops = dattobd_get_bd_ops(dev->sd_base_dev->bdev);
 #endif
 
     //return 0 if there is another device tracing the same queue as dev.
-    if (snap_devices){
-        tracer_for_each(cur_dev, i){
-            if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) 
-                || cur_dev == dev) continue;
+        if (snap_devices){
+                tracer_for_each(cur_dev, i){
+                        if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) || cur_dev == dev) continue;
 #ifndef USE_BDOPS_SUBMIT_BIO
-            if (q == bdev_get_queue(cur_dev->sd_base_dev->bdev)) return 0;
+                        if (q == bdev_get_queue(cur_dev->sd_base_dev->bdev)) return 0;
 #else
-                if(ops==dattobd_get_bd_ops(cur_dev->sd_base_dev->bdev)) return 0;
+                        if(ops==dattobd_get_bd_ops(cur_dev->sd_base_dev->bdev)) return 0;
 #endif
+                }
         }
-    }
-
-    return 1;
+        return 1;
 }
 
 /**
