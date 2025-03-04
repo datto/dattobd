@@ -10,6 +10,24 @@ static inline bool dattobd_within_module(unsigned long addr, const struct module
         #endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+        #define USE_PATH_MOUNT
+        #define USE_PATH_UMOUNT
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+        #define USE_DO_MOUNT
+        #define USE_KSYS_UMOUNT
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+        #define USE_KSYS_MOUNT
+        #define USE_KSYS_UMOUNT
+#else
+        #define USE_SYS_MOUNT
+        #define USE_SYS_UMOUNT
+#ifdef HAVE_SYS_OLDUMOUNT
+        #define USE_SYS_OLDUMOUNT
+#endif //HAVE_SYS_OLDUMOUNT
+#endif //LINUX_VERSION_CODE
+
+#ifdef USE_PATH_MOUNT
 static int (*orig_path_mount)(const char *dev_name, struct path *path,
 		const char *type_page, unsigned long flags, void *data_page);
 
@@ -62,7 +80,9 @@ static int ftrace_path_mount(const char *dev_name, struct path *path,
                 kfree(buf);
         return sys_ret;
 }
+#endif //USE_PATH_MOUNT
 
+#ifdef USE_DO_MOUNT
 static long (*orig_do_mount)(const char *dev_name, const char __user *dir_name,
 		const char *type_page, unsigned long flags, void *data_page);
 
@@ -101,7 +121,9 @@ static long ftrace_do_mount(const char *dev_name, const char __user *dir_name,
 
         return sys_ret;
 }
+#endif //USE_DO_MOUNT
 
+#ifdef USE_KSYS_MOUNT
 static int (*orig_ksys_mount)(char __user *dev_name, char __user *dir_name, char __user *type,
 	       unsigned long flags, void __user *data);
 
@@ -138,7 +160,9 @@ static int ftrace_ksys_mount(char __user *dev_name, char __user *dir_name, char 
 
         return sys_ret;
 }
+#endif //USE_KSYS_MOUNT
 
+#ifdef USE_SYS_MOUNT
 static asmlinkage long (*orig_sys_mount)(char __user *dev_name, char __user *dir_name,
 				char __user *type, unsigned long flags,
 				void __user *data);
@@ -177,7 +201,9 @@ static asmlinkage long ftrace_sys_mount(char __user *dev_name, char __user *dir_
 
         return sys_ret;
 }
+#endif //USE_SYS_MOUNT
 
+#ifdef USE_PATH_UMOUNT
 static int (*orig_path_umount)(struct path *path, int flags);
 
 static int ftrace_path_umount(struct path *path, int flags)
@@ -211,7 +237,9 @@ static int ftrace_path_umount(struct path *path, int flags)
 
         return sys_ret;
 }
+#endif //USE_PATH_UMOUNT
 
+#ifdef USE_KSYS_UMOUNT
 static int (*orig_ksys_umount)(char __user *name, int flags);
 
 static int ftrace_ksys_umount(char __user *name, int flags)
@@ -227,7 +255,9 @@ static int ftrace_ksys_umount(char __user *name, int flags)
 
         return sys_ret;
 }
+#endif //USE_KSYS_UMOUNT
 
+#ifdef USE_SYS_UMOUNT
 static asmlinkage long (*orig_sys_umount)(char __user *name, int flags);
 
 static asmlinkage long ftrace_sys_umount(char __user *name, int flags)
@@ -242,8 +272,9 @@ static asmlinkage long ftrace_sys_umount(char __user *name, int flags)
 
         return sys_ret;
 }
+#endif //USE_SYS_UMOUNT
 
-#ifdef HAVE_SYS_OLDUMOUNT
+#ifdef USE_SYS_OLDUMOUNT
 asmlinkage long (*orig_sys_oldumount)(char __user *name);
 
 asmlinkage long ftrace_sys_oldumount(char __user *name)
@@ -258,25 +289,40 @@ asmlinkage long ftrace_sys_oldumount(char __user *name)
 
         return sys_ret;
 }
-#endif //HAVE_SYS_OLDUMOUNT
+#endif //USE_SYS_OLDUMOUNT
 
 static struct ftrace_hook ftrace_hooks[] = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+#ifdef USE_PATH_MOUNT
         HOOK("path_mount", ftrace_path_mount, &orig_path_mount),
+#endif //USE_PATH_MOUNT
+
+#ifdef USE_PATH_UMOUNT
         HOOK("path_umount", ftrace_path_umount, &orig_path_umount),
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-        //HOOK("do_mount", ftrace_do_mount, &orig_do_mount),
-	//HOOK("ksys_umount", ftrace_ksys_umount, &orig_ksys_umount),
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
-	HOOK("ksys_mount", ftrace_ksys_mount, &orig_ksys_mount),
-	HOOK("ksys_umount", ftrace_ksys_umount, &orig_ksys_umount),
-#else
-	HOOK("sys_mount", ftrace_sys_mount, &orig_sys_mount),
-	HOOK("sys_umount", ftrace_sys_umount, &orig_sys_umount),
-#ifdef HAVE_SYS_OLDUMOUNT
+#endif //USE_PATH_UMOUNT
+
+#ifdef USE_DO_MOUNT
+        HOOK("do_mount", ftrace_do_mount, &orig_do_mount),
+#endif //USE_DO_MOUNT
+
+#ifdef USE_KSYS_MOUNT
+        HOOK("ksys_mount", ftrace_ksys_mount, &orig_ksys_mount),
+#endif //USE_KSYS_MOUNT
+
+#ifdef USE_KSYS_UMOUNT
+        HOOK("ksys_umount", ftrace_ksys_umount, &orig_ksys_umount),
+#endif //USE_KSYS_UMOUNT
+
+#ifdef USE_SYS_MOUNT
+        HOOK("sys_mount", ftrace_sys_mount, &orig_sys_mount),
+#endif //USE_SYS_MOUNT
+
+#ifdef USE_SYS_UMOUNT
+        HOOK("sys_umount", ftrace_sys_umount, &orig_sys_umount),
+#endif //USE_SYS_UMOUNT
+
+#ifdef USE_SYS_OLDUMOUNT
         HOOK("sys_oldumount", ftrace_sys_oldumount, &orig_sys_oldumount),
-#endif //HAVE_SYS_OLDUMOUNT
-#endif //LINUX_VERSION_CODE
+#endif //USE_SYS_OLDUMOUNT
 };
 
 // Needs CONFIG_KPROBES=y as well as CONFIG_KALLSYMS=y
