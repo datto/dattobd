@@ -50,13 +50,15 @@ static ssize_t dattobd_kernel_read(struct dattobd_mutable_file *dfilp, struct sn
                                    loff_t *pos)
 {
         ssize_t ret;
+#ifndef HAVE_KERNEL_READ_PPOS
+        mm_segment_t old_fs;
+#endif
 
         if(dfilp){
                 // no need for making file mutable at read?
                 dattobd_mutable_file_unlock(dfilp);
 #ifndef HAVE_KERNEL_READ_PPOS
                 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-                mm_segment_t old_fs;
                 old_fs = get_fs();
                 set_fs(get_ds());
                 ret = vfs_read(dfilp->filp, (char __user *)buf, count, pos);
@@ -92,12 +94,14 @@ static ssize_t dattobd_kernel_write(struct dattobd_mutable_file *dfilp, struct s
                                     size_t count, loff_t *pos)
 {
         ssize_t ret;
+#ifndef HAVE_KERNEL_READ_PPOS
+        mm_segment_t old_fs;
+#endif
 
         if(dfilp){
                 dattobd_mutable_file_unlock(dfilp);
 #ifndef HAVE_KERNEL_WRITE_PPOS
                 //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-                mm_segment_t old_fs;
 
                 old_fs = get_fs();
                 set_fs(get_ds());
