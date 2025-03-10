@@ -24,66 +24,12 @@
 #include "tracing_params.h"
 #include <linux/blk-mq.h>
 #include <linux/version.h>
+#include "stack_limits.h"
 #ifdef HAVE_BLK_ALLOC_QUEUE
 // #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #include <linux/percpu-refcount.h>
 #endif
 
-#if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
-// #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
-
-#ifndef min_not_zero
-#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
-#endif
-
-int blk_stack_limits(struct queue_limits *t, struct queue_limits *b,
-                     sector_t offset)
-{
-        t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
-        t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-        t->bounce = min_not_zero(t->bounce, b->bounce);
-        t->seg_boundary_mask =
-            min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-        t->max_segments =
-            min_not_zero(t->max_segments, b->max_segments);
-        t->max_segments =
-            min_not_zero(t->max_segments, b->max_segments);
-        t->max_segment_size =
-            min_not_zero(t->max_segment_size, b->max_segment_size);
-        return 0;
-}
-
-static int blk_stack_limits_request_queue(struct request_queue *t, struct request_queue *b,
-                                          sector_t offset)
-{
-        return blk_stack_limits(&t->limits, &b->limits, 0);
-}
-
-static int dattobd_bdev_stack_limits(struct request_queue *t,
-                                     struct block_device *bdev, sector_t start)
-{
-        struct request_queue *bq = bdev_get_queue(bdev);
-        start += get_start_sect(bdev);
-        return blk_stack_limits_request_queue(t, bq, start << 9);
-}
-
-#elif !defined(HAVE_BDEV_STACK_LIMITS)
-// #elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
-
-static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
-                             sector_t start)
-{
-        struct request_queue *bq = bdev_get_queue(bdev);
-        start += get_start_sect(bdev);
-        return blk_stack_limits(t, &bq->limits, start << 9);
-}
-
-#define dattobd_bdev_stack_limits(queue, bdev, start) \
-        bdev_stack_limits(&(queue)->limits, bdev, start)
-#else
-#define dattobd_bdev_stack_limits(queue, bdev, start) \
-        bdev_stack_limits(&(queue)->limits, bdev, start)
-#endif // # !HAVE_BDEV_STACK_LIMITS) && !HAVE_BLK_SET_DEFAULT_LIMITS
 
 // Helpers to get/set either the make_request_fn or the submit_bio function
 // pointers in a block device.
@@ -96,10 +42,6 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
         return bdev->bd_disk->queue->make_request_fn;
 #endif
 }
-
-#ifndef HAVE_BLK_SET_DEFAULT_LIMITS
-#define blk_set_default_limits(ql)
-#endif
 
 #define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, \
                                cache_size, uuid, seqid)                     \
@@ -120,9 +62,6 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
         __tracer_setup_cow_thread(dev, minor, 0)
 #define __tracer_setup_snap_cow_thread(dev, minor) \
         __tracer_setup_cow_thread(dev, minor, 1)
-#ifndef HAVE_BLK_SET_STACKING_LIMITS
-#define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
-#endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG
 #define dattobd_bioset_create(bio_size, bvec_size, scale) \
@@ -1045,8 +984,10 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // allocate a gendisk struct
         LOG_DEBUG("allocating gendisk");
 
-#ifdef HAVE_BLK_ALLOC_DISK
+#if defined HAVE_BLK_ALLOC_DISK
         dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+#elif defined HAVE_BLK_ALLOC_DISK_2
+        dev->sd_gd = blk_alloc_disk(NULL, NUMA_NO_NODE);
 #else
         dev->sd_gd = alloc_disk(1);
 #endif
@@ -1060,7 +1001,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("allocating queue");
 #if defined HAVE_BDOPS_SUBMIT_BIO
 
-#if defined HAVE_BLK_ALLOC_DISK
+#if (defined HAVE_BLK_ALLOC_DISK) || (defined HAVE_BLK_ALLOC_DISK_2)
         dev->sd_queue = dev->sd_gd->queue;
 #else // works until 6.9
         dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
