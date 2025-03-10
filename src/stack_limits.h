@@ -6,6 +6,7 @@
 
 #ifndef STACK_LIMITS_H_
 #define STACK_LIMITS_H_
+
 #include "logging.h"
 
 // dattobd_bdev_stack_limits(request_queue, bdev, sector_t) -- our wrapper
@@ -32,7 +33,7 @@
 
 #if !defined(HAVE_BDEV_STACK_LIMITS)
 
-int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
+static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
     struct request_queue *bq = bdev_get_queue(bdev);
     start += get_start_sect(bdev);
     return blk_stack_limits(t, &bq->limits, start << 9);
