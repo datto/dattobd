@@ -6,6 +6,7 @@
 
 #ifndef STACK_LIMITS_H_
 #define STACK_LIMITS_H_
+#include "logging.h"
 
 // dattobd_bdev_stack_limits(request_queue, bdev, sector_t) -- our wrapper
 
@@ -23,7 +24,7 @@
 
 // queue_limits_stack_bdev is our top priority, if it is available -- we use it
 
-#define dattobd_bdev_stack_limits(rq, bd, sec) queue_limits_stack_bdev(&(rq)->limits, bdev, sec, "datto")
+#define dattobd_bdev_stack_limits(rq, bd, sec) queue_limits_stack_bdev(&(rq)->limits, bdev, sec, DATTO_TAG)
 
 #else
 
