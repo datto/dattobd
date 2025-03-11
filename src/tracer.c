@@ -920,7 +920,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
-#ifndef HAVE_BD_HAS_SUBMIT_BIO
+#if !defined HAVE_BD_HAS_SUBMIT_BIO && !defined HAVE_BDEV_SET_FLAG
                 blk_put_queue(dev->sd_queue);
 #endif
 #endif
@@ -1275,8 +1275,8 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
-#ifdef HAVE_BD_HAS_SUBMIT_BIO
-        bdev->bd_has_submit_bio=true;
+#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BDEV_SET_FLAG
+                bdev->bd_has_submit_bio=true;
 #endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
@@ -1294,7 +1294,12 @@ static int __tracer_transition_tracing(
                         bdev->bd_disk->fops= bd_ops;
                 }
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
-        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+                bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+#elif defined HAVE_BDEV_SET_FLAG
+                if(dev->sd_tracing_ops->has_submit_bio)
+                        bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
+                else
+                        bdev_clear_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #endif
                 *dev_ptr = NULL;
@@ -1522,6 +1527,8 @@ int tracer_alloc_ops(struct snap_device* dev){
         trops->bd_ops->submit_bio = tracing_fn;
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
         trops->has_submit_bio=dev->sd_base_dev->bdev->bd_has_submit_bio;
+#elif defined HAVE_BDEV_SET_FLAG
+        trops->has_submit_bio = bdev_test_flag(dev->sd_base_dev->bdev, BD_HAS_SUBMIT_BIO);
 #endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
