@@ -24,7 +24,7 @@
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
 	atomic_t refs;
-#if defined HAVE_BD_HAS_SUBMIT_BIO || HAVE_BDEV_SET_FLAG
+#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BDEV_SET_FLAG
         bool has_submit_bio;
 #endif
 };

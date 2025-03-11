@@ -920,7 +920,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
-#if !defined HAVE_BD_HAS_SUBMIT_BIO && !defined HAVE_BDEV_SET_FLAG
+#if !defined HAVE_GD_OWNS_QUEUE
                 blk_put_queue(dev->sd_queue);
 #endif
 #endif
@@ -1275,8 +1275,10 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
-#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BDEV_SET_FLAG
+#if defined HAVE_BD_HAS_SUBMIT_BIO
                 bdev->bd_has_submit_bio=true;
+#elif defined HAVE_BDEV_SET_FLAG
+                bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
