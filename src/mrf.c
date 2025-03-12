@@ -54,9 +54,9 @@ MRF_RETURN_TYPE (*dattobd_blk_mq_submit_bio)(struct bio*)= (BLK_MQ_SUBMIT_BIO_AD
 MRF_RETURN_TYPE dattobd_snap_null_mrf(struct bio *bio){
 #ifdef HAVE_NONVOID_SUBMIT_BIO_1
     MRF_RETURN_TYPE exists_to_align_api_only = 0;
+    percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
 #endif
 
-    percpu_ref_get(&(dattobd_bio_bi_disk(bio))->queue->q_usage_counter);
     dattobd_blk_mq_submit_bio(bio);
 
 #ifdef HAVE_NONVOID_SUBMIT_BIO_1
