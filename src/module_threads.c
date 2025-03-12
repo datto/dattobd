@@ -102,9 +102,7 @@ int snap_cow_thread(void *data)
         // give this thread the highest priority we are allowed
         set_user_nice(current, MIN_NICE);
 
-        while (!kthread_should_stop() || !bio_queue_empty(bq) ||
-               atomic64_read(&dev->sd_submitted_cnt) !=
-                       atomic64_read(&dev->sd_received_cnt)) { 
+        while (!kthread_should_stop() || !bio_queue_empty(bq) || (atomic64_read(&dev->sd_submitted_cnt) != atomic64_read(&dev->sd_received_cnt) && !is_failed)) { 
                 // wait for a bio to process or a kthread_stop call
                 wait_event_interruptible(bq->event,
                                          kthread_should_stop() ||

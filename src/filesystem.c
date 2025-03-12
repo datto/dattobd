@@ -1134,7 +1134,7 @@ write_bio:
 #ifdef HAVE_BIO_ALLOC
 	new_bio = bio_alloc(GFP_NOIO, 1);
 #else
-	new_bio = bio_alloc(bdev, 1, 0, GFP_KERNEL);
+	new_bio = bio_alloc(bdev, 1, 0, GFP_NOIO);
 #endif
         if(!new_bio){
 		ret = -ENOMEM;
@@ -1241,7 +1241,7 @@ read_bio:
 #ifdef HAVE_BIO_ALLOC
 	new_bio = bio_alloc(GFP_NOIO, 1);
 #else
-	new_bio = bio_alloc(bdev, 1, 0, GFP_KERNEL);
+	new_bio = bio_alloc(bdev, 1, 0, GFP_NOIO);
 #endif
         if(!new_bio){
 		ret = -ENOMEM;

@@ -92,10 +92,10 @@ static int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
 {
         if (zero)
                 cm->sects[sect_idx].mappings = (void *)get_zeroed_pages(
-                        GFP_KERNEL, cm->log_sect_pages);
+                        GFP_NOIO, cm->log_sect_pages);
         else
                 cm->sects[sect_idx].mappings = (void *)__get_free_pages(
-                        GFP_KERNEL, cm->log_sect_pages);
+                        GFP_NOIO, cm->log_sect_pages);
 
         if (!cm->sects[sect_idx].mappings) {
                 LOG_ERROR(-ENOMEM, "failed to allocate mappings at index %lu",
