@@ -27,5 +27,6 @@
 #include <linux/types.h>
 #include <linux/rwsem.h>
 #include <linux/statfs.h>
+#include <linux/string.h>
 
 #endif
