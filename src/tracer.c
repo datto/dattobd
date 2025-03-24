@@ -1164,6 +1164,7 @@ error:
 }
 
 static int __try_freeze_bdev(struct block_device* bdev, struct super_block** sb){
+        int ret;
         struct super_block *origsb = dattobd_get_super(bdev);
         
 #ifdef HAVE_BDEVNAME  
