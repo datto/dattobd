@@ -1163,6 +1163,115 @@ error:
         return ret;
 }
 
+static int __try_freeze_bdev(struct block_device* bdev, struct super_block** sb){
+        struct super_block *origsb = dattobd_get_super(bdev);
+        
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
+        bdevname(bdev, bdev_name);
+#endif     
+        if(origsb){
+                dattobd_drop_super(origsb);
+
+                // freeze and sync block device
+#ifdef HAVE_BDEVNAME                
+                LOG_DEBUG("freezing '%s'", bdev_name);
+#else 
+                LOG_DEBUG("freezing '%pg'", bdev);         
+#endif                
+#ifdef HAVE_FREEZE_SB
+                // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+                *sb = freeze_bdev(bdev);
+                if(!sb){
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(-EFAULT, "error freezing '%s': null",
+                                  bdev_name);
+#else 
+                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
+                                  bdev);                                
+#endif 
+                        return -EFAULT;
+                } else if(IS_ERR(sb)){
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%s': error", bdev_name);
+#else
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%pg': error", bdev);
+#endif
+                        return (int)PTR_ERR(sb);
+                }
+#elif defined HAVE_BDEV_FREEZE
+                ret = bdev_freeze(bdev);
+                if (ret) {
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
+                        return ret;
+                }
+#else
+                ret = freeze_bdev(bdev);
+                if (ret) {
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
+                        return ret;
+                }
+#endif
+        }
+        else {
+#ifdef HAVE_BDEVNAME  
+                LOG_WARN(
+                        "warning: no super found for device '%s', "
+                        "unable to freeze it",
+                        bdev_name);
+#endif
+                return -ENOENT;
+        }
+        
+        return 0;
+}
+
+static int __try_thaw_bdev(struct block_device* bdev, struct super_block* sb){
+        int ret;
+
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
+        bdevname(bdev, bdev_name);
+#endif     
+        // thaw the block device
+#ifdef HAVE_BDEVNAME      
+        LOG_DEBUG("thawing '%s'", bdev_name);
+#else
+        LOG_DEBUG("thawing '%pg'", bdev);
+#endif                
+#ifdef HAVE_THAW_BDEV_INT
+        ret = thaw_bdev(bdev, sb);
+#elif defined HAVE_BDEV_THAW
+        ret = bdev_thaw(bdev);
+#else
+        ret = thaw_bdev(bdev);
+#endif
+        if(ret){
+#ifdef HAVE_BEDVNAME  
+                LOG_ERROR(ret, "error thawing '%s'", bdev_name);
+#else
+                LOG_ERROR(ret, "error thawing '%pg'", bdev);
+#endif
+                // We can't reasonably undo what we've done at this
+                // point, and we've replaced the mrf. pretend we
+                // succeeded so we don't break the block device
+
+                return ret;
+        }
+
+        return 0;
+}
+
 /**
  * __tracer_transition_tracing() - Starts or ends tracing on @bdev depending
  *                                 on whether @dev is defined.  The @bdev is
@@ -1198,69 +1307,20 @@ static int __tracer_transition_tracing(
 #endif
 {
         int ret;
-        struct super_block *origsb = dattobd_get_super(bdev);
-#ifdef HAVE_FREEZE_SB
-        struct super_block *sb = NULL;
-#endif
-
-#ifdef HAVE_BDEVNAME  
-        char bdev_name[BDEVNAME_SIZE];      
-        bdevname(bdev, bdev_name);
-#endif        
+        struct super_block* sb = NULL;
+        bool freezed;
         MAYBE_UNUSED(ret);
-        if(origsb){
-                dattobd_drop_super(origsb);
 
-                // freeze and sync block device
-#ifdef HAVE_BDEVNAME                
-                LOG_DEBUG("freezing '%s'", bdev_name);
-#else 
-                LOG_DEBUG("freezing '%pg'", bdev);         
-#endif                
-#ifdef HAVE_FREEZE_SB
-                // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
-                sb = freeze_bdev(bdev);
-                if(!sb){
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR(-EFAULT, "error freezing '%s': null",
-                                  bdev_name);
-#else 
-                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
-                                  bdev);                                
-#endif 
-                        return -EFAULT;
-                } else if(IS_ERR(sb)){
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR((int)PTR_ERR(sb),
-                                  "error freezing '%s': error", bdev_name);
-#else
-                        LOG_ERROR((int)PTR_ERR(sb),
-                                  "error freezing '%pg': error", bdev);
-#endif
-                        return (int)PTR_ERR(sb);
-                }
-#elif defined HAVE_BDEV_FREEZE
-                ret = bdev_freeze(bdev);
-#else
-                ret = freeze_bdev(bdev);
-                if (ret) {
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
-#else
-                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
-#endif                        
-                        return -ret;
-                }
-#endif
+        // we do not allow freeze to fail during starting tracing
+        // we allow freeze to fail in case of finishing tracing and device is in fail condition
+        ret = __try_freeze_bdev(bdev, &sb);
+        if(ret != 0 && start_tracing){
+                return ret;
         }
-        else {
-#ifdef HAVE_BDEVNAME  
-                LOG_WARN(
-                        "warning: no super found for device '%s', "
-                        "unable to freeze it",
-                        bdev_name);
-#endif
+        if(ret != 0 && !start_tracing && tracer_read_fail_state(dev) == 0){
+                return ret;
         }
+        freezed = (ret == 0);
         smp_wmb();
         if(start_tracing){
                 LOG_DEBUG("starting tracing");
@@ -1307,30 +1367,9 @@ static int __tracer_transition_tracing(
                 *dev_ptr = NULL;
                 smp_wmb();
         }
-        if(origsb){
-                // thaw the block device
-#ifdef HAVE_BDEVNAME      
-                LOG_DEBUG("thawing '%s'", bdev_name);
-#else
-                LOG_DEBUG("thawing '%pg'", bdev);
-#endif                
-#ifdef HAVE_THAW_BDEV_INT
-                ret = thaw_bdev(bdev, sb);
-#elif defined HAVE_BDEV_THAW
-                ret = bdev_thaw(bdev);
-#else
-                ret = thaw_bdev(bdev);
-#endif
-                if(ret){
-#ifdef HAVE_BEDVNAME  
-                        LOG_ERROR(ret, "error thawing '%s'", bdev_name);
-#else
-                        LOG_ERROR(ret, "error thawing '%pg'", bdev);
-#endif
-                        // We can't reasonably undo what we've done at this
-                        // point, and we've replaced the mrf. pretend we
-                        // succeeded so we don't break the block device
-                }
+        if(freezed){
+                ret = __try_thaw_bdev(bdev, sb);
+                // thaws failures are ignored as we can't undo what we have already done
         }
         return 0;
 }
