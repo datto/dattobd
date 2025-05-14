@@ -9,16 +9,18 @@
 
 #include "includes.h"
 
+#define DATTO_TAG "datto"
+
 // printing macros
 #define LOG_DEBUG(fmt, args...)                                                \
         do {                                                                   \
                 if (dattobd_debug)                                             \
-                        printk(KERN_DEBUG "datto: " fmt "\n", ##args);         \
+                        printk(KERN_DEBUG DATTO_TAG ": " fmt "\n", ##args);    \
         } while (0)
 
-#define LOG_WARN(fmt, args...) printk(KERN_WARNING "datto: " fmt "\n", ##args)
+#define LOG_WARN(fmt, args...) printk(KERN_WARNING DATTO_TAG ": " fmt "\n", ##args)
 #define LOG_ERROR(error, fmt, args...)                                         \
-        printk(KERN_ERR "datto: " fmt ": %d\n", ##args, error)
+        printk(KERN_ERR DATTO_TAG ": " fmt ": %d\n", ##args, error)
 #define PRINT_BIO(text, bio)                                                   \
         LOG_DEBUG(text ": sect = %llu size = %u",                              \
                   (unsigned long long)bio_sector(bio), bio_size(bio) / 512)

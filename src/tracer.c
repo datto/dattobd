@@ -24,66 +24,12 @@
 #include "tracing_params.h"
 #include <linux/blk-mq.h>
 #include <linux/version.h>
+#include "stack_limits.h"
 #ifdef HAVE_BLK_ALLOC_QUEUE
 // #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #include <linux/percpu-refcount.h>
 #endif
 
-#if !defined(HAVE_BDEV_STACK_LIMITS) && !defined(HAVE_BLK_SET_DEFAULT_LIMITS)
-// #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
-
-#ifndef min_not_zero
-#define min_not_zero(l, r) ((l) == 0) ? (r) : (((r) == 0) ? (l) : min(l, r))
-#endif
-
-int blk_stack_limits(struct queue_limits *t, struct queue_limits *b,
-                     sector_t offset)
-{
-        t->max_sectors = min_not_zero(t->max_sectors, b->max_sectors);
-        t->max_hw_sectors = min_not_zero(t->max_hw_sectors, b->max_hw_sectors);
-        t->bounce = min_not_zero(t->bounce, b->bounce);
-        t->seg_boundary_mask =
-            min_not_zero(t->seg_boundary_mask, b->seg_boundary_mask);
-        t->max_segments =
-            min_not_zero(t->max_segments, b->max_segments);
-        t->max_segments =
-            min_not_zero(t->max_segments, b->max_segments);
-        t->max_segment_size =
-            min_not_zero(t->max_segment_size, b->max_segment_size);
-        return 0;
-}
-
-static int blk_stack_limits_request_queue(struct request_queue *t, struct request_queue *b,
-                                          sector_t offset)
-{
-        return blk_stack_limits(&t->limits, &b->limits, 0);
-}
-
-static int dattobd_bdev_stack_limits(struct request_queue *t,
-                                     struct block_device *bdev, sector_t start)
-{
-        struct request_queue *bq = bdev_get_queue(bdev);
-        start += get_start_sect(bdev);
-        return blk_stack_limits_request_queue(t, bq, start << 9);
-}
-
-#elif !defined(HAVE_BDEV_STACK_LIMITS)
-// #elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
-
-static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev,
-                             sector_t start)
-{
-        struct request_queue *bq = bdev_get_queue(bdev);
-        start += get_start_sect(bdev);
-        return blk_stack_limits(t, &bq->limits, start << 9);
-}
-
-#define dattobd_bdev_stack_limits(queue, bdev, start) \
-        bdev_stack_limits(&(queue)->limits, bdev, start)
-#else
-#define dattobd_bdev_stack_limits(queue, bdev, start) \
-        bdev_stack_limits(&(queue)->limits, bdev, start)
-#endif // # !HAVE_BDEV_STACK_LIMITS) && !HAVE_BLK_SET_DEFAULT_LIMITS
 
 // Helpers to get/set either the make_request_fn or the submit_bio function
 // pointers in a block device.
@@ -96,10 +42,6 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
         return bdev->bd_disk->queue->make_request_fn;
 #endif
 }
-
-#ifndef HAVE_BLK_SET_DEFAULT_LIMITS
-#define blk_set_default_limits(ql)
-#endif
 
 #define __tracer_setup_cow_new(dev, bdev, cow_path, size, fallocated_space, \
                                cache_size, uuid, seqid)                     \
@@ -120,9 +62,6 @@ static inline BIO_REQUEST_CALLBACK_FN *dattobd_get_bd_fn(
         __tracer_setup_cow_thread(dev, minor, 0)
 #define __tracer_setup_snap_cow_thread(dev, minor) \
         __tracer_setup_cow_thread(dev, minor, 1)
-#ifndef HAVE_BLK_SET_STACKING_LIMITS
-#define blk_set_stacking_limits(ql) blk_set_default_limits(ql)
-#endif
 
 #ifdef HAVE_BIOSET_NEED_BVECS_FLAG
 #define dattobd_bioset_create(bio_size, bvec_size, scale) \
@@ -981,7 +920,7 @@ static void __tracer_destroy_snap(struct snap_device *dev)
 #ifdef HAVE_BLK_CLEANUP_QUEUE
                 blk_cleanup_queue(dev->sd_queue);
 #else
-#ifndef HAVE_BD_HAS_SUBMIT_BIO
+#if !defined HAVE_GD_OWNS_QUEUE
                 blk_put_queue(dev->sd_queue);
 #endif
 #endif
@@ -1045,8 +984,10 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         // allocate a gendisk struct
         LOG_DEBUG("allocating gendisk");
 
-#ifdef HAVE_BLK_ALLOC_DISK
+#if defined HAVE_BLK_ALLOC_DISK
         dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+#elif defined HAVE_BLK_ALLOC_DISK_2
+        dev->sd_gd = blk_alloc_disk(NULL, NUMA_NO_NODE);
 #else
         dev->sd_gd = alloc_disk(1);
 #endif
@@ -1060,7 +1001,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor,
         LOG_DEBUG("allocating queue");
 #if defined HAVE_BDOPS_SUBMIT_BIO
 
-#if defined HAVE_BLK_ALLOC_DISK
+#if (defined HAVE_BLK_ALLOC_DISK) || (defined HAVE_BLK_ALLOC_DISK_2)
         dev->sd_queue = dev->sd_gd->queue;
 #else // works until 6.9
         dev->sd_queue = blk_alloc_queue(NUMA_NO_NODE);
@@ -1222,6 +1163,116 @@ error:
         return ret;
 }
 
+static int __try_freeze_bdev(struct block_device* bdev, struct super_block** sb){
+        int ret;
+        struct super_block *origsb = dattobd_get_super(bdev);
+        
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
+        bdevname(bdev, bdev_name);
+#endif     
+        if(origsb){
+                dattobd_drop_super(origsb);
+
+                // freeze and sync block device
+#ifdef HAVE_BDEVNAME                
+                LOG_DEBUG("freezing '%s'", bdev_name);
+#else 
+                LOG_DEBUG("freezing '%pg'", bdev);         
+#endif                
+#ifdef HAVE_FREEZE_SB
+                // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+                *sb = freeze_bdev(bdev);
+                if(!sb){
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(-EFAULT, "error freezing '%s': null",
+                                  bdev_name);
+#else 
+                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
+                                  bdev);                                
+#endif 
+                        return -EFAULT;
+                } else if(IS_ERR(sb)){
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%s': error", bdev_name);
+#else
+                        LOG_ERROR((int)PTR_ERR(sb),
+                                  "error freezing '%pg': error", bdev);
+#endif
+                        return (int)PTR_ERR(sb);
+                }
+#elif defined HAVE_BDEV_FREEZE
+                ret = bdev_freeze(bdev);
+                if (ret) {
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
+                        return ret;
+                }
+#else
+                ret = freeze_bdev(bdev);
+                if (ret) {
+#ifdef HAVE_BDEVNAME                          
+                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
+#else
+                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
+#endif                        
+                        return ret;
+                }
+#endif
+        }
+        else {
+#ifdef HAVE_BDEVNAME  
+                LOG_WARN(
+                        "warning: no super found for device '%s', "
+                        "unable to freeze it",
+                        bdev_name);
+#endif
+                return -ENOENT;
+        }
+        
+        return 0;
+}
+
+static int __try_thaw_bdev(struct block_device* bdev, struct super_block* sb){
+        int ret;
+
+#ifdef HAVE_BDEVNAME  
+        char bdev_name[BDEVNAME_SIZE];      
+        bdevname(bdev, bdev_name);
+#endif     
+        // thaw the block device
+#ifdef HAVE_BDEVNAME      
+        LOG_DEBUG("thawing '%s'", bdev_name);
+#else
+        LOG_DEBUG("thawing '%pg'", bdev);
+#endif                
+#ifdef HAVE_THAW_BDEV_INT
+        ret = thaw_bdev(bdev, sb);
+#elif defined HAVE_BDEV_THAW
+        ret = bdev_thaw(bdev);
+#else
+        ret = thaw_bdev(bdev);
+#endif
+        if(ret){
+#ifdef HAVE_BEDVNAME  
+                LOG_ERROR(ret, "error thawing '%s'", bdev_name);
+#else
+                LOG_ERROR(ret, "error thawing '%pg'", bdev);
+#endif
+                // We can't reasonably undo what we've done at this
+                // point, and we've replaced the mrf. pretend we
+                // succeeded so we don't break the block device
+
+                return ret;
+        }
+
+        return 0;
+}
+
 /**
  * __tracer_transition_tracing() - Starts or ends tracing on @bdev depending
  *                                 on whether @dev is defined.  The @bdev is
@@ -1257,69 +1308,20 @@ static int __tracer_transition_tracing(
 #endif
 {
         int ret;
-        struct super_block *origsb = dattobd_get_super(bdev);
-#ifdef HAVE_FREEZE_SB
-        struct super_block *sb = NULL;
-#endif
-
-#ifdef HAVE_BDEVNAME  
-        char bdev_name[BDEVNAME_SIZE];      
-        bdevname(bdev, bdev_name);
-#endif        
+        struct super_block* sb = NULL;
+        bool freezed;
         MAYBE_UNUSED(ret);
-        if(origsb){
-                dattobd_drop_super(origsb);
 
-                // freeze and sync block device
-#ifdef HAVE_BDEVNAME                
-                LOG_DEBUG("freezing '%s'", bdev_name);
-#else 
-                LOG_DEBUG("freezing '%pg'", bdev);         
-#endif                
-#ifdef HAVE_FREEZE_SB
-                // #if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
-                sb = freeze_bdev(bdev);
-                if(!sb){
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR(-EFAULT, "error freezing '%s': null",
-                                  bdev_name);
-#else 
-                        LOG_ERROR(-EFAULT, "error freezing '%pg': null",
-                                  bdev);                                
-#endif 
-                        return -EFAULT;
-                } else if(IS_ERR(sb)){
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR((int)PTR_ERR(sb),
-                                  "error freezing '%s': error", bdev_name);
-#else
-                        LOG_ERROR((int)PTR_ERR(sb),
-                                  "error freezing '%pg': error", bdev);
-#endif
-                        return (int)PTR_ERR(sb);
-                }
-#elif defined HAVE_BDEV_FREEZE
-                ret = bdev_freeze(bdev);
-#else
-                ret = freeze_bdev(bdev);
-                if (ret) {
-#ifdef HAVE_BDEVNAME                          
-                        LOG_ERROR(ret, "error freezing '%s'", bdev_name);
-#else
-                        LOG_ERROR(ret, "error freezing '%pg'", bdev);
-#endif                        
-                        return -ret;
-                }
-#endif
+        // we do not allow freeze to fail during starting tracing
+        // we allow freeze to fail in case of finishing tracing and device is in fail condition
+        ret = __try_freeze_bdev(bdev, &sb);
+        if(ret != 0 && start_tracing){
+                return ret;
         }
-        else {
-#ifdef HAVE_BDEVNAME  
-                LOG_WARN(
-                        "warning: no super found for device '%s', "
-                        "unable to freeze it",
-                        bdev_name);
-#endif
+        if(ret != 0 && !start_tracing && tracer_read_fail_state(dev) == 0){
+                return ret;
         }
+        freezed = (ret == 0);
         smp_wmb();
         if(start_tracing){
                 LOG_DEBUG("starting tracing");
@@ -1334,8 +1336,10 @@ static int __tracer_transition_tracing(
                 if(bd_ops){
                         bdev->bd_disk->fops= bd_ops;
                 }
-#ifdef HAVE_BD_HAS_SUBMIT_BIO
-        bdev->bd_has_submit_bio=true;
+#if defined HAVE_BD_HAS_SUBMIT_BIO
+                bdev->bd_has_submit_bio=true;
+#elif defined HAVE_BDEV_SET_FLAG
+                bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #endif
                 atomic_inc(&(*dev_ptr)->sd_active);
@@ -1353,36 +1357,20 @@ static int __tracer_transition_tracing(
                         bdev->bd_disk->fops= bd_ops;
                 }
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
-        bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+                bdev->bd_has_submit_bio=dev->sd_tracing_ops->has_submit_bio;
+#elif defined HAVE_BDEV_SET_FLAG
+                if(dev->sd_tracing_ops->has_submit_bio)
+                        bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
+                else
+                        bdev_clear_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #endif
                 *dev_ptr = NULL;
                 smp_wmb();
         }
-        if(origsb){
-                // thaw the block device
-#ifdef HAVE_BDEVNAME      
-                LOG_DEBUG("thawing '%s'", bdev_name);
-#else
-                LOG_DEBUG("thawing '%pg'", bdev);
-#endif                
-#ifdef HAVE_THAW_BDEV_INT
-                ret = thaw_bdev(bdev, sb);
-#elif defined HAVE_BDEV_THAW
-                ret = bdev_thaw(bdev);
-#else
-                ret = thaw_bdev(bdev);
-#endif
-                if(ret){
-#ifdef HAVE_BEDVNAME  
-                        LOG_ERROR(ret, "error thawing '%s'", bdev_name);
-#else
-                        LOG_ERROR(ret, "error thawing '%pg'", bdev);
-#endif
-                        // We can't reasonably undo what we've done at this
-                        // point, and we've replaced the mrf. pretend we
-                        // succeeded so we don't break the block device
-                }
+        if(freezed){
+                ret = __try_thaw_bdev(bdev, sb);
+                // thaws failures are ignored as we can't undo what we have already done
         }
         return 0;
 }
@@ -1519,7 +1507,7 @@ static int dattobd_find_orig_mrf(struct block_device *bdev,
         return -EFAULT;
 }
 #else
-int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct tracing_ops** trops, snap_device_array snap_devices){
+static int find_orig_bdops(struct block_device *bdev, struct block_device_operations **ops, make_request_fn **mrf, struct tracing_ops** trops, snap_device_array snap_devices){
         int i;
 	struct snap_device *dev;
 	struct block_device_operations *orig_ops = dattobd_get_bd_ops(bdev);
@@ -1581,6 +1569,8 @@ int tracer_alloc_ops(struct snap_device* dev){
         trops->bd_ops->submit_bio = tracing_fn;
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
         trops->has_submit_bio=dev->sd_base_dev->bdev->bd_has_submit_bio;
+#elif defined HAVE_BDEV_SET_FLAG
+        trops->has_submit_bio = bdev_test_flag(dev->sd_base_dev->bdev, BD_HAS_SUBMIT_BIO);
 #endif
         atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
@@ -1601,31 +1591,33 @@ int tracer_alloc_ops(struct snap_device* dev){
  */
 static int __tracer_should_reset_mrf(const struct snap_device* dev, snap_device_array snap_devices)
 {
-    int i;
-    struct snap_device *cur_dev;
-    struct request_queue *q = bdev_get_queue(dev->sd_base_dev->bdev);
-    MAYBE_UNUSED(q);
+        int i;
+        struct snap_device *cur_dev;
+        struct request_queue *q = bdev_get_queue(dev->sd_base_dev->bdev);
+#ifdef USE_BDOPS_SUBMIT_BIO
+        struct block_device_operations *ops;
+#endif
+        MAYBE_UNUSED(q);
 
 #ifndef USE_BDOPS_SUBMIT_BIO
-    if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev->bdev) != tracing_fn) return 0;
+        if (GET_BIO_REQUEST_TRACKING_PTR(dev->sd_base_dev->bdev) != tracing_fn) 
+                return 0;
 #else
-        struct block_device_operations* ops=dattobd_get_bd_ops(dev->sd_base_dev->bdev);
+        ops = dattobd_get_bd_ops(dev->sd_base_dev->bdev);
 #endif
 
     //return 0 if there is another device tracing the same queue as dev.
-    if (snap_devices){
-        tracer_for_each(cur_dev, i){
-            if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) 
-                || cur_dev == dev) continue;
+        if (snap_devices){
+                tracer_for_each(cur_dev, i){
+                        if (!cur_dev || test_bit(UNVERIFIED, &cur_dev->sd_state) || cur_dev == dev) continue;
 #ifndef USE_BDOPS_SUBMIT_BIO
-            if (q == bdev_get_queue(cur_dev->sd_base_dev->bdev)) return 0;
+                        if (q == bdev_get_queue(cur_dev->sd_base_dev->bdev)) return 0;
 #else
-                if(ops==dattobd_get_bd_ops(cur_dev->sd_base_dev->bdev)) return 0;
+                        if(ops==dattobd_get_bd_ops(cur_dev->sd_base_dev->bdev)) return 0;
 #endif
+                }
         }
-    }
-
-    return 1;
+        return 1;
 }
 
 /**
@@ -2179,8 +2171,15 @@ void tracer_dattobd_info(const struct snap_device *dev,
         info->cache_size = (dev->sd_cache_size) ?
                                    dev->sd_cache_size :
                                    dattobd_cow_max_memory_default;
+#ifdef HAVE_STRSCPY
         strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
         strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+#elif defined HAVE_STRLCPY
+        strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
+        strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+#else
+        #error "No strscpy or strlcpy"
+#endif
 
         if (!test_bit(UNVERIFIED, &dev->sd_state)) {
                 info->falloc_size = dev->sd_cow->file_size;

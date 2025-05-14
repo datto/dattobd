@@ -9,6 +9,7 @@
 #include "logging.h"
 #include "tracer.h"
 #include "blkdev.h"
+#include "memory.h"
 
 #ifdef HAVE_UUID_H
 #include <linux/uuid.h>
@@ -91,10 +92,10 @@ static int __cow_alloc_section(struct cow_manager *cm, unsigned long sect_idx,
 {
         if (zero)
                 cm->sects[sect_idx].mappings = (void *)get_zeroed_pages(
-                        GFP_KERNEL, cm->log_sect_pages);
+                        GFP_NOIO, cm->log_sect_pages);
         else
                 cm->sects[sect_idx].mappings = (void *)__get_free_pages(
-                        GFP_KERNEL, cm->log_sect_pages);
+                        GFP_NOIO, cm->log_sect_pages);
 
         if (!cm->sects[sect_idx].mappings) {
                 LOG_ERROR(-ENOMEM, "failed to allocate mappings at index %lu",
@@ -1117,7 +1118,7 @@ int cow_get_file_extents(struct snap_device* dev, struct file* filp)
 	LOG_DEBUG("attempting page stealing from %s", get_task_comm(parent_process_name, task));
 
         dattobd_mm_lock(task->mm);
-        start_addr = get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+        start_addr = dattobd_get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
 
         if (IS_ERR_VALUE(start_addr))
 		return start_addr; // returns -EPERM if failed

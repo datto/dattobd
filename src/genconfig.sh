@@ -22,21 +22,30 @@ if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
 fi
 
-SYSTEM_MAP_FILE="/lib/modules/${KERNEL_VERSION}/System.map"
+SYSTEM_MAP_FILE_VARIANTS=(
+	"/lib/modules/${KERNEL_VERSION}/System.map"
+	"/boot/System.map-${KERNEL_VERSION}"
+	"/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
+)
 
-if [ ! -f "$SYSTEM_MAP_FILE" ]; then
-	# Use fallback location
-	SYSTEM_MAP_FILE="/boot/System.map-${KERNEL_VERSION}"
-	if [ -f "$SYSTEM_MAP_FILE" ]; then
-		if ! grep -q "__per_cpu_start" "$SYSTEM_MAP_FILE"; then
-			SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
-		fi
+for FILE_VARIANT in ${SYSTEM_MAP_FILE_VARIANTS[@]}; do
+	if [ -f "$FILE_VARIANT" ] && grep -q '__per_cpu_start' "$FILE_VARIANT"; then
+		SYSTEM_MAP_FILE="$FILE_VARIANT"
+		break
+	fi
+done
+
+if [ -z "$SYSTEM_MAP_FILE" ]; then
+	if [ "$(uname -r)" == "${KERNEL_VERSION}" ]; then
+		echo "System.map file not found for current kernel version; using /proc/kallsyms"
+		SYSTEM_MAP_FILE="/proc/kallsyms"
 	else
-		SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
+		echo "System.map file not found for kernel version ${KERNEL_VERSION}"
+		exit 1
 	fi
 fi
 
-
+echo "using System.map file: ${SYSTEM_MAP_FILE}"
 echo "generating configurations for kernel-${KERNEL_VERSION}"
 
 rm -f $OUTPUT_FILE
@@ -51,10 +60,9 @@ make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 
 run_one_test() {
 	local TEST="$(basename $1 .c)"
-	local OBJ="$TEST.o"
 	local MACRO_NAME="HAVE_$(echo ${TEST} | awk '{print toupper($0)}')"
 	local PREFIX="performing configure test: $MACRO_NAME -"
-	if make -C $FEATURE_TEST_DIR OBJ=$OBJ KERNELVERSION=$KERNEL_VERSION &>/dev/null ; then
+	if make -C $FEATURE_TEST_DIR TEST=$TEST KERNELVERSION=$KERNEL_VERSION &>/dev/null ; then
 		echo "$PREFIX present"
 		echo "#define $MACRO_NAME" >> $OUTPUT_FILE
 	else
@@ -66,7 +74,7 @@ export FEATURE_TEST_DIR
 export KERNEL_VERSION
 export OUTPUT_FILE
 
-ls -1 -q $FEATURE_TEST_FILES | xargs -P "$MAX_THREADS" -d"\n" -n1 -I {} bash -c 'run_one_test {}'
+ls -1 -q $FEATURE_TEST_FILES | xargs -P "$MAX_THREADS" -d"\n" -I {} bash -c 'run_one_test {}'
 
 make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
 

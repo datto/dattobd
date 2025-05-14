@@ -7,14 +7,33 @@
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
 # Location for systemd shutdown script
-# "%{_vendor}" == "redhat" covers rhel, centos and fedora 
+# "%%{_vendor}" == "redhat" covers rhel, centos and fedora 
 # Ubuntu18 doesn't have /usr/lib/systemd/, but Ubuntu20 has both locations with the same content
-%if "%{_vendor}" == "redhat"
+%if "%{_vendor}" == "redhat" || "%{_vendor}" == "suse"
 %global _systemd_services          /usr/lib/systemd/system
 %global _systemd_shutdown          /usr/lib/systemd/system-shutdown
 %else
 %global _systemd_services          /lib/systemd/system
 %global _systemd_shutdown          /lib/systemd/system-shutdown
+%endif
+
+%if "%{_vendor}" == "suse"
+%global _bashcompletionpath      %{_datadir}/bash-completion/completions
+%else
+%global _bashcompletionpath      %{_sysconfdir}/bash_completion.d
+%endif
+
+%if "%{_vendor}" == "suse"
+%global _modules_load_root %{_prefix}/lib/modules-load.d
+%else
+%global _modules_load_root %{_sysconfdir}/modules-load.d
+%endif
+
+%if "%{_vendor}" == "suse"
+%if 0%{?suse_version} > 0 && 0%{?suse_version} >= 1500
+# Since SLES 15 SP 2, dattobd.ko is considered as requirement, we have to disable this behavior
+%global __requires_exclude ^.*dattobd\.ko.*$
+%endif
 %endif
 
 # All sane distributions use dracut now, so here are dracut paths for it
@@ -117,7 +136,7 @@
 
 
 Name:            dattobd
-Version:         0.12.0
+Version:         0.12.1
 Release:         1%{?dist}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Datto, Inc.
@@ -180,7 +199,7 @@ The library for communicating with the %{name} kernel module.
 
 
 %package -n %{devname}
-Summary:         Files for developing applications to use %{name}.
+Summary:         Files for developing applications to use %{name}
 %if "%{_vendor}" == "debbuild"
 Group:           libdevel
 License:         LGPL-2.1+
@@ -333,8 +352,8 @@ dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroo
 # Install utilities and man pages
 mkdir -p %{buildroot}%{_bindir}
 install -p -m 0755 app/dbdctl %{buildroot}%{_bindir}/dbdctl
-mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
-install -p -m 0755 app/bash_completion.d/dbdctl %{buildroot}%{_sysconfdir}/bash_completion.d/
+mkdir -p %{buildroot}%{_bashcompletionpath}
+install -p -m 0644 app/bash_completion.d/dbdctl %{buildroot}%{_bashcompletionpath}/
 mkdir -p %{buildroot}%{_mandir}/man8
 install -p -m 0644 doc/dbdctl.8 %{buildroot}%{_mandir}/man8/dbdctl.8
 install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
@@ -349,8 +368,8 @@ install -m 0644 dist/dattobd-dkms-conf %{buildroot}%{_kmod_src_root}/dkms.conf
 sed -i "s/@MODULE_VERSION@/%{version}/g" %{buildroot}%{_kmod_src_root}/dkms.conf
 
 # Install modern modprobe stuff
-mkdir -p %{buildroot}%{_sysconfdir}/modules-load.d
-install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_sysconfdir}/modules-load.d/%{name}.conf
+mkdir -p %{buildroot}%{_modules_load_root}
+install -m 0644 dist/dattobd-modprobe-conf %{buildroot}%{_modules_load_root}/%{name}.conf
 
 # Legacy automatic module loader for RHEL 5/6
 %if 0%{?rhel} && 0%{?rhel} < 7
@@ -499,7 +518,7 @@ rm -rf %{buildroot}
 %endif
 %{_bindir}/dbdctl
 %{_bindir}/update-img
-%{_sysconfdir}/bash_completion.d/dbdctl
+%{_bashcompletionpath}/dbdctl
 %{_mandir}/man8/dbdctl.8*
 %{_mandir}/man8/update-img.8*
 # Initramfs scripts for all but RHEL 5
@@ -582,9 +601,9 @@ ln -fs %{_systemd_services}/umount-rootfs.service   %{_systemd_services}/reboot.
 %endif
 %if 0%{?rhel} == 5 && 0%{?rhel} == 6 && 0%{?suse_version} == 1110
 # RHEL/CentOS 5/6 and SLE 11 don't support this at all
-%exclude %{_sysconfdir}/modules-load.d/dattobd.conf
+%exclude %{_modules_load_root}/dattobd.conf
 %else
-%config %{_sysconfdir}/modules-load.d/dattobd.conf
+%config %{_modules_load_root}/dattobd.conf
 %endif
 %if 0%{?rhel} && 0%{?rhel} < 7
 %config %{_sysconfdir}/sysconfig/modules/dattobd.modules
@@ -622,6 +641,31 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+* Wed May 14 2025 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.12.1
+- Fixed warnings related to DKMS
+- Fixed build errors on SLE 15 SP5 and SP6
+- Fixed error related to the use of the wrong slab allocation flags
+- Fixed endless loop in internal thread in case of block device failure
+- Fixed build errors on CentOS 7.3
+- Fixed build errors on Oracle UEK
+- Fixed kernel hang when freeze fails
+- Fixed errors with System.map files on Debian 11
+- Fixed build errors on CentOS Stream 9 and 10
+
+* Wed Feb 12 2025 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.12.0
+- Fixed NULL-dereference errors during mount
+- Fixed kernel panic related to Docker
+- Patch to handle correctly file unlinking, which caused problems for Debian 12
+
+* Thu Dec 19 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.10
+- Kernel 6.X support
+
+* Thu Nov 28 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.9
+- Fixed error when COW file fails to truncate/unlink
+- Fixed lack of real_fallocate
+- COW-file Manual Expansion
+- COW-file Auto-Expand
+
 * Tue Sep 24 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.8.1
 - Fixed panic on mount of snapshot device on RHEL 8.10 and systems with the same kernel
 
