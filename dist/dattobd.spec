@@ -641,6 +641,31 @@ rm %{_systemd_shutdown}/umount_rootfs.shutdown
 rm %{_systemd_services}/umount-rootfs.service
 
 %changelog
+* Wed May 14 2025 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.12.1
+- Fixed warnings related to DKMS
+- Fixed build errors on SLE 15 SP5 and SP6
+- Fixed error related to the use of the wrong slab allocation flags
+- Fixed endless loop in internal thread in case of block device failure
+- Fixed build errors on CentOS 7.3
+- Fixed build errors on Oracle UEK
+- Fixed kernel hang when freeze fails
+- Fixed errors with System.map files on Debian 11
+- Fixed build errors on CentOS Stream 9 and 10
+
+* Wed Feb 12 2025 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.12.0
+- Fixed NULL-dereference errors during mount
+- Fixed kernel panic related to Docker
+- Patch to handle correctly file unlinking, which caused problems for Debian 12
+
+* Thu Dec 19 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.10
+- Kernel 6.X support
+
+* Thu Nov 28 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.9
+- Fixed error when COW file fails to truncate/unlink
+- Fixed lack of real_fallocate
+- COW-file Manual Expansion
+- COW-file Auto-Expand
+
 * Tue Sep 24 2024 Andrii Fylypiuk <andrii.fylypiuk@datto.com> - 0.11.8.1
 - Fixed panic on mount of snapshot device on RHEL 8.10 and systems with the same kernel
 
