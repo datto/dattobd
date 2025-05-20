@@ -97,9 +97,8 @@ void dattobd_free_request_tracking_ptr(struct snap_device *dev)
                 tracing_ops_put(dev->sd_tracing_ops);
                 dev->sd_tracing_ops=NULL;
         }
-#else
-        dev->sd_orig_request_fn = NULL;
 #endif
+        dev->sd_orig_request_fn = NULL;
 }
 
 /**
