@@ -51,8 +51,9 @@ sudo zypper install dkms-dattobd dattobd-utils
 ```
 ### Debian/Ubuntu LTS
 ```bash
-sudo apt-key adv --fetch-keys https://cpkg.datto.com/DATTO-PKGS-GPG-KEY
-echo "deb [arch=amd64] https://cpkg.datto.com/datto-deb/public/$(lsb_release -sc) $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/datto-linux-agent.list
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://cpkg.datto.com/DATTO-PKGS-GPG-KEY | sudo gpg --dearmor -o /etc/apt/keyrings/datto.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/datto.gpg] https://cpkg.datto.com/datto-deb/public/$(lsb_release -sc) $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/datto-linux-agent.list
 sudo apt-get update
 sudo apt-get install dattobd-dkms dattobd-utils
 ```
