@@ -494,8 +494,16 @@ int cow_sync_and_close(struct cow_manager *cm)
         if (ret)
                 goto error;
 
-        ret = cow_get_file_extents(cm->dev, cm->dfilp->filp);
-	if(ret) goto error;
+        /*
+         * If the fs support fiemap, we need to get the extents of the file,
+         * otherwise it is ignored.
+         */
+        if (cm->dfilp->filp->f_inode->i_op && cm->dfilp->filp->f_inode->i_op->fiemap) {
+                ret = cow_get_file_extents(cm->dev, cm->dfilp->filp);
+	        if(ret) goto error;
+        } else {
+                LOG_WARN("fiemap not supported, ignoring extents processing.");
+        }
 
         if (cm->dfilp){
                 __close_and_destroy_dattobd_mutable_file(cm->dfilp);
@@ -595,6 +603,7 @@ int cow_reload(struct snap_device* dev, const char *path, uint64_t elements,
         int ret;
         unsigned long i;
         struct cow_manager *cm;
+        struct snap_device *dev;
 
         LOG_DEBUG("allocating cow manager");
         cm = kzalloc(sizeof(struct cow_manager), GFP_KERNEL);
@@ -645,25 +654,31 @@ int cow_reload(struct snap_device* dev, const char *path, uint64_t elements,
                 cm->sects[i].has_data = 1;
         }
 
+        /* Get the dev of the cow manager and set the dev of the cow manager*/
+        dev = container_of(cm_out, struct snap_device, sd_cow);
+        LOG_DEBUG("cow_reload, setting dev of cow manager, cm: %p, dev: %p", cm, dev);
+        cm->dev = dev;
+
         *cm_out = cm;
         return 0;
 
 error:
         LOG_ERROR(ret, "error during cow manager initialization");
-        if (cm->dfilp){
-                __close_and_destroy_dattobd_mutable_file(cm->dfilp);
-                cm->dfilp = NULL;
-        }
 
-        if (cm->sects) {
-                if (cm->flags & (1 << COW_VMALLOC_UPPER))
-                        vfree(cm->sects);
-                else
-                        kfree(cm->sects);
-        }
+        if (cm) {
+                if (cm->dfilp){
+                        __close_and_destroy_dattobd_mutable_file(cm->dfilp);
+                        cm->dfilp = NULL;
+                }
 
-        if (cm)
+                if (cm->sects) {
+                        if (cm->flags & (1 << COW_VMALLOC_UPPER))
+                                vfree(cm->sects);
+                        else
+                                kfree(cm->sects);
+                }
                 kfree(cm);
+        }
 
         *cm_out = NULL;
         return ret;
@@ -766,21 +781,23 @@ int cow_init(struct snap_device *dev, const char *path, uint64_t elements, unsig
 
 error:
         LOG_ERROR(ret, "error during cow manager initialization");
-        if (cm->dfilp){
-                file_unlink(cm->dfilp);
-                __close_and_destroy_dattobd_mutable_file(cm->dfilp);
-                cm->dfilp = NULL;
-        }
 
-        if (cm->sects) {
-                if (cm->flags & (1 << COW_VMALLOC_UPPER))
-                        vfree(cm->sects);
-                else
-                        kfree(cm->sects);
-        }
+        if (cm) {
+                if (cm->dfilp){
+                        file_unlink(cm->dfilp);
+                        __close_and_destroy_dattobd_mutable_file(cm->dfilp);
+                        cm->dfilp = NULL;
+                }
 
-        if (cm)
+                if (cm->sects) {
+                        if (cm->flags & (1 << COW_VMALLOC_UPPER))
+                                vfree(cm->sects);
+                        else
+                                kfree(cm->sects);
+                }
+
                 kfree(cm);
+        }
 
         *cm_out = NULL;
         return ret;

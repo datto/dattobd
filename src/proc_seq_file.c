@@ -245,8 +245,13 @@ static int dattobd_proc_show(struct seq_file *m, void *v)
 
 static int dattobd_proc_open(struct inode *inode, struct file *filp)
 {
-        mutex_lock(&ioctl_mutex);
-        return seq_open(filp, &dattobd_seq_proc_ops);
+	int ret;
+	mutex_lock(&ioctl_mutex);
+	ret = seq_open(filp, &dattobd_seq_proc_ops);
+	if (ret) {
+		mutex_unlock(&ioctl_mutex);
+	}
+	return ret;
 }
 
 static int dattobd_proc_release(struct inode *inode, struct file *file)

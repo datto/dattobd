@@ -453,6 +453,7 @@ static int ioctl_expand_cow_file(uint64_t size, unsigned int minor)
         if(ret)
                 goto error;
 
+        put_snap_device_array(snap_devices);
         return 0;
 
 error:

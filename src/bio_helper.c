@@ -44,11 +44,10 @@ struct request_queue *dattobd_bio_get_queue(struct bio *bio)
  */
 void dattobd_bio_set_dev(struct bio *bio, struct block_device *bdev)
 {
-#ifdef HAVE_BIO_BI_BDEV
-        //#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-        bio->bi_bdev = bdev;
-#else
+#ifdef HAVE_BIO_SET_DEV
         bio_set_dev(bio, bdev);
+#else
+        bio->bi_bdev = bdev;
 #endif
 }
 
