@@ -29,7 +29,7 @@
 // relative address
 #define FENTRY_CALL_INSTR_BYTES 5
 #else
-#pragma error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
 
 #define BIO_REQUEST_CALLBACK_FN submit_bio_fn
