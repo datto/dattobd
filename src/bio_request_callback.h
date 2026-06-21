@@ -28,8 +28,14 @@
 // length of `% call __fentry__` on x86_64 - uses a 1 byte op and 4 byte
 // relative address
 #define FENTRY_CALL_INSTR_BYTES 5
+#elif defined(CONFIG_ARM64)
+// arm64 ftrace patch site: two 4-byte instructions emitted by
+// -fpatchable-function-entry=2. NOTE: the passthrough using this
+// (dattobd_submit_bio_real in submit_bio.c) is dead code on blk-mq devices, so
+// this value is not load-bearing here -- it only needs to let the file compile.
+#define FENTRY_CALL_INSTR_BYTES (2 * 4)
 #else
-#pragma error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
 
 #define BIO_REQUEST_CALLBACK_FN submit_bio_fn

@@ -44,6 +44,25 @@ static __always_inline struct pt_regs *ftrace_get_regs(struct ftrace_regs *fregs
 }
 #endif
 
+/**
+   dattobd_ftrace_set_ip() - redirect execution from the ftrace callback by
+   setting the traced function's instruction pointer to our hook.
+ */
+#ifdef HAVE_FTRACE_REGS_SET_INSTRUCTION_POINTER
+#define dattobd_ftrace_set_ip(fregs, addr)                                     \
+	ftrace_regs_set_instruction_pointer((fregs), (unsigned long)(addr))
+#elif defined(CONFIG_ARM64)
+#define dattobd_ftrace_set_ip(fregs, addr)                                     \
+	do {                                                                       \
+		ftrace_get_regs(fregs)->pc = (unsigned long)(addr);                    \
+	} while (0)
+#else
+#define dattobd_ftrace_set_ip(fregs, addr)                                     \
+	do {                                                                       \
+		ftrace_get_regs(fregs)->ip = (unsigned long)(addr);                    \
+	} while (0)
+#endif
+
 #ifndef UMOUNT_NOFOLLOW
 #define UMOUNT_NOFOLLOW 0
 #endif
