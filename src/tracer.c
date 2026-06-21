@@ -275,7 +275,7 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio)
 #if defined HAVE_ENUM_REQ_OP_WRITE_ZEROES
         if (bio_op(bio) == REQ_OP_WRITE_ZEROES) {
                 ret = inc_make_sset(dev, bio_sector(bio),
-bio_size(bio) / SECTOR_SIZE);
+                                    bio_size(bio) / SECTOR_SIZE);
                 goto out;
         }
 #endif
