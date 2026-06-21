@@ -7,6 +7,8 @@
 #include "includes.h"
 #include "paging_helper.h"
 
+#ifdef CONFIG_X86
+
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
 #ifndef X86_CR0_WP
 #define X86_CR0_WP (1UL << 16)
@@ -53,3 +55,24 @@ void reenable_page_protection(unsigned long *cr0)
 {
         write_cr0(*cr0);
 }
+
+#else
+
+/**
+ * Page-level write-protect toggling via the CR0 register is x86-specific. It is
+ * only used by the legacy syscall-table hooking path, which is unused on the
+ * ftrace-based builds (5.9+) that non-x86 arches such as arm64 target. These
+ * functions have no callers in such builds, so provide no-op stubs to keep the
+ * module buildable on non-x86 without pulling in read_cr0()/write_cr0().
+ */
+void disable_page_protection(unsigned long *cr0)
+{
+        *cr0 = 0;
+}
+
+void reenable_page_protection(unsigned long *cr0)
+{
+        (void)cr0;
+}
+
+#endif

@@ -378,14 +378,13 @@ static int resolve_hook_address(struct ftrace_hook *hook)
 static void notrace ftrace_callback_handler(unsigned long ip, unsigned long parent_ip,
 		struct ftrace_ops *ops, struct ftrace_regs *fregs)
 {
-	struct pt_regs *regs = ftrace_get_regs(fregs);
 	struct ftrace_hook *hook = container_of(ops, struct ftrace_hook, ops);
 
 #if USE_FENTRY_OFFSET
-	regs->ip = (unsigned long)hook->function;
+	dattobd_ftrace_set_ip(fregs, hook->function);
 #else
 	if (!dattobd_within_module(parent_ip, THIS_MODULE))
-		regs->ip = (unsigned long)hook->function;
+		dattobd_ftrace_set_ip(fregs, hook->function);
 #endif //USE_FENTRY_OFFSET
 }
 
@@ -409,7 +408,11 @@ static int register_hook(struct ftrace_hook *hook)
 	}
 	
 	hook->ops.func = ftrace_callback_handler;
-	hook->ops.flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_RECURSION | FTRACE_OPS_FL_IPMODIFY;
+	hook->ops.flags = FTRACE_OPS_FL_RECURSION | FTRACE_OPS_FL_IPMODIFY;
+
+#ifdef CONFIG_DYNAMIC_FTRACE_WITH_REGS
+	hook->ops.flags |= FTRACE_OPS_FL_SAVE_REGS;
+#endif
 
 	ret = ftrace_set_filter_ip(&hook->ops, hook->address, 0, 0);
 	if (ret) {
