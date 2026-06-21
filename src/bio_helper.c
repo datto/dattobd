@@ -430,7 +430,11 @@ static void __on_bio_read_complete(struct bio *bio, int err)
 #ifndef HAVE_BVEC_ITER
         //#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
         for (i = 0; i < bio->bi_vcnt; i++) {
-                bio->bi_io_vec[i].bv_len = PAGE_SIZE;
+                if (map && (i + 1) * PAGE_SIZE > map->size) {
+                        bio->bi_io_vec[i].bv_len = map->size - i * PAGE_SIZE;
+                } else {
+                        bio->bi_io_vec[i].bv_len = PAGE_SIZE;
+                }
                 bio->bi_io_vec[i].bv_offset = 0;
         }
 #endif
@@ -695,13 +699,14 @@ void bio_free_clone(struct bio *bio)
  */
 int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
                         struct bio *orig_bio, sector_t sect, unsigned int pages,
-                        struct bio **bio_out, unsigned int *bytes_added)
+                        unsigned int tail, struct bio **bio_out, unsigned int *bytes_added)
 {
         int ret;
         struct bio *new_bio;
         struct page *pg;
         unsigned int i;
         unsigned int bytes;
+        unsigned int actual_size = PAGE_SIZE;
         unsigned int total = 0;
 #ifdef BIO_MAX_PAGES
         unsigned int actual_pages =
@@ -758,9 +763,12 @@ int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
                         goto error;
                 }
 
+                if (i == pages - 1 && tail != 0)
+                        actual_size = PAGE_SIZE - tail;
+
                 // add the page to the bio
-                bytes = bio_add_page(new_bio, pg, PAGE_SIZE, 0);
-                if (bytes != PAGE_SIZE) {
+                bytes = bio_add_page(new_bio, pg, actual_size, 0);
+                if (bytes != actual_size) {
                         __free_page(pg);
                         break;
                 }

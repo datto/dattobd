@@ -14,7 +14,7 @@
 #include <stdint.h>
 #endif
 
-#define COW_SECTION_SIZE 4096
+#define COW_SECTION_SIZE PAGE_SIZE
 
 #define cow_write_filler_mapping(cm, pos) __cow_write_mapping(cm, pos, 1)
 extern const unsigned long dattobd_cow_ext_buf_size;
