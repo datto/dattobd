@@ -240,6 +240,7 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 {
         int ret;
         char *data;
+        char *block_data;
         sector_t start_block, end_block = SECTOR_TO_BLOCK(bio_sector(bio));
         struct bio_vec *bvec;
 #ifdef HAVE_BVEC_ITER_ALL
@@ -266,10 +267,10 @@ int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
                 // map the page into kernel space
                 data = kmap(bvec->bv_page);
 
-                // loop through the blocks in the page
-                for (; start_block < end_block; start_block++) {
+                block_data = data + bvec->bv_offset;
+                for (; start_block < end_block; start_block++, block_data += COW_BLOCK_SIZE) {
                         // pass the block to the cow manager to be handled
-                        ret = cow_write_current(dev->sd_cow, start_block, data);
+                        ret = cow_write_current(dev->sd_cow, start_block, block_data);
                         if (ret) {
                                 LOG_ERROR(ret,"memory demands %llu, memory saved before crash %llu",number_of_blocks*COW_BLOCK_SIZE,saved_blocks*COW_BLOCK_SIZE);
                                 kunmap(bvec->bv_page);
