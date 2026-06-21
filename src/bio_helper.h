@@ -149,7 +149,7 @@ void bio_free_clone(struct bio *bio);
 
 int bio_make_read_clone(struct bio_set *bs, struct tracing_params *tp,
                         struct bio *orig_bio, sector_t sect, unsigned int pages,
-                        struct bio **bio_out, unsigned int *bytes_added);
+                        unsigned int tail, struct bio **bio_out, unsigned int *bytes_added);
 
 #ifdef HAVE_BIO_ENDIO_INT
 void dattobd_bio_endio(struct bio *bio, int err);

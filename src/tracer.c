@@ -122,7 +122,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
         struct bio *new_bio = NULL;
         struct tracing_params *tp = NULL;
         sector_t start_sect, end_sect;
-        unsigned int bytes, pages;
+        unsigned int bytes, pages, tail;
 
         // if we don't need to cow this bio just call the real mrf normally
         if (!bio_needs_cow(bio, dev->sd_cow_inode) || tracer_read_fail_state(dev))
@@ -144,7 +144,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                         dev->sd_sect_off,
                         SECTORS_PER_BLOCK) +
                 dev->sd_sect_off;
-        pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
+
+        pages = ROUND_UP(end_sect - start_sect, SECTORS_PER_PAGE) / SECTORS_PER_PAGE;
+        tail = pages * PAGE_SIZE - (end_sect - start_sect) * SECTOR_SIZE;
 
         // allocate tracing_params struct to hold all pointers we will need
         // across contexts
@@ -164,7 +166,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
                 // allocate and populate read bio clone. This bio may not have all the
                 // pages we need due to queue restrictions
                 ret = bio_make_read_clone(dev_bioset(dev), tp, bio, start_sect, pages,
-                                        &new_bio, &bytes);
+                                        tail, &new_bio, &bytes);
                 if (ret)
                         goto error;
 
@@ -188,7 +190,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio)
 
                 // if our bio didn't cover the entire clone we must keep creating bios
                 // until we have
-                if (bytes / PAGE_SIZE < pages) {
+                if (bytes < (end_sect - start_sect) * SECTOR_SIZE) {
                         start_sect += bytes / SECTOR_SIZE;
                         pages -= bytes / PAGE_SIZE;
                         continue;
