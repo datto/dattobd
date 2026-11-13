@@ -226,6 +226,12 @@ int file_open(const char *filename, int flags, struct file **filp)
                 goto error;
         }
         f->f_mode |= FMODE_NONOTIFY;
+#ifdef FMODE_NOCMTIME
+        // Don't update mtime/ctime on our writes: that needs a journal handle,
+        // and the journal can be waiting on a writer that is stuck until the
+        // COW thread frees read clones (see thread_noio_enter()).
+        f->f_mode |= FMODE_NOCMTIME;
+#endif
 
         *filp = f;
         return 0;
