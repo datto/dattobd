@@ -16,10 +16,93 @@
 #include "submit_bio.h"
 #include "tracer_helper.h"
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/mm.h>
+#endif
+
 // this is defined in 3.16 and up
 #ifndef MIN_NICE
 #define MIN_NICE -20
 #endif
+
+/**
+ * thread_noio_enter() - Keeps the calling COW/sset kernel thread from
+ * recursing into I/O during memory reclaim.
+ *
+ * These threads persist data by writing to a file on the traced block device.
+ * If one of their allocations enters direct reclaim and reclaim writes pages
+ * back (e.g. to a swapfile on the same filesystem), that write is traced and
+ * needs a read clone from the device's bioset. Those clones are only given
+ * back by these very threads, so the thread ends up waiting on itself in
+ * mempool_alloc() and every writer on the device hangs. The loop driver
+ * guards against the same recursion in the same way.
+ *
+ * Return: the previous noio state, to be passed to thread_noio_exit().
+ */
+static unsigned int thread_noio_enter(void)
+{
+        unsigned int noio_flags = 0;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+        noio_flags = memalloc_noio_save();
+#endif
+#if defined(PF_LOCAL_THROTTLE)
+        // throttle dirtying only against our own writes, like loop does
+        current->flags |= PF_LOCAL_THROTTLE;
+#elif defined(PF_LESS_THROTTLE)
+        current->flags |= PF_LESS_THROTTLE;
+#endif
+        return noio_flags;
+}
+
+/**
+ * thread_noio_exit() - Restores the state saved by thread_noio_enter().
+ * @noio_flags: the value returned by thread_noio_enter().
+ */
+static void thread_noio_exit(unsigned int noio_flags)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+        memalloc_noio_restore(noio_flags);
+#endif
+}
+
+/**
+ * cow_reserve_enter() - Lets the caller allocate from the memory reserves
+ * without entering reclaim while it handles one queued request.
+ *
+ * Without I/O, reclaim can't free anything once clean pages are gone, so the
+ * COW thread would spin in direct reclaim while every other writer waits for
+ * it to give back read clones. Writes to the COW file itself are not traced,
+ * so handling a request turns reserve pages into dirty COW-file pages that
+ * writeback can clean without dattobd, and frees the request's clone pages.
+ *
+ * Return: the previous PF_MEMALLOC state, for cow_reserve_exit().
+ */
+static unsigned int cow_reserve_enter(void)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+        return memalloc_noreclaim_save();
+#else
+        unsigned int old = current->flags & PF_MEMALLOC;
+
+        current->flags |= PF_MEMALLOC;
+        return old;
+#endif
+}
+
+/**
+ * cow_reserve_exit() - Restores the state saved by cow_reserve_enter().
+ * @flags: the value returned by cow_reserve_enter().
+ */
+static void cow_reserve_exit(unsigned int flags)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+        memalloc_noreclaim_restore(flags);
+#else
+        current->flags = (current->flags & ~PF_MEMALLOC) | flags;
+#endif
+}
 
 /**
  * inc_sset_thread() - The thread entry that dequeues sector sets
@@ -37,6 +120,8 @@ int inc_sset_thread(void *data)
         struct snap_device *dev = data;
         struct sset_queue *sq = &dev->sd_pending_ssets;
         struct sector_set *sset;
+        unsigned int noio_flags = thread_noio_enter();
+        unsigned int reserve_flags;
 
         // give this thread the highest priority we are allowed
         set_user_nice(current, MIN_NICE);
@@ -70,7 +155,9 @@ int inc_sset_thread(void *data)
                 }
 
                 // pass the sset to the handler
+                reserve_flags = cow_reserve_enter();
                 ret = inc_handle_sset(dev, sset);
+                cow_reserve_exit(reserve_flags);
                 if (ret) {
                         LOG_ERROR(ret,
                                   "error handling sector set in kernel thread");
@@ -81,6 +168,7 @@ int inc_sset_thread(void *data)
                 kfree(sset);
         }
 
+        thread_noio_exit(noio_flags);
         return 0;
 }
 
@@ -98,6 +186,8 @@ int snap_cow_thread(void *data)
         struct snap_device *dev = data;
         struct bio_queue *bq = &dev->sd_cow_bios;
         struct bio *bio;
+        unsigned int noio_flags = thread_noio_enter();
+        unsigned int reserve_flags;
 
         // give this thread the highest priority we are allowed
         set_user_nice(current, MIN_NICE);
@@ -134,7 +224,9 @@ int snap_cow_thread(void *data)
                                 continue;
                         }
 
+                        reserve_flags = cow_reserve_enter();
                         ret = snap_handle_read_bio(dev, bio);
+                        cow_reserve_exit(reserve_flags);
                         if (ret) {
                                 LOG_ERROR(
                                         ret,
@@ -149,7 +241,9 @@ int snap_cow_thread(void *data)
                                 continue;
                         }
 
+                        reserve_flags = cow_reserve_enter();
                         ret = snap_handle_write_bio(dev, bio);
+                        cow_reserve_exit(reserve_flags);
                         if (ret) {
                                 LOG_ERROR(ret, "error handling write bio in "
                                                "kernel thread");
@@ -160,6 +254,7 @@ int snap_cow_thread(void *data)
                 }
         }
 
+        thread_noio_exit(noio_flags);
         return 0;
 }
 
